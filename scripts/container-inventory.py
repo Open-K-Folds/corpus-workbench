@@ -102,7 +102,7 @@ for name in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'Dockerfile', 'c
     shutil.copy2(root / name, source_out / name)
 for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic'):
     shutil.copytree(root / name, source_out / name)
-for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'evidence/dependency-inventory.json', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
+for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'scripts/runtime-contracts.py', 'evidence/dependency-inventory.json', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
     destination = source_out / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, destination)

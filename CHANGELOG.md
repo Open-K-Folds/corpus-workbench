@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-dev.8 - Unreleased candidate
+
+- Select one digest-pinned official Trixie runtime with signed date-pinned package refresh; retain Bookworm Rust/Node builders and application contracts.
+- Remove unused setuid/setgid program mode bits without removing essential packages or changing the Compose network/security profile.
+- Add a separate runtime-contracts image that executes the existing compiled native suite with the actual Trixie loader; its binaries and runner are excluded from production.
+- Keep production signoff, exact candidate qualification and publication explicit pending gates.
+
 ## 0.2.0-dev.7 - Unreleased
 
 - Remove the omitted-license optional build tool with an exact official Rollup pin; retain complete notices and handle nested npm package paths.

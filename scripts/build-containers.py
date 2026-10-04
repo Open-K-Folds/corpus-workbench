@@ -40,10 +40,17 @@ with tempfile.TemporaryDirectory(prefix='wb-image-source-') as directory:
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 with source.extractfile(member) as data, destination.open('wb') as output:
                     shutil.copyfileobj(data, output)
-    for target, image in [('native-test', tag + '-tests'), ('runtime', tag)]:
+    for target, image in [('native-test', tag + '-tests'), ('runtime-contracts', tag + '-runtime-contracts'), ('runtime', tag)]:
         subprocess.run(['docker', 'build', '--platform', build_platform, '--target', target,
             '--build-arg', 'SOURCE_COMMIT=' + commit, '--build-arg', 'VERSION=' + version,
             '-t', image, '.'], cwd=context, check=True)
+        if target == 'runtime-contracts':
+            test_image = json.loads(subprocess.check_output(['docker', 'image', 'inspect', image], text=True))[0]['Id']
+            subprocess.run(['docker', 'run', '--rm', '--network', 'none', '--read-only',
+                '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
+                '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m,mode=1777',
+                '--pids-limit', '128', '--memory', '1g', '--cpus', '2', test_image], check=True)
 metadata = json.loads(subprocess.check_output(['docker', 'image', 'inspect', tag], text=True))[0]
 print(json.dumps({'image': tag, 'image_id': metadata['Id'], 'source_commit': commit,
+    'runtime_contracts_image_id': test_image,
     'platform': build_platform, 'execution': 'native Linux engine' if build_platform == 'linux/' + architecture else 'emulated/cross-platform engine; not native hardware'}, indent=2))
