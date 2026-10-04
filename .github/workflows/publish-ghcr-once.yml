@@ -1,0 +1,103 @@
+name: publish-tested-containers-once
+
+on:
+  push:
+    branches:
+      - release/ghcr-0.2.0-dev.8
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-ghcr-0.2.0-dev.8
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE: ghcr.io/open-k-folds/corpus-workbench
+  SOURCE_SHA: 3be85c7cb9174dcd68ae523972e3decc6f88f907
+  SOURCE_TAG: sha-3be85c7
+  VERSION: 0.2.0-dev.8
+
+jobs:
+  build-test-push:
+    name: build-test-push (${{ matrix.architecture }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: amd64
+            machine: x86_64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Verify exact source and native architecture
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(uname -m)" = '${{ matrix.machine }}'
+          test -z "$(git status --porcelain)"
+      - name: Test and build immutable tracked source
+        run: python3 scripts/build-containers.py --platform linux/${{ matrix.architecture }} --tag corpus-workbench:publish
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.18.0'
+      - run: npm ci --prefix ui
+      - name: Install isolated Chromium
+        working-directory: ui
+        run: npx playwright install --with-deps chromium
+      - name: Test persistent runtime and actual browser
+        run: python3 scripts/container-smoke.py --image corpus-workbench:publish --port 18920 --out .runtime/container-publish-${{ matrix.architecture }}.local.json --browser
+      - name: Verify tested image metadata
+        shell: bash
+        run: |
+          test "$(docker image inspect corpus-workbench:publish --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$SOURCE_SHA"
+          test "$(docker image inspect corpus-workbench:publish --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "$VERSION"
+      - name: Sign in to GHCR
+        shell: bash
+        run: printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
+      - name: Push exact tested architecture image
+        shell: bash
+        run: |
+          docker tag corpus-workbench:publish "$REGISTRY_IMAGE:$VERSION-${{ matrix.architecture }}"
+          docker tag corpus-workbench:publish "$REGISTRY_IMAGE:$SOURCE_TAG-${{ matrix.architecture }}"
+          docker push "$REGISTRY_IMAGE:$VERSION-${{ matrix.architecture }}"
+          docker push "$REGISTRY_IMAGE:$SOURCE_TAG-${{ matrix.architecture }}"
+
+  publish-manifests:
+    name: publish multi-arch manifests
+    needs: build-test-push
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Sign in to GHCR
+        shell: bash
+        run: printf '%s' '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
+      - name: Publish version and source manifests
+        shell: bash
+        run: |
+          docker buildx imagetools create \
+            --tag "$REGISTRY_IMAGE:$VERSION" \
+            --tag "$REGISTRY_IMAGE:$SOURCE_TAG" \
+            "$REGISTRY_IMAGE:$VERSION-amd64" \
+            "$REGISTRY_IMAGE:$VERSION-arm64"
+      - name: Verify public multi-arch manifests
+        shell: bash
+        run: |
+          docker logout ghcr.io
+          export DOCKER_CONFIG="$RUNNER_TEMP/anonymous-docker"
+          mkdir -p "$DOCKER_CONFIG"
+          docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" --raw > "$RUNNER_TEMP/version-manifest.json"
+          docker buildx imagetools inspect "$REGISTRY_IMAGE:$SOURCE_TAG" --raw > "$RUNNER_TEMP/source-manifest.json"
+          jq -e '[.manifests[].platform.architecture] | sort == ["amd64", "arm64"]' "$RUNNER_TEMP/version-manifest.json"
+          jq -e '[.manifests[].platform.architecture] | sort == ["amd64", "arm64"]' "$RUNNER_TEMP/source-manifest.json"
+          version_digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" | awk '/^Digest:/ {print $2}')"
+          source_digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$SOURCE_TAG" | awk '/^Digest:/ {print $2}')"
+          test -n "$version_digest"
+          test "$version_digest" = "$source_digest"
+          printf 'Published `%s:%s` and `%s:%s` at `%s`.\n' "$REGISTRY_IMAGE" "$VERSION" "$REGISTRY_IMAGE" "$SOURCE_TAG" "$version_digest" >> "$GITHUB_STEP_SUMMARY"
