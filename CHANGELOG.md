@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-dev.5 - Unreleased
+
+- Add searchable corpus/source navigation, independent reading layers, timing/correction filters, next-match and keyboard selection, and a responsive authoring design system.
+- Retain token drafts across navigation; guard competing commits/review, explicit reset and exact-value conflict reapply without silently overwriting revised intentions.
+- Add searchable revision timeline and filterable evidence/field comparisons; display exact review scope and validation counts.
+- Bind source/XML inspection to project-scoped revision and artifact hash; discard late source/history replies and expose current errors.
+- Extend actual browser acceptance to eighteen flows with desktop/mobile rendering and four new experience journeys. Native preservation baseline remains124 tests.
+
 ## 0.2.0-dev.4 - Unreleased
 
 - Package a finite TEITOK reader profile and its annotation definition in complete exports; verify native TEITOK rendering/layer switches/span listing and byte-exact download/reimport without manual project fixes.

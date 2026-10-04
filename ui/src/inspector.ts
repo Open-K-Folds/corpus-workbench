@@ -3,7 +3,7 @@ import {esc,field,formValues} from './dom';
 export function tokenInspector(view:View,doc:Document,token:Token,onSave:(operations:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void):HTMLElement {
   const section=document.createElement('section');
   const options=Object.entries(view.snapshot.config.language_values).map(([v,d])=>`<option value="${esc(v)}">${esc(d||v)}</option>`).join('');
-  section.innerHTML=`<h2>Token ${esc(token.id)}</h2><p class="original">Original ASR / source<br><strong>${esc(token.original)}</strong></p><p class="muted">${token.start_us===null?'No word timing. Listen to its utterance.':'Observed word timing.'}</p><form id="token-form">
+  section.innerHTML=`<h2>Token ${esc(token.id)}</h2><p class="original">Original ASR / source<br><strong>${esc(token.original)}</strong></p><p class="muted">${token.start_us===null||token.end_us===null?'No complete word timing. Listen to its utterance.':'Observed word timing.'}</p><form id="token-form">
     ${field('nform','Human-corrected reading',token.corrected??'',token.original)}
     ${field('wb_normalized','Optional normalized reading',token.normalized??'')}
     <label>Language / variety<input name="variety" value="${esc(token.attrs.variety??'')}" list="language-values" autocomplete="off"></label><datalist id="language-values">${options}</datalist>
@@ -21,13 +21,14 @@ export function tokenInspector(view:View,doc:Document,token:Token,onSave:(operat
     section.append(note,confirm);
   }
   if(!token.editable){form.querySelectorAll('input,button').forEach(i=>(i as HTMLInputElement).disabled=true);section.insertAdjacentHTML('afterbegin','<p class="notice">Nested token preserved read-only. Safe editing is a later gate.</p>')}
-  form.addEventListener('input',onDirty);
-  form.addEventListener('reset',()=>setTimeout(onDirty));
+  const updateDirty=()=>{form.dataset.dirty=String(['nform','wb_normalized','variety','annotation','note'].some(key=>formValues(form)[key]!==initial[key]));onDirty()};
+  form.addEventListener('input',updateDirty);
+  form.addEventListener('reset',()=>setTimeout(updateDirty));
   form.addEventListener('submit',async event=>{
     event.preventDefault();const values=formValues(form);const fields:Record<string,string>={};
     for(const key of ['nform','wb_normalized','variety','annotation','note']) if(values[key]!==initial[key]) fields[key]=values[key];
     if(!Object.keys(fields).length)return;
-    await onSave([{kind:'set_token',document:doc.path,token:token.id,fields}],values.revision_label||'Correct token');
+    await onSave([{kind:'set_token',document:doc.path,token:token.id,fields}],values.revision_label||'Correct token',form);
   });return section;
 }
 export function annotationInspector(view:View,doc:Document,selected:string[],onSave:(operations:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void):HTMLElement {

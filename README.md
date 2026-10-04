@@ -1,6 +1,6 @@
 # Corpus workbench
 
-Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. **0.1.0-preview.1 is an engineering preview.** Source development is now **0.2.0-dev.4**, including [annotation editing](docs/ANNOTATION-MILESTONE.md), the [reference inventory foundation](docs/REFERENCE-INVENTORY-MILESTONE.md), [bounded split/merge](docs/RETOKENIZATION-MILESTONE.md) and a [packaged TEITOK reader](docs/TEITOK-READER-MILESTONE.md). The full approved migration is still in progress; the published preview stays immutable.
+Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. **0.1.0-preview.1 is an engineering preview.** Source development is now **0.2.0-dev.5**, including [annotation editing](docs/ANNOTATION-MILESTONE.md), the [reference inventory foundation](docs/REFERENCE-INVENTORY-MILESTONE.md), [bounded split/merge](docs/RETOKENIZATION-MILESTONE.md) a [packaged TEITOK reader](docs/TEITOK-READER-MILESTONE.md) and the [detailed authoring experience](docs/AUTHORING-EXPERIENCE.md). The full approved migration is still in progress; the published preview stays immutable.
 
 Import a complete TEITOK directory, listen to its media, correct tokens, maintain custom language values, create and edit discontinuous spans and relations, compare/undo/restore named revisions, review an exact revision, and export the complete package. SQLite transactions own revisions and review; immutable objects preserve source artifacts. Optional native Semantica generations are derived from approved exact snapshots and excluded from current queries after correction or review rejection.
 
@@ -46,7 +46,7 @@ npm run test:e2e --prefix ui
 npm audit --prefix ui --audit-level=low
 ```
 
-There are 124 Rust contract/recovery tests and fourteen actual browser flows. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI checks Windows x86-64, Linux x86-64 and Linux ARM64 plus Linux browser QA. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
+There are 124 Rust contract/recovery tests and eighteen actual browser flows. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI checks Windows x86-64, Linux x86-64 and Linux ARM64 plus Linux browser QA. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
 
 ## Scope and data rights
 

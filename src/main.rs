@@ -338,9 +338,19 @@ fn serve(mut store: Store, project: &str, ui: &Path, port: u16) -> Result<()> {
                     ),
                     (Method::Get, "/api/xml") => {
                         let path = query(&request, "path").context("XML path")?;
-                        let snapshot = store.snapshot(&store.head(project)?)?;
+                        let revision = query(&request, "revision")
+                            .map(|value| value.parse())
+                            .transpose()?
+                            .unwrap_or(store.head(project)?.id);
+                        let snapshot = store.snapshot(&store.revision(project, revision)?)?;
                         ensure!(path.ends_with(".xml"), "XML inspection only");
-                        Ok(json!({"path":path,"xml":store.objects.text(&snapshot,&path)?}))
+                        let artifact = snapshot
+                            .files
+                            .get(&path)
+                            .context("source not in exact snapshot")?;
+                        Ok(
+                            json!({"path":path,"revision":revision,"artifact_hash":artifact.sha256,"xml":store.objects.text(&snapshot,&path)?}),
+                        )
                     }
                     (Method::Get, "/api/contract") => {
                         store.approved_contract(project, store.head(project)?.id)

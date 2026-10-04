@@ -11,3 +11,5 @@ __pycache__/
 /release/
 /audit/
 /ui/dist-reader/
+
+/ui/dist-experience/
