@@ -1,0 +1,285 @@
+use corpus_workbench::{
+    handoff::{digest, Anchor, Binding, Completion, Recipe},
+    model::{Command, Operation},
+    package,
+    store::{Fault, Store},
+};
+use serde_json::{json, Value};
+use std::{collections::BTreeMap, fs};
+use tempfile::TempDir;
+
+fn fixture() -> (TempDir, Store, Completion, Vec<u8>) {
+    let tmp = TempDir::new().unwrap();
+    let input = tmp.path().join("input");
+    fs::create_dir_all(input.join("Resources")).unwrap();
+    fs::create_dir_all(input.join("xmlfiles")).unwrap();
+    fs::write(input.join("Resources/settings.xml"), "<ttsettings/>").unwrap();
+    fs::write(
+        input.join("xmlfiles/demo.xml"),
+        "<TEI><text><tok id='w-1' form='original'>original</tok></text></TEI>",
+    )
+    .unwrap();
+    let mut s = Store::open(&tmp.path().join("authority")).unwrap();
+    let revision = s.import(&input, "p").unwrap();
+    s.review(
+        "local-owner",
+        "p",
+        revision.id,
+        &revision.snapshot_hash,
+        "approved",
+        "Synthetic fixture",
+    )
+    .unwrap();
+    let contract = s.approved_contract("p", revision.id).unwrap();
+    let recipe = Recipe {
+        mapping_version: "corpus-evidence/1".into(),
+        adapter_hash: "a".repeat(64),
+        compiler_commit: "b".repeat(40),
+        compiler_source_hash: "c".repeat(64),
+        compiler_version: "semantica/0.6.8".into(),
+        runtime_hash: "d".repeat(64),
+        ontology_hash: "e".repeat(64),
+        model_hash: "f".repeat(64),
+        options: BTreeMap::from([
+            (
+                "extraction".into(),
+                "none; authored evidence mapping".into(),
+            ),
+            ("access".into(), "local-only".into()),
+        ]),
+    };
+    let binding = Binding {
+        schema: 1,
+        authority: "research-intelligence".into(),
+        project: "p".into(),
+        revision: revision.id,
+        snapshot_hash: revision.snapshot_hash,
+        config_hash: contract["config_hash"].as_str().unwrap().into(),
+        contract_hash: digest(&contract).unwrap(),
+        recipe,
+    };
+    let lineage = json!({"project_id":"p","revision":revision.id,"bundle_hash":binding.snapshot_hash,"config_hash":binding.config_hash,"contract_hash":binding.contract_hash,"recipe_hash":digest(&binding.recipe).unwrap(),"access_policy":"local-only"});
+    let doc = &contract["documents"][0];
+    let document_source = json!({"path":doc["path"],"title":doc["title"],"media":doc["media"],"metadata":doc["metadata"],"opaque_elements":doc["opaque_elements"]});
+    let anchors = BTreeMap::from([
+        (
+            "d".into(),
+            Anchor {
+                document: "xmlfiles/demo.xml".into(),
+                kind: "document".into(),
+                external_id: "xmlfiles/demo.xml".into(),
+            },
+        ),
+        (
+            "t".into(),
+            Anchor {
+                document: "xmlfiles/demo.xml".into(),
+                kind: "token".into(),
+                external_id: "w-1".into(),
+            },
+        ),
+    ]);
+    let mut nodes = Vec::new();
+    for (id, source, kind, content) in [
+        ("d", document_source, "CorpusDocument", doc["title"].clone()),
+        (
+            "t",
+            doc["tokens"][0].clone(),
+            "CorpusToken",
+            json!("original"),
+        ),
+    ] {
+        let mut properties = lineage.clone();
+        properties["anchor"] = serde_json::to_value(&anchors[id]).unwrap();
+        properties["source"] = source;
+        properties["artifact_hash"] =
+            contract["artifact_manifest"]["xmlfiles/demo.xml"]["sha256"].clone();
+        properties["rights"] = contract["rights"].clone();
+        properties["definition_version"] = contract["definition_version"].clone();
+        properties["content"] = content;
+        nodes.push(json!({"id":id,"type":kind,"properties":properties}));
+    }
+    let bytes = serde_json::to_vec(&json!({"nodes":nodes,"edges":[{"source_id":"t","target_id":"d","type":"partOfDocument","properties":lineage}]})).unwrap();
+    let completion = Completion {
+        schema: 1,
+        binding,
+        graph_hash: package::hash(&bytes),
+        node_count: 2,
+        edge_count: 1,
+        anchors,
+    };
+    (tmp, s, completion, bytes)
+}
+
+#[test]
+fn generation_idempotency_binds_complete_recipe_and_output() {
+    let (_, mut s, c, bytes) = fixture();
+    let first = s.accept_generation(&c, &bytes, Fault::None).unwrap();
+    assert_eq!(first, s.accept_generation(&c, &bytes, Fault::None).unwrap());
+    assert_eq!(s.generations("p", true).unwrap().len(), 1);
+    let mut altered = c.clone();
+    altered.binding.recipe.adapter_hash = "1".repeat(64);
+    assert!(
+        s.accept_generation(&altered, &bytes, Fault::None).is_err(),
+        "Recipe changes must rebind every graph record"
+    );
+    assert_eq!(s.generations("p", false).unwrap().len(), 1);
+}
+
+#[test]
+fn complete_export_preserves_generation_contract_receipt_and_graph() {
+    let (tmp, mut s, c, bytes) = fixture();
+    s.accept_generation(&c, &bytes, Fault::None).unwrap();
+    let out = tmp.path().join("export");
+    s.export("p", c.binding.revision, &out).unwrap();
+    let graph = walkdir::WalkDir::new(&out)
+        .into_iter()
+        .map(|e| e.unwrap())
+        .find(|e| e.file_name().to_str() == Some(&c.graph_hash))
+        .unwrap()
+        .into_path();
+    assert_eq!(fs::read(&graph).unwrap(), bytes);
+    let mut imported = Store::open(&tmp.path().join("imported")).unwrap();
+    imported.import(&out, "p").unwrap();
+    assert!(
+        !imported.view("p", None).unwrap().approved,
+        "Imported receipts do not grant new authority approval"
+    );
+    fs::remove_file(graph).unwrap();
+    let mut broken = Store::open(&tmp.path().join("broken")).unwrap();
+    assert!(
+        broken.import(&out, "p").is_err(),
+        "Declared derived objects must be present"
+    );
+}
+
+#[test]
+fn false_source_rights_lineage_edges_and_incomplete_graph_are_rejected() {
+    for mutation in 0..7 {
+        let (_, mut s, mut c, bytes) = fixture();
+        let mut graph: Value = serde_json::from_slice(&bytes).unwrap();
+        match mutation {
+            0 => graph["nodes"][1]["properties"]["source"]["start_us"] = json!(123),
+            1 => graph["nodes"][1]["properties"]["content"] = json!("invented correction"),
+            2 => graph["nodes"][0]["properties"]["rights"] = json!("public"),
+            3 => graph["nodes"][1]["properties"]["revision"] = json!(999),
+            4 => graph["edges"][0]["type"] = json!("inventedClaim"),
+            5 => {
+                graph["edges"] = json!([]);
+                c.edge_count = 0;
+            }
+            _ => graph["nodes"][1]["type"] = json!("VerifiedClaim"),
+        }
+        let bytes = serde_json::to_vec(&graph).unwrap();
+        c.graph_hash = package::hash(&bytes);
+        assert!(
+            s.accept_generation(&c, &bytes, Fault::None).is_err(),
+            "mutation {mutation}"
+        );
+        assert!(s.generations("p", true).unwrap().is_empty());
+    }
+}
+
+#[test]
+fn correction_and_review_retraction_exclude_history_from_default_queries() {
+    let (_, mut s, c, bytes) = fixture();
+    let generation = s.accept_generation(&c, &bytes, Fault::None).unwrap();
+    let id = generation["generation_id"].as_str().unwrap();
+    assert!(
+        s.generation("p", id, false).unwrap()["generation"]["current"]
+            .as_bool()
+            .unwrap()
+    );
+    let head = s.head("p").unwrap();
+    s.apply(
+        "local-owner",
+        &Command {
+            schema: 1,
+            project: "p".into(),
+            command_id: "edit".into(),
+            base_revision: head.id,
+            preimage_hash: head.snapshot_hash,
+            config_version: 1,
+            label: "correction".into(),
+            operations: vec![Operation::SetToken {
+                document: "xmlfiles/demo.xml".into(),
+                token: "w-1".into(),
+                fields: BTreeMap::from([("nform".into(), "corrected".into())]),
+            }],
+        },
+        Fault::None,
+    )
+    .unwrap();
+    assert!(s.generations("p", false).unwrap().is_empty());
+    assert!(s.generation("p", id, false).is_err());
+    assert_eq!(
+        s.generation("p", id, true).unwrap()["graph"]["nodes"][1]["properties"]["content"],
+        "original"
+    );
+    assert!(s.accept_generation(&c, &bytes, Fault::None).is_err());
+    let (_, mut other, c, bytes) = fixture();
+    other.accept_generation(&c, &bytes, Fault::None).unwrap();
+    other
+        .review(
+            "local-owner",
+            "p",
+            c.binding.revision,
+            &c.binding.snapshot_hash,
+            "rejected",
+            "retracted",
+        )
+        .unwrap();
+    assert!(other.generations("p", false).unwrap().is_empty());
+    assert_eq!(other.generations("p", true).unwrap().len(), 1);
+}
+
+#[test]
+fn generation_commit_failures_and_response_loss_have_atomic_retry() {
+    for (fault, committed) in [
+        (Fault::AfterStage, false),
+        (Fault::BeforeCommit, false),
+        (Fault::AfterCommit, true),
+    ] {
+        let (tmp, mut s, c, bytes) = fixture();
+        assert!(s.accept_generation(&c, &bytes, fault).is_err());
+        drop(s);
+        let mut s = Store::open(&tmp.path().join("authority")).unwrap();
+        assert_eq!(
+            s.generations("p", true).unwrap().len(),
+            usize::from(committed)
+        );
+        s.accept_generation(&c, &bytes, Fault::None).unwrap();
+        assert_eq!(s.generations("p", true).unwrap().len(), 1);
+        assert!(s.view("p", None).unwrap().approved);
+    }
+}
+
+#[test]
+fn schema_one_upgrade_and_backup_preserve_authority_and_generation_objects() {
+    let (tmp, s, c, bytes) = fixture();
+    s.conn
+        .execute_batch("DROP TABLE derived_generations; PRAGMA user_version=1;")
+        .unwrap();
+    drop(s);
+    let mut s = Store::open(&tmp.path().join("authority")).unwrap();
+    assert!(s.view("p", None).unwrap().approved);
+    assert_eq!(
+        s.conn
+            .query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0))
+            .unwrap(),
+        2
+    );
+    let generation = s.accept_generation(&c, &bytes, Fault::None).unwrap();
+    let backup = tmp.path().join("backup");
+    s.backup(&backup).unwrap();
+    let restored = Store::open(&backup).unwrap();
+    assert_eq!(
+        s.generation("p", generation["generation_id"].as_str().unwrap(), false)
+            .unwrap(),
+        restored
+            .generation("p", generation["generation_id"].as_str().unwrap(), false)
+            .unwrap()
+    );
+    fs::write(backup.join("objects").join(&c.graph_hash), "corrupt").unwrap();
+    assert!(Store::open(&backup).is_err());
+}

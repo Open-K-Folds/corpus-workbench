@@ -1,0 +1,25 @@
+// API v1. Field names mirror Rust model.rs. Browser integration tests validate
+// these contracts against actual native service responses, not a mock ledger.
+export interface Artifact { sha256: string; bytes: number; role: string }
+export interface Config { version: number; language_values: Record<string,string>; language_default: string|null; layers: {id:string;parent:string|null;alignment:string;overlap:boolean;containment:boolean;coverage:boolean}[]; rights: string; machine_draft_provenance: string }
+export interface Token { id: string; internal_id: string; original: string; corrected: string|null; normalized: string|null; attrs: Record<string,string>; utterance: string|null; start_us: number|null; end_us: number|null; language_effective: string|null; language_source: string; editable: boolean }
+export interface Segment { id:string;start_us:number|null;end_us:number|null;attrs:Record<string,string> }
+export interface Span { id:string;token_ids:string[];fields:Record<string,string>;sidecar:string }
+export interface Document { path:string;title:string;tokens:Token[];segments:Segment[];spans:Span[];media:string[];metadata:Record<string,string>;opaque_elements:string[] }
+export interface Snapshot {schema:number;project:string;files:Record<string,Artifact>;config:Config;index_status:string}
+export interface Revision {id:number;parent:number|null;snapshot_hash:string;actor:string;label:string;created_at:string;command_id:string}
+export interface View {api_version:number;revision:Revision;snapshot:Snapshot;documents:Document[];issues:{code:string;target:string;message:string;blocking:boolean}[];approved:boolean}
+export interface Diff {from:number;to:number;changes:{document:string;target:string;field:string;before:string|null;after:string|null}[];files:{path:string}[];config_before:Config;config_after:Config}
+export type Operation =
+ | {kind:'set_token';document:string;token:string;fields:Record<string,string>}
+ | {kind:'define_language';value:string;description:string}
+ | {kind:'set_language_default';value:string|null}
+ | {kind:'add_span';document:string;id:string;token_ids:string[];fields:Record<string,string>;character:{token:string;start:number;end:number;quote:string;coordinate:'unicode-codepoint';layer:'corrected'}|null}
+ | {kind:'add_relation';document:string;from:string;to:string;relation_type:string;note:string}
+ | {kind:'restore';revision:number};
+export interface Command {schema:1;project:string;command_id:string;base_revision:number;preimage_hash:string;config_version:number;label:string;operations:Operation[]}
+export function checkView(value:View):View {
+  if(value.api_version!==1 || value.snapshot.schema!==1 || !Number.isInteger(value.revision.id) || !Array.isArray(value.documents) || !value.revision.snapshot_hash.match(/^[a-f0-9]{64}$/)) throw new Error('Unsupported server contract');
+  for(const doc of value.documents) for(const token of doc.tokens) if(typeof token.id!=='string' || typeof token.original!=='string' || typeof token.internal_id!=='string') throw new Error('Invalid token contract');
+  return value;
+}

@@ -1,0 +1,1054 @@
+{
+  "inventory_version": 1,
+  "scope": "locked software/build/test dependencies; data rights and optional TEITOK runtime are separate",
+  "toolchains": {
+    "rust": "1.90.0",
+    "node": "24.18.0"
+  },
+  "components": [
+    {
+      "ecosystem": "cargo",
+      "name": "ahash",
+      "version": "0.8.12",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "5a15f179cd60c4584b8a8c596927aadc462e27f2ca70c04e0071964a73ba7a75"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "anyhow",
+      "version": "1.0.103",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "ascii",
+      "version": "1.1.0",
+      "reported_license": "Apache-2.0 OR MIT",
+      "registry_checksum": "d92bec98840b8f03a5ff5413de5293bfcd8bf96467cf5452609f939ec6f5de16"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "bitflags",
+      "version": "2.13.2",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "3ded4057c258ba199e2d26386d3af3780957ecaee6c4ef4041c6b4b8b97c0b06"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "block-buffer",
+      "version": "0.10.4",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "bumpalo",
+      "version": "3.20.3",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "byteorder",
+      "version": "1.5.0",
+      "reported_license": "Unlicense OR MIT",
+      "registry_checksum": "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "cc",
+      "version": "1.6.0",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "f74872d07caf508b30a21f6836e7d7016a2eaf7d9ff4f48deaa58cd8a0407630"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "cfg-if",
+      "version": "1.0.5",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "chunked_transfer",
+      "version": "1.5.0",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "6e4de3bc4ea267985becf712dc6d9eed8b04c953b3fcfb339ebc87acd9804901"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "corpus-workbench",
+      "version": "0.1.0-preview.1",
+      "reported_license": "GPL-3.0-or-later",
+      "registry_checksum": null
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "cpufeatures",
+      "version": "0.2.17",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "crc32fast",
+      "version": "1.5.2",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "01a7799fd6b852db0e61728dde9a204c423b44d689dbd432522543614b490e78"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "crossbeam-utils",
+      "version": "0.8.23",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "crypto-common",
+      "version": "0.1.7",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "78c8292055d1c1df0cce5d180393dc8cce0abec0a7102adb6c7b1eef6016d60a"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "digest",
+      "version": "0.10.7",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "errno",
+      "version": "0.3.14",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "fallible-iterator",
+      "version": "0.3.0",
+      "reported_license": "MIT/Apache-2.0",
+      "registry_checksum": "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "fallible-streaming-iterator",
+      "version": "0.1.9",
+      "reported_license": "MIT/Apache-2.0",
+      "registry_checksum": "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "fastrand",
+      "version": "2.5.0",
+      "reported_license": "Apache-2.0 OR MIT",
+      "registry_checksum": "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "find-msvc-tools",
+      "version": "0.1.14",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "futures-core",
+      "version": "0.3.34",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "92d699e522242e69e3003b94ecc1f960f3a5e015aa7c5d7486e65ad01dd94f5e"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "futures-task",
+      "version": "0.3.34",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "cd417de3d1d015fc3bfd2b1ea46dfc7bab72ef86f1cc7cc9c78e728b34a6d1fd"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "futures-util",
+      "version": "0.3.34",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "0d50a92467f8ba5dd6e3ee5d4bd04d73ab2e4e1c44474a0674821dfce14b79bc"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "generic-array",
+      "version": "0.14.7",
+      "reported_license": "MIT",
+      "registry_checksum": "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "getrandom",
+      "version": "0.3.4",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "899def5c37c4fd7b2664648c28120ecec138e4d395b459e5ca34f9cce2dd77fd"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "hashbrown",
+      "version": "0.14.5",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "hashlink",
+      "version": "0.9.1",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "httpdate",
+      "version": "1.0.3",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "itoa",
+      "version": "1.0.18",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "js-sys",
+      "version": "0.3.106",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "7883d941dae510fb2d978fc3fe018c71c9e2892fd38854de3e8b92c2e5ad9cc5"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "libc",
+      "version": "0.2.190",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "ce5d3ddc6d3fa000eb1536d85e147bfe31aacaba692ed6a876f95cb7c855be78"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "libsqlite3-sys",
+      "version": "0.30.1",
+      "reported_license": "MIT",
+      "registry_checksum": "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "linux-raw-sys",
+      "version": "0.12.1",
+      "reported_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "registry_checksum": "32a66949e030da00e8c7d4434b251670a91556f4144941d37452769c25d58a53"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "log",
+      "version": "0.4.34",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "memchr",
+      "version": "2.8.3",
+      "reported_license": "Unlicense OR MIT",
+      "registry_checksum": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "once_cell",
+      "version": "1.21.4",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "pin-project-lite",
+      "version": "0.2.17",
+      "reported_license": "Apache-2.0 OR MIT",
+      "registry_checksum": "a89322df9ebe1c1578d689c92318e070967d1042b512afbe49518723f4e6d5cd"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "pkg-config",
+      "version": "0.3.34",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "proc-macro2",
+      "version": "1.0.107",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "quote",
+      "version": "1.0.47",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "r-efi",
+      "version": "5.3.0",
+      "reported_license": "MIT OR Apache-2.0 OR LGPL-2.1-or-later",
+      "registry_checksum": "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "roxmltree",
+      "version": "0.20.0",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "rusqlite",
+      "version": "0.32.1",
+      "reported_license": "MIT",
+      "registry_checksum": "7753b721174eb8ff87a9a0e799e2d7bc3749323e773db92e0984debb00019d6e"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "rustix",
+      "version": "1.1.5",
+      "reported_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "registry_checksum": "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "rustversion",
+      "version": "1.0.23",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "ryu",
+      "version": "1.0.23",
+      "reported_license": "Apache-2.0 OR BSL-1.0",
+      "registry_checksum": "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "same-file",
+      "version": "1.0.6",
+      "reported_license": "Unlicense/MIT",
+      "registry_checksum": "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "serde",
+      "version": "1.0.228",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "9a8e94ea7f378bd32cbbd37198a4a91436180c5bb472411e48b5ec2e2124ae9e"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "serde_core",
+      "version": "1.0.228",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "41d385c7d4ca58e59fc732af25c3983b67ac852c1a25000afe1175de458b67ad"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "serde_derive",
+      "version": "1.0.228",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "d540f220d3187173da220f885ab66608367b6574e925011a9353e4badda91d79"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "serde_json",
+      "version": "1.0.145",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "sha2",
+      "version": "0.10.9",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "shlex",
+      "version": "2.0.1",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "slab",
+      "version": "0.4.12",
+      "reported_license": "MIT",
+      "registry_checksum": "0c790de23124f9ab44544d7ac05d60440adc586479ce501c1d6d7da3cd8c9cf5"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "smallvec",
+      "version": "1.16.2",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "f9395f0f0eee849a9b707b2f06bb92a6a422090e2123bb2ef8e87a0e61892a8e"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "syn",
+      "version": "2.0.119",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "872831b642d1a07999a962a351ed35b955ea2cfc8f3862091e2a240a84f17297"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "syn",
+      "version": "3.0.6",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "8593e8e72159ed2257d083c7a454a85cbf854f37a0966d8d483aff8c8a3ebcee"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tempfile",
+      "version": "3.23.0",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "2d31c77bdf42a745371d260a26ca7163f1e0924b64afa0b688e61b5a9fa02f16"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "tiny_http",
+      "version": "0.12.0",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "389915df6413a2e74fb181895f933386023c71110878cd0825588928e64cdc82"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "typenum",
+      "version": "1.20.1",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "unicode-ident",
+      "version": "1.0.26",
+      "reported_license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+      "registry_checksum": "d245f478577f809a851594d02313b640fb437e0bb33866753cff937863096954"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "uuid",
+      "version": "1.18.1",
+      "reported_license": "Apache-2.0 OR MIT",
+      "registry_checksum": "2f87b8aa10b915a06587d0dec516c282ff295b475d94abf425d62b57710070a2"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "vcpkg",
+      "version": "0.2.15",
+      "reported_license": "MIT/Apache-2.0",
+      "registry_checksum": "accd4ea62f7bb7a82fe23066fb0957d48ef677f6eeb8215f372f52e48bb32426"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "version_check",
+      "version": "0.9.5",
+      "reported_license": "MIT/Apache-2.0",
+      "registry_checksum": "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "walkdir",
+      "version": "2.5.0",
+      "reported_license": "Unlicense/MIT",
+      "registry_checksum": "29790946404f91d9c5d06f9874efddea1dc06c5efe94541a7d6863108e3a5e4b"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "wasip2",
+      "version": "1.0.4+wasi-0.2.12",
+      "reported_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "registry_checksum": "b67efb37e106e55ce722a510d6b5f9c17f083e5fc79afc2badeb12cc313d9487"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "wasm-bindgen",
+      "version": "0.2.129",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "9bb54f33acc68fd454578d9820b0bde1a1a3d17aa17bb7b6595806d02886d409"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "wasm-bindgen-macro",
+      "version": "0.2.129",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "2e29d0c35b16e224a7eeb5cd2d25e3e1968fbd65604117b44d3b789d00ee8535"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "wasm-bindgen-macro-support",
+      "version": "0.2.129",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "6f501a8bc3719dba86ef8ae4728879c08001bea749eb1333ac5b91e040e2a6b7"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "wasm-bindgen-shared",
+      "version": "0.2.129",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "23f0c9c52aa7cd7d77769a4cfe2a9adb1b331f489a41d912ce14513d5ab995c6"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "winapi-util",
+      "version": "0.1.11",
+      "reported_license": "Unlicense OR MIT",
+      "registry_checksum": "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "windows-link",
+      "version": "0.2.1",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "f0805222e57f7521d6a62e36fa9163bc891acd422f971defe97d64e70d0a4fe5"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "windows-sys",
+      "version": "0.61.2",
+      "reported_license": "MIT OR Apache-2.0",
+      "registry_checksum": "ae137229bcbd6cdf0f7b80a31df61766145077ddf49416a728b02cb3921ff3fc"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "wit-bindgen",
+      "version": "0.57.1",
+      "reported_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
+      "registry_checksum": "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "zerocopy",
+      "version": "0.8.59",
+      "reported_license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+      "registry_checksum": "6df92bf3d9227be3d53173901ddbffac2babc27ae50f397776ffd6dc33f800cb"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "zerocopy-derive",
+      "version": "0.8.59",
+      "reported_license": "BSD-2-Clause OR Apache-2.0 OR MIT",
+      "registry_checksum": "ac4f328cf2f05d084e496c3e9c3f33ed0a183656a16e1fcec4d464d8373aec82"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "zip",
+      "version": "0.6.6",
+      "reported_license": "MIT",
+      "registry_checksum": "760394e246e4c28189f19d488c058bf16f564016aefac5d32bb1f3b51d5e9261"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/android-arm",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-kXXoiPVVGQcnIYGOeaovwOURpniDBpSq4A03qkQ+BMQqtGG6HYap3xne9C1O1yo4TR3qxlCX5IqqmX6fFo2Lqg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/android-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-5YfKeeI8qWfBZIX+u2xZC3Zlb3Os/gLS2sbEKM+I4ZOcsWmHS2WLysCcQZDAFRslDUU5Oiq44gf6PYN1vGwG5A=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/android-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-O387ite7SzUyCcy3JQX4P4bLtEA7bLLkx+esve5JHnyYfNTxcVpXZo9jhdB0lTKN44gztELTdU7nS8Nr16Fs1Q=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-n4KqkOQrraxHJcgjM1RvwbigfQKIKJVpM7xp+KsxiyUSrRdIXnt73VhrPAx0fV44hgfmIVKjxMN9J1t5jySVkw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/darwin-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-uq6suIWYP37qzGddBKPw5QEQPi6HiLGsO7UmkpfyaYNQ3D+rN6w6WfwH+nuqcGXWvawGwxOEroO4YGnFh95azw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-n+I0BTSRIoy+d6RPKnEVwql5UwBJolytvY4mAOIEJorKlqgPII8ix6slVVrfZ5Tnj7glIZvloylbB/EJPMWEXw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-78XJTJkvPs0kz2w61301PJjXl4g7q3JqiYMZ/M/yVI73EHBrCRTgkhu9oqG7vPqq+a/yadEW8aD+agKlk5xrmg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-arm",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-XlDnu2q5yoqems+xay6wSAcg9DDD7K9RLKZEBOMZm3ckNpJBvOX20tSfby8KfrrhINDyv9V2YVZKY/SpoGJI8w=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-pW4AC0P3it8c7do9MVM4p51FzHzdM/TZrerurgRcHJ2WTa1VQ1CIq18xncfpBJw4ojkiZZrKW2yIBWBP92j6Ug=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-ia32",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-CYbnj78HsIeA+DhgUKgFCfvNsTHFhMMrinUrMZpDXJXKN8T3XViTZ/+wtHeVxEWY8ewSzTFN+nRmSwO2tZaLUQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-loong64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-buwkd8nsph4R+ajRvw0qM5Hja/TXQow3ptzWO2EbG/cqcIkHloRrdlBtQlshyYGTNFvfkfJ5tpPLVkY4DtsPfQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-ZVykbDyk7519VwiNb9Lcj9m8XM6v5V9uKPvrEMkkEedVewf+0itkhahp4HDpgERXhwLRpWFypsGbG/J8s0QjJA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-CAXl+Dtd9UUuJd8pKKdwh6MLm3MUMiqMPmhZ3tTSXPqfyQ3vDl6R5hZdZ/kYojK4ofXtdfSv1tFq8XzWx3heNQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-GeXCej4IQtU1B+QlDV8W/RRvbzI3O/Stss+/bCXv4lZls5WGRtu2a+3JkA3i4qIUlMXpcHebWpF8AkJhATowuA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-s390x",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-3H1weTYZPxt/WOhByszQZybS9w5lKzUn1FDMsgEChbHWQwHYQQRfBxgCcZvPhjHfKyJjIievvMmEUawJrdY9Dg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-4xTZr1FUmSoQW4XIWmit3tzQrUTZM+N3P0XV8xROKYF50XfI7xeO90+1bZvNwxIufQ9hDQVRJH5YhgPVF8A/HQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-sSATRjPeDBg3pdgHoQfoYBob11Kk1FGa9lui5RIHZCoCkJa9QKlvl3/vKz2usCmYYjs7ymJR/2Nnsqe+Hjt5nw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-lqnzCV+mM0gIADaKihiCg6ifgfU2L3h5E33rNQBN1Y4MaVGnzryzmvvf7UHxprpQdE8hpqLolJ9Rl+SkIRDpyw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-AL2qJILH7lNjrDmCQDvdxMfAUIv8KMNZOvrwAQ8i8//ntL9FflhOyMJ8OZSMBb8/AWXe3/5v5S20y3zCoZWKoQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-QtiuPytchRyC4rwUKhexJdQKvDuZ6hWloi3igqPQNUJCS1/v9EiO3UTOXR6A3FoMo4fnAKbWJdqaIwhOzh8qEw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-WkhYDmpTjLvGlScA1rwjRUmhl4k8oXR3cIbtqWmELgU/dFeHHlEllxDvdWcNJV9rbzCexB5vz8gtNewWLgCT7Q=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/sunos-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-GPMSkTOtMnv2U2F8gxe4Io6qmVs+YKyp832Etqqxr0hFngmXQ3rzwytelm3GIn7T4VviRUlf3sOgBOiTdvaf7g=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/win32-arm64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-PIhhEkE9uPBleRBrQEJpUn7MBnibZzbGzYWPmY3x+YoVg/95zbjB4CxPPOQ8l5tYYM4mMaCthF8/1DIfBQQyWQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/win32-ia32",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-YmJbfTlvU7Sdn9BB+4PRES4oB6pxgS37MAONj+hBr/cpXS1aBPKXxNnDbu+QCWPj0o9dgyxeq79g6c5P8KeuYA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-5ebpxr3nWMzrL/rnUI755Jkuee0bHL/Gq0WTF9lvcpv73wAp5eu8MfBUgWK9bhWvZjj7yX8etf/8tI8Ney695g=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@napi-rs/lzma-linux-x64-gnu",
+      "version": "1.5.1",
+      "reported_license": "MIT",
+      "integrity": "sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@playwright/test",
+      "version": "1.56.1",
+      "reported_license": "Apache-2.0",
+      "integrity": "sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-android-arm-eabi",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-FLLpX941CD/7aBvX3GqLGBM9OvY5PGXTryPJkG5r5/OuBpZpV5k45Uo3RxAvqd35tsyc3hH1bhtz921IKzoIzg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-android-arm64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-iI32XM/jnDYJsvx5ai/za/7gWO9XoSeFFtU06/ZCaRgyilfJOjaopD3nOpk2WrTCGOyeDt4hleUiGOAnd5tHNg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-darwin-arm64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-dRBZlbt2sEtF8Mn4MODThze9fIPdDoOhVSlXMAKy5dQbOYK9pOOoPY4Fat3OTtr0+8zbJo5TTZwlsfxY/kDNJg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-darwin-x64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-Y3whrJOMucfkhgNkvcM93M6j8C53iEAMmPMYD99C6G1kUy4ELigLWk9ar2/4aCBSRgsql0zdlOemLgW2m5GZgQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-freebsd-arm64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-S6S1GEzPjFF6IONYJX3AKt/799+8RgBgCcwRnUo+Ep1IvBxUbw5M51iU0TDdK2NWWVnSvCQ8yi6Em0fGASMOng=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-freebsd-x64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-Ed1DPoFENkXj4IGzSB12SesV40iP6LxCCrbTIkSGIQBpOOxpBM+0kj62lmaeIHfMWTDoddqTOtqc7s8LYfn+Pw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-arm-gnueabihf",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-J/6xhutJPtFyIkmHdf4olOdHHKH5kOJNumojdWn+Elv5ICEYTVOa362Vw27TxsK0BLzb1le3EDlO3UbvFK1lnQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-arm-musleabihf",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-G4L/Nnx59d2LvDoV/P4S5lZ7oVLT6hodOHMacqjiq2LL2gts86KbkEBTYL53+fBt0odhf7XPIbIATGoYiJctxg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-arm64-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-zF16pvJDEUksGYRbfnXne7pdklAyj2XDmJeYKgP93oq0cUyX9Y8O7lUo1R+IY1GagP/YBvCEDCe7eEcAKpw//g=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-arm64-musl",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-nIggWn8n+w12+R5lsV+PYYoUY8vuObxPAQqJI7WES+9v0qspYuAHoZMfYM0yLxlipasT5BY9ht5W8t5c/rSCkg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-loong64-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-WLOTiHPzszP0dxIMsHpFeDSOSB5I49Mj8K4+yKE3H1X/D0JRG5XZ5jrctJLMjnUc/LUzaKiwq6EHWNJ8pup8PA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-loong64-musl",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-35RK9aRhh7g7Pmeu5gQ01aCvrhXzj9LoBE6xtUcEH1ns+nyTaSzxSpADmBQINu4QiTDGvmQYwo1j5hlg1rRXFw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-ppc64-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-RqTfnpoTjuWfPAmqK5p2edt2AMCDJWm6oTn7sKfmyx+6tRga0ip05SJ977o6udTcIiDeF/CJMUfkaN4gtWt6Aw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-ppc64-musl",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-RQjZPigjxFvFZDijG6rjlSXxhRaTf9zLYVpGK+lVcga64oMqP1GbgVqCb46eHTTceSIgp89Ja0y5aPe3GFBYHg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-riscv64-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-tjL58mgQcTRnDRpeky+Sth1MKQeYi2Ct6r3Luq9E5aTSjnM/i/JbozqZkKqp9thM5+oDSZxo+05f9kdQedfTGA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-riscv64-musl",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-ictoRyVaoZ8C67myHef+8hhCa6IplXJJ/xUCkVCxziV4zxMZh+jvhkhGsPBLqj1S72fnqD0QH5zL4lcaa4X7DQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-s390x-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-8aVvZ2hfr9RLFzBQkQNmYeHLDja8fLeQAmLt757zdKN/B+8L809KlLJKctQjS22wZotptV8G6o7fVPuAs8S1tQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-x64-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-2dEF8GAcDKwshUfydD+GhosppNyBzhVUHkdFF3CXd3FpOkzj/RZzF5aoEtzklujklT5qFVRU2GK/cFeLaTNKVg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-linux-x64-musl",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-3XHTvoo2hKkh0MiOfS7SkhHjMaaWF7P4F3drocZZaho/Z8w7h/jpnuBHm91BOQLfvrKHs1yR+zir4E8RI3XzTQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-openbsd-x64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-HKtkzodL4a3KFWDXDoO61cRynAWTR3LnAE0oGtfG9lcNFpNuVYUFOByxDgNqEvic9rvaQbAj+SFwTEWDptRaIw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-openharmony-arm64",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-JBsxqiY16uyyCujtoC3s7zL+SrYyNElptD7K4V+KUoJ2V8/XG3hPWpheK+SuPwNh1cikJvIZmIdsrYXvD6PLJw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-win32-arm64-msvc",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-S5Qrijh37qhnUYQ0ay8WN3LuWeKjow7wTUyCOPMZtnXiBXYXdsZETI6ZLfYnQAKovltckPLBFdNeD61P2rJc7g=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-win32-ia32-msvc",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-zbZ6iMmLFEsCtTdc2/y1F/cDFVNNCPF7Ae8PCT/wdPE//hGwYp6r+MyCLMFX+kOeIe09Pz6ASfnnfpSTN1FJQQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-win32-x64-gnu",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-L6Hw69oNpuYaOr1zCG30v0/DqKYCSRwodPGwIcVZ/6f8SOzq9rxtL/xNVI5MO4wjli+Ko0ErK9uHJL3mNPt8wQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@rollup/rollup-win32-x64-msvc",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-nl+CTWIgOGszQmUz/kanfgrfFZ4qiwxKIfT/ryl3N3Ewk5tqizmYtNXiqb7Bu/fDtNgu1kyxdFiAUJNur3iysg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@types/estree",
+      "version": "1.0.9",
+      "reported_license": "MIT",
+      "integrity": "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "esbuild",
+      "version": "0.28.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-HKVLS8dvII+xoKW9kmqxbRKrnWEXfJJr/FZhhJmiqIB0e053QNYFqOBouTMO/k5sID4MvCiUCvv8b9M4h32wIA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fdir",
+      "version": "6.5.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fsevents",
+      "version": "2.3.2",
+      "reported_license": "MIT",
+      "integrity": "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "nanoid",
+      "version": "3.3.19",
+      "reported_license": "MIT",
+      "integrity": "sha512-Y2tUNy4ouw6tq5oDSKeQYGOyhkUBhNOcGV/02KC+6kd9eDGqdZd++mjMiIDilrBYvjEnCYvVtsuHCuP+okSfug=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "picocolors",
+      "version": "1.1.1",
+      "reported_license": "ISC",
+      "integrity": "sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "picomatch",
+      "version": "4.0.7",
+      "reported_license": "MIT",
+      "integrity": "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "playwright",
+      "version": "1.56.1",
+      "reported_license": "Apache-2.0",
+      "integrity": "sha512-aFi5B0WovBHTEvpM3DzXTUaeN6eN0qWnTkKx4NQaH4Wvcmc153PdaY2UBdSYKaGYw+UyWXSVyxDUg5DoPEttjw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "playwright-core",
+      "version": "1.56.1",
+      "reported_license": "Apache-2.0",
+      "integrity": "sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "postcss",
+      "version": "8.5.28",
+      "reported_license": "MIT",
+      "integrity": "sha512-RRuzqDtt5Y9h3quz5hWhK+TPnsmVs6WwSU6LkJMeY4HstUEDuYTG8UJSdawMRzmzAtV+KEoG8N3Qg2qLy5vM/A=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "rollup",
+      "version": "4.64.0",
+      "reported_license": "MIT",
+      "integrity": "sha512-gjA/kFeDfffII8COoPsvLPvE16hWDTEc1+0QKQNKUkuV8iJjqsC4xXs8/FzuL0v9EV39kuxTbAgcFoTRyy2TGQ=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "source-map-js",
+      "version": "1.2.2",
+      "reported_license": "BSD-3-Clause",
+      "integrity": "sha512-KGj/8Y43x35aZVDtt+J4mK1hoLGHULMYfSkODJNQjNDC3oW1PqPoxMwo0pLUsWM/UEGzON/NxeHywEfNXNP3Vw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "tinyglobby",
+      "version": "0.2.17",
+      "reported_license": "MIT",
+      "integrity": "sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "typescript",
+      "version": "5.9.3",
+      "reported_license": "Apache-2.0",
+      "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "vite",
+      "version": "7.3.6",
+      "reported_license": "MIT",
+      "integrity": "sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fsevents",
+      "version": "2.3.3",
+      "reported_license": "MIT",
+      "integrity": "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="
+    }
+  ],
+  "optional_runtime": {
+    "teitok_commit": "57d864b57fa3ed9f0a660a7781533ce7fa09ae2b",
+    "teitok_license": "GPL-3.0-or-later",
+    "labbcat_code_reused": false
+  },
+  "npm_audit": "0 vulnerabilities after Vite 7.3.6 update; not a whole-system security clearance",
+  "rust_advisory_scan": {
+    "tool": "cargo-audit/0.22.2",
+    "database_commit": "ef6173cbc5c50ec8166f9a5b28f07834144373ee",
+    "advisory_count": 1290,
+    "vulnerabilities": 0,
+    "warnings": 0,
+    "fixed_advisory": "RUSTSEC-2026-0190; anyhow patched to 1.0.103"
+  },
+  "license_review": "inventory only; no legal clearance claim"
+}

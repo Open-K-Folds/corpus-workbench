@@ -1,0 +1,32 @@
+{
+  "reviewed_commits": [
+    "57be19e",
+    "6ef2204"
+  ],
+  "baseline_rust_tests_passed": 39,
+  "demonstrated_defects": [
+    "Export replaced supplied Workbench definitions/receipts and broke hashes",
+    "Imported impossible character anchors could be approved",
+    "Authenticated project could download another project's known export ID",
+    "Concurrent identical request returned false stale conflict",
+    "Failed duplicate start replaced working session launcher",
+    "Mixed utterance documents omitted unparented tokens"
+  ],
+  "repair_validation": {
+    "rust_tests": 42,
+    "browser_tests": 3,
+    "strict_clippy": "passed",
+    "typescript_build": "passed; separate dist-next"
+  },
+  "regression_cases": "Three repeated exports with original metadata and every receipt hash; four invalid imported anchor variants; simultaneous writer-lock duplicate retry; visible outside token; foreign known ZIP denied; duplicate-launch code/launcher unchanged. Original complete browser journey and three real abrupt-process recovery tests still pass.",
+  "followup_verification": {
+    "targeted_independent_rust_cases": 9,
+    "unprestaged_duplicate_rounds": 24,
+    "ordered_browser_tokens": true,
+    "foreign_export_denied": true,
+    "snapshot_definition_history_hashes": true,
+    "missing_malformed_metadata_rejected": true,
+    "complete_authored_topology_checked": true,
+    "no_remaining_demonstrated_blocker": true
+  }
+}

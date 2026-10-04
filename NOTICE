@@ -1,0 +1,25 @@
+Corpus workbench — 0.1.0-preview.1
+Copyright (C) 2026 Open-K-Folds and contributors.
+Implementation authorship: kaygizzle / KG-khangelani.
+Distributed under GNU GPL version 3 or, at your option, any later version.
+
+Compatibility reference and retained license notice:
+TEITOK, Copyright (C) 2018 Maarten Janssen.
+Inspected reference revision: 57d864b57fa3ed9f0a660a7781533ce7fa09ae2b.
+Reference source: https://gitlab.com/maartenpt/teitok
+The complete supplied GPL text and TEITOK notice are retained in LICENSE.
+This repository adds an independently implemented native Rust revision authority,
+lossless package adapters, TypeScript authoring interface, native graph contract,
+tests, build scripts and documentation. It does not bundle the TEITOK runtime.
+Changes and corresponding build instructions are in CHANGELOG.md and README.md.
+
+LaBB-CAT capability references informed layer/time/provenance validation design.
+No LaBB-CAT AGPL source has been copied or linked into this implementation.
+
+Third-party dependencies retain their own notices and licenses. Locked dependency
+names, versions, hashes and declared licenses are in evidence/dependency-inventory.json.
+Binary preview packages must include retained dependency license files and the
+exact corresponding source commit, build instructions, platform and checksums.
+
+Software licenses do not grant corpus, recording, transcript or creator rights.
+Private data and private evaluation copies are excluded from public distribution.
