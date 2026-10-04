@@ -568,6 +568,8 @@ pub fn token_fields(
     {
         for span in &doc.spans {
             if span.token_ids.iter().any(|id| id == token) && span.fields.contains_key("wb_start") {
+                ensure!(docs.iter().filter(|d| d.spans.iter().any(|s| s.sidecar == span.sidecar)).count() == 1,
+                    "sidecar matches multiple transcripts; explicit association required before editing");
                 let old = objects.text(snapshot, &span.sidecar)?;
                 let new = xml::patch_attrs(
                     &old,
@@ -676,6 +678,8 @@ pub fn add_span(
         .to_str()
         .context("basename")?;
     let path = format!("Annotations/review_{basename}");
+    ensure!(docs.iter().filter(|d| Path::new(&d.path).file_name().and_then(|n| n.to_str()) == Some(basename)).count() == 1,
+        "sidecar matches multiple transcripts; explicit association required before creating a span");
     let old = if snapshot.files.contains_key(&path) {
         objects.text(snapshot, &path)?
     } else {
@@ -696,6 +700,239 @@ pub fn add_span(
     }
     Ok(())
 }
+const CHARACTER_FIELDS: [&str; 6] = [
+    "wb_start",
+    "wb_end",
+    "wb_coordinate",
+    "wb_layer",
+    "wb_quote",
+    "wb_status",
+];
+
+pub fn set_span(
+    objects: &Objects,
+    snapshot: &mut Snapshot,
+    document: &str,
+    sidecar: &str,
+    id: &str,
+    fields: &BTreeMap<String, String>,
+    anchor: &Option<SpanAnchorUpdate>,
+) -> Result<()> {
+    safe_relative(sidecar)?;
+    let docs = documents(objects, snapshot)?;
+    ensure!(
+        docs.iter()
+            .filter(|d| d.spans.iter().any(|s| s.sidecar == sidecar))
+            .count()
+            == 1,
+        "sidecar matches multiple transcripts; explicit association required before editing"
+    );
+    let doc = docs
+        .iter()
+        .find(|d| d.path == document)
+        .context("document not found")?;
+    let span = doc
+        .spans
+        .iter()
+        .find(|s| s.id == id && s.sidecar == sidecar)
+        .context("span not in document/sidecar scope")?;
+    let old = objects.text(snapshot, sidecar)?;
+    let tree = xml::parse(&old)?;
+    let root = tree.root_element();
+    ensure!(
+        root.has_tag_name("spanGrp") && root.tag_name().namespace().is_none(),
+        "unsupported sidecar dialect read-only"
+    );
+    let nodes: Vec<_> = tree
+        .descendants()
+        .filter(|n| n.has_tag_name("span") && n.attribute("id") == Some(id))
+        .collect();
+    ensure!(
+        nodes.len() == 1
+            && nodes[0].parent() == Some(root)
+            && nodes[0].tag_name().namespace().is_none(),
+        "unsupported or ambiguous span structure read-only"
+    );
+    for attr in nodes[0].attributes() {
+        ensure!(
+            attr.namespace().is_none()
+                || !["id", "corresp", "label", "variety", "note"].contains(&attr.name())
+                    && !CHARACTER_FIELDS.contains(&attr.name()),
+            "ambiguous namespaced span field read-only"
+        );
+    }
+    let mut values = fields.clone();
+    for key in values.keys() {
+        ensure!(
+            ["label", "variety", "note"].contains(&key.as_str()),
+            "immutable/unsupported span field"
+        );
+    }
+    if let Some(variety) = values.get("variety").filter(|v| !v.is_empty()) {
+        ensure!(
+            snapshot.config.language_values.contains_key(variety),
+            "define span language first"
+        );
+    }
+    let mut remove_character = false;
+    if let Some(update) = anchor {
+        let token_ids = match update {
+            SpanAnchorUpdate::Tokens { token_ids } => {
+                remove_character = true;
+                token_ids.clone()
+            }
+            SpanAnchorUpdate::Character { anchor: a } => {
+                ensure!(
+                    a.coordinate == "unicode-codepoint" && a.layer == "corrected",
+                    "unsupported character anchor coordinates"
+                );
+                let token = doc
+                    .tokens
+                    .iter()
+                    .find(|t| t.id == a.token)
+                    .context("anchor token")?;
+                let chars: Vec<_> = token
+                    .corrected
+                    .as_ref()
+                    .unwrap_or(&token.original)
+                    .chars()
+                    .collect();
+                ensure!(
+                    a.start < a.end
+                        && a.end <= chars.len()
+                        && chars[a.start..a.end].iter().collect::<String>() == a.quote,
+                    "character quote/range mismatch"
+                );
+                values.extend(BTreeMap::from([
+                    ("wb_start".into(), a.start.to_string()),
+                    ("wb_end".into(), a.end.to_string()),
+                    ("wb_coordinate".into(), a.coordinate.clone()),
+                    ("wb_layer".into(), a.layer.clone()),
+                    ("wb_quote".into(), a.quote.clone()),
+                    ("wb_status".into(), "resolved".into()),
+                ]));
+                vec![a.token.clone()]
+            }
+        };
+        let mut seen = BTreeSet::new();
+        ensure!(
+            !token_ids.is_empty() && token_ids.len() <= 10000,
+            "invalid span selection"
+        );
+        for token in &token_ids {
+            ensure!(
+                seen.insert(token) && doc.tokens.iter().any(|t| &t.id == token),
+                "duplicate/missing span endpoint"
+            );
+        }
+        // Semantically unchanged references retain original whitespace/entities.
+        if token_ids != span.token_ids {
+            values.insert(
+                "corresp".into(),
+                token_ids
+                    .iter()
+                    .map(|id| format!("#{id}"))
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            );
+        }
+    }
+    values.retain(|key, value| span.fields.get(key) != Some(value));
+    let mut new = old.clone();
+    if remove_character {
+        new = xml::remove_attrs(&new, "span", id, &CHARACTER_FIELDS)?;
+    }
+    if !values.is_empty() {
+        new = xml::patch_attrs(&new, "span", id, &values)?;
+    }
+    ensure!(new != old, "span edit has no changes");
+    // Span body may be an authored label rather than a generated excerpt.
+    // Reanchoring never guesses its meaning or rewrites that mixed content.
+    replace(objects, snapshot, sidecar, &new)
+}
+
+pub fn relation_source(
+    objects: &Objects,
+    snapshot: &Snapshot,
+    document: &str,
+    from: &str,
+) -> Result<Token> {
+    let docs = documents(objects, snapshot)?;
+    let token = docs
+        .iter()
+        .find(|d| d.path == document)
+        .and_then(|d| d.tokens.iter().find(|t| t.id == from))
+        .context("relation source not found")?;
+    ensure!(
+        token.editable,
+        "nested token is preserved read-only; editing gate not proven"
+    );
+    ensure!(
+        token
+            .attrs
+            .get("relation_target")
+            .is_some_and(|v| !v.is_empty()),
+        "relation does not exist"
+    );
+    let text = objects.text(snapshot, document)?;
+    let tree = xml::parse(&text)?;
+    let nodes: Vec<_> = tree
+        .descendants()
+        .filter(|n| {
+            n.has_tag_name("tok")
+                && n.attribute("id")
+                    .or_else(|| n.attribute(("http://www.w3.org/XML/1998/namespace", "id")))
+                    == Some(from)
+        })
+        .collect();
+    ensure!(
+        nodes.len() == 1 && nodes[0].tag_name().namespace().is_none(),
+        "ambiguous/unsupported relation source"
+    );
+    ensure!(
+        !nodes[0].attributes().any(|a| a.namespace().is_some()
+            && ["relation_target", "relation_type", "note"].contains(&a.name())),
+        "ambiguous namespaced relation fields read-only"
+    );
+    Ok(token.clone())
+}
+
+// Mapping v1 uses document + bare span ID. Keep ambiguous packages lossless,
+// but never silently collapse their source evidence into a current graph.
+pub fn compiler_scope(documents: &[Document]) -> Result<()> {
+    let mut owners = BTreeMap::new();
+    for doc in documents {
+        let mut ids = BTreeSet::new();
+        for span in &doc.spans {
+            ensure!(
+                ids.insert(&span.id),
+                "ambiguous span IDs across sidecars; qualified compiler mapping required"
+            );
+            if let Some(owner) = owners.insert(&span.sidecar, &doc.path) {
+                ensure!(
+                    owner == &doc.path,
+                    "sidecar matches multiple transcripts; explicit compiler association required"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn clear_relation(
+    objects: &Objects,
+    snapshot: &mut Snapshot,
+    document: &str,
+    from: &str,
+) -> Result<()> {
+    relation_source(objects, snapshot, document, from)?;
+    let old = objects.text(snapshot, document)?;
+    let new = xml::remove_attrs(&old, "tok", from, &["relation_target", "relation_type"])?;
+    ensure!(new != old, "relation edit has no changes");
+    // Token notes may have other research meanings: clearing a link keeps them.
+    replace(objects, snapshot, document, &new)
+}
+
 pub fn export_directory(
     objects: &Objects,
     snapshot: &Snapshot,

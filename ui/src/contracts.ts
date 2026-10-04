@@ -9,13 +9,16 @@ export interface Document { path:string;title:string;tokens:Token[];segments:Seg
 export interface Snapshot {schema:number;project:string;files:Record<string,Artifact>;config:Config;index_status:string}
 export interface Revision {id:number;parent:number|null;snapshot_hash:string;actor:string;label:string;created_at:string;command_id:string}
 export interface View {api_version:number;revision:Revision;snapshot:Snapshot;documents:Document[];issues:{code:string;target:string;message:string;blocking:boolean}[];approved:boolean}
-export interface Diff {from:number;to:number;changes:{document:string;target:string;field:string;before:string|null;after:string|null}[];files:{path:string}[];config_before:Config;config_after:Config}
+export interface Diff {from:number;to:number;changes:{document:string;sidecar?:string;target:string;field:string;before:string|null;after:string|null}[];files:{path:string}[];config_before:Config;config_after:Config}
 export type Operation =
  | {kind:'set_token';document:string;token:string;fields:Record<string,string>}
  | {kind:'define_language';value:string;description:string}
  | {kind:'set_language_default';value:string|null}
  | {kind:'add_span';document:string;id:string;token_ids:string[];fields:Record<string,string>;character:{token:string;start:number;end:number;quote:string;coordinate:'unicode-codepoint';layer:'corrected'}|null}
  | {kind:'add_relation';document:string;from:string;to:string;relation_type:string;note:string}
+ | {kind:'set_span';document:string;sidecar:string;id:string;fields:Record<string,string>;anchor:{kind:'tokens';token_ids:string[]}|{kind:'character';anchor:{token:string;start:number;end:number;quote:string;coordinate:'unicode-codepoint';layer:'corrected'}}|null}
+ | {kind:'set_relation';document:string;from:string;to:string;relation_type:string;note:string|null}
+ | {kind:'clear_relation';document:string;from:string}
  | {kind:'restore';revision:number};
 export interface Command {schema:1;project:string;command_id:string;base_revision:number;preimage_hash:string;config_version:number;label:string;operations:Operation[]}
 export function checkView(value:View):View {

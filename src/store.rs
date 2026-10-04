@@ -265,6 +265,50 @@ impl Store {
                     snapshot = self.snapshot(&self.revision(&command.project, *revision)?)?;
                     snapshot.index_status = "stale after restore; rebuild required".into();
                 }
+                Operation::SetSpan {
+                    document,
+                    sidecar,
+                    id,
+                    fields,
+                    anchor,
+                } => {
+                    package::set_span(
+                        &self.objects,
+                        &mut snapshot,
+                        document,
+                        sidecar,
+                        id,
+                        fields,
+                        anchor,
+                    )?;
+                }
+                Operation::SetRelation {
+                    document,
+                    from,
+                    to,
+                    relation_type,
+                    note,
+                } => {
+                    let token = package::relation_source(&self.objects, &snapshot, document, from)?;
+                    ensure!(
+                        !to.trim().is_empty()
+                            && !relation_type.trim().is_empty()
+                            && from != to.trim_start_matches('#'),
+                        "invalid relation"
+                    );
+                    let mut fields = BTreeMap::from([
+                        ("relation_target".into(), to.clone()),
+                        ("relation_type".into(), relation_type.clone()),
+                    ]);
+                    if let Some(note) = note {
+                        fields.insert("note".into(), note.clone());
+                    }
+                    fields.retain(|key, value| token.attrs.get(key) != Some(value));
+                    package::token_fields(&self.objects, &mut snapshot, document, from, &fields)?;
+                }
+                Operation::ClearRelation { document, from } => {
+                    package::clear_relation(&self.objects, &mut snapshot, document, from)?;
+                }
             }
         }
         package::validate(&self.objects, &snapshot)?;
@@ -373,13 +417,13 @@ impl Store {
                     .spans
                     .iter()
                     .chain(doc.spans.iter())
-                    .map(|s| s.id.as_str())
+                    .map(|s| (s.sidecar.as_str(), s.id.as_str()))
                     .collect();
-                for id in ids {
+                for (sidecar, id) in ids {
                     let before = old
                         .spans
                         .iter()
-                        .find(|s| s.id == id)
+                        .find(|s| s.id == id && s.sidecar == sidecar)
                         .map(|s| {
                             serde_json::to_string(&json!({"anchors":s.token_ids,"fields":s.fields}))
                         })
@@ -387,13 +431,13 @@ impl Store {
                     let after = doc
                         .spans
                         .iter()
-                        .find(|s| s.id == id)
+                        .find(|s| s.id == id && s.sidecar == sidecar)
                         .map(|s| {
                             serde_json::to_string(&json!({"anchors":s.token_ids,"fields":s.fields}))
                         })
                         .transpose()?;
                     if before != after {
-                        changes.push(json!({"document":doc.path,"target":id,"field":"span","before":before,"after":after}));
+                        changes.push(json!({"document":doc.path,"sidecar":sidecar,"target":id,"field":"span","before":before,"after":after}));
                     }
                 }
             }
@@ -466,6 +510,7 @@ impl Store {
             self.head(project)?.id == revision && view.approved,
             "current approved revision required for default compiler export"
         );
+        package::compiler_scope(&view.documents)?;
         Ok(
             json!({"contract_version":1,"authority":"research-intelligence","project_id":project,"revision":view.revision,"bundle_hash":view.revision.snapshot_hash,"config_hash":package::hash(&serde_json::to_vec(&view.snapshot.config)?),"definition_version":view.snapshot.config.version,"definitions":view.snapshot.config,"artifact_manifest":view.snapshot.files,"rights":view.snapshot.config.rights,"access_policy":"local-only; public/model-training permission not implied","documents":view.documents,"review":self.receipt(project,revision)?["reviews"].as_array().context("review records")?.last().context("approved review")?,"ingestion_status":"not tested; no Semantica dispatch performed by this contract endpoint"}),
         )

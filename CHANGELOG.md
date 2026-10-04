@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-dev.1 - Unreleased
+
+- Edit saved span fields, ordered/discontinuous anchors and Unicode subtoken judgments while preserving IDs, supplied mixed content and unknown XML. Correct or clear inline relations; clearing retains token notes.
+- Qualify annotation diffs by sidecar and reject ambiguous shared sidecar edits or mapping-v1 compiler identities. Preserve legacy graph receipts as explicit history, excluding ambiguous evidence from current queries.
+- Retain annotation drafts across tabs, selection and document navigation; expose unsaved state, explicit discard and competing-draft commit protection.
+- Add 20 native preservation/currentness regressions, a real annotation repair browser journey and three optional native Semantica annotation generations. No new binary release or active-session cutover.
+
 ## 0.1.0-preview.1 — 2026-10-04
 
 First public engineering preview of the approved corpus workbench migration.

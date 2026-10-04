@@ -156,6 +156,44 @@ pub fn append_element(text: &str, xml: &str) -> Result<String> {
     parse(&result)?;
     Ok(result)
 }
+// Remove only the named unqualified attributes. Keep all surrounding bytes,
+// including whitespace, namespace declarations and the element's content.
+pub fn remove_attrs(text: &str, element: &str, id: &str, names: &[&str]) -> Result<String> {
+    let doc = parse(text)?;
+    let nodes: Vec<_> = doc
+        .descendants()
+        .filter(|n| {
+            n.has_tag_name(element)
+                && n.attribute("id")
+                    .or_else(|| n.attribute(("http://www.w3.org/XML/1998/namespace", "id")))
+                    == Some(id)
+        })
+        .collect();
+    ensure!(nodes.len() == 1, "missing or ambiguous element {id}");
+    let start = nodes[0].range().start;
+    let (attributes, _) = lexical_attrs(text, start)?;
+    let mut ranges = Vec::new();
+    for name in names {
+        if let Some(value) = attributes.get(*name) {
+            let prefix = &text[start..value.start - 1];
+            let equals = prefix.rfind('=').context("attribute equals")? + start;
+            let name_end = text[start..equals].trim_end().len() + start;
+            let name_start = name_end.checked_sub(name.len()).context("attribute name")?;
+            ensure!(
+                &text[name_start..name_end] == *name,
+                "attribute name mismatch"
+            );
+            ranges.push(name_start..value.end + 1);
+        }
+    }
+    ranges.sort_by_key(|r| std::cmp::Reverse(r.start));
+    let mut result = text.to_owned();
+    for range in ranges {
+        result.replace_range(range, "");
+    }
+    parse(&result)?;
+    Ok(result)
+}
 fn attrs(n: Node<'_, '_>) -> BTreeMap<String, String> {
     n.attributes()
         .map(|a| (a.name().into(), a.value().into()))

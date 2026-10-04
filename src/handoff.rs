@@ -360,7 +360,15 @@ impl Store {
         // A concurrent head/review change cannot be mixed with older eligibility.
         type Row = (String, i64, String, String, String, String, bool);
         let entries: Vec<Row> = self.conn.prepare("SELECT g.id,g.revision,g.snapshot_hash,g.recipe_hash,g.receipt_hash,g.graph_hash, CASE WHEN g.revision=p.head AND g.snapshot_hash=r.snapshot_hash AND (SELECT decision FROM reviews WHERE project=p.id AND revision=p.head AND snapshot_hash=r.snapshot_hash AND scope='full' ORDER BY id DESC LIMIT 1)='approved' THEN 1 ELSE 0 END FROM derived_generations g JOIN projects p ON p.id=g.project JOIN revisions r ON r.id=p.head WHERE g.project=? ORDER BY g.rowid DESC")?.query_map([project], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)))?.collect::<rusqlite::Result<_>>()?;
+        let mut eligibility = BTreeMap::new();
+        for entry in &entries {
+            if entry.6 && !eligibility.contains_key(&entry.1) {
+                let view = self.view(project, Some(entry.1))?;
+                eligibility.insert(entry.1, package::compiler_scope(&view.documents).is_ok());
+            }
+        }
         Ok(entries.into_iter().filter_map(|(id,revision,snapshot,recipe,receipt,graph,current)| {
+            let current = current && eligibility.get(&revision).copied().unwrap_or(false);
             (include_stale || current).then(|| json!({"generation_id":id,"revision":revision,"snapshot_hash":snapshot,"recipe_hash":recipe,"receipt_hash":receipt,"graph_hash":graph,"current":current}))
         }).collect())
     }

@@ -132,6 +132,12 @@ pub struct CharacterAnchor {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+pub enum SpanAnchorUpdate {
+    Tokens { token_ids: Vec<String> },
+    Character { anchor: CharacterAnchor },
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Operation {
     SetToken {
         document: String,
@@ -158,6 +164,24 @@ pub enum Operation {
         to: String,
         relation_type: String,
         note: String,
+    },
+    SetSpan {
+        document: String,
+        sidecar: String,
+        id: String,
+        fields: BTreeMap<String, String>,
+        anchor: Option<SpanAnchorUpdate>,
+    },
+    SetRelation {
+        document: String,
+        from: String,
+        to: String,
+        relation_type: String,
+        note: Option<String>,
+    },
+    ClearRelation {
+        document: String,
+        from: String,
     },
     Restore {
         revision: i64,

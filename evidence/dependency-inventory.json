@@ -79,7 +79,7 @@
     {
       "ecosystem": "cargo",
       "name": "corpus-workbench",
-      "version": "0.1.0-preview.1",
+      "version": "0.2.0-dev.1",
       "reported_license": "GPL-3.0-or-later",
       "registry_checksum": null
     },

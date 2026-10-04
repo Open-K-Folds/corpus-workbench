@@ -9,10 +9,11 @@ The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 
 - [x] Complete additive exports and reopen/receipt/history/object validation; verified backup/restore and process crash recovery.
 - [x] Independent review and repair of six demonstrated first-slice defects; additional authored graph topology rejection verified.
 - [x] Local native Semantica generations bound to approved exact evidence and effective recipe; stale/rejected evidence excluded from current queries.
+- [x] Reference-safe edits of existing spans/relations, explicit Unicode anchor repair, scoped diffs and competing-draft protection; [evidence and limits](docs/ANNOTATION-MILESTONE.md).
 - [ ] Full TEITOK/CWB/CQP parity and arbitrary-schema/structural editing; external exported-package lineage reconciliation.
 - [ ] Native durable job/outbox/worker fencing, shared assertions, ontology/model recipes and permanent rights-withdrawal lifecycle.
 - [ ] Portable optional compiler dependency lock, human linguistic review, native Pi validation and production backup/roles/operations.
 
-The engineering baseline is 54 Rust tests (36 core contracts, six export integrity, six generations, three abrupt-process recovery, three review regressions) and three browser flows. A separate optional native Semantica 0.6.8 smoke exercised eight nodes and thirteen authored edges across approved R1/R2, native reopen, idempotent reuse, stale/forged rejection, backup restore and review invalidation. That optional runtime is locally supplied and is not installed or claimed verified by the public CI.
+The current source baseline is 74 Rust tests (36 core contracts, 19 annotation edits, six export integrity, seven generations, three abrupt-process recovery, three review regressions) and five browser flows. The immutable preview retains its 54-test/three-flow baseline. A separate optional native Semantica 0.6.8 smoke exercised eight nodes and thirteen authored edges across approved R1/R2, plus three annotation generations (13/13/12 edges), native reopen, idempotent reuse, stale/forged rejection, backup restore and review invalidation. That optional runtime is locally supplied and is not installed or claimed verified by the public CI.
 
 Every public release records its own exact source commit, actual commands/results, target platforms, dependency audit and checksums. Historical local validation is recorded as provenance; it is not a substitute for the public exact-commit checks. Raspberry Pi hardware and physical power-loss testing have not run.

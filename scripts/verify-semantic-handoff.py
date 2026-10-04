@@ -100,6 +100,41 @@ def verify(binary, compiler_root, output):
         assert core("generations") == []
         expect_rejection(lambda: core("generation", "--id", r2["generation_id"]), "current scope")
         assert len(core("generations", "--historical", "yes")) == 2
+        # Each supported annotation mutation must invalidate the old default
+        # graph before a fresh exact review and native compiler generation.
+        previous = r2
+        annotation_generations = []
+        operations = [
+            {"kind":"set_span","document":"xmlfiles/demo.xml","sidecar":"Annotations/review_demo.xml","id":"span-1","fields":{"label":"repaired synthetic span"},"anchor":{"kind":"tokens","token_ids":["w-2","w-3"]}},
+            {"kind":"set_relation","document":"xmlfiles/demo.xml","from":"w-1","to":"#w-2","relation_type":"repaired-context","note":None},
+            {"kind":"clear_relation","document":"xmlfiles/demo.xml","from":"w-1"},
+        ]
+        for index, operation in enumerate(operations):
+            view = core("view")
+            command = {"schema":1,"project":"synthetic","command_id":f"annotation-{index}","base_revision":view["revision"]["id"],
+                       "preimage_hash":view["revision"]["snapshot_hash"],"config_version":view["snapshot"]["config"]["version"],
+                       "label":"Synthetic reference repair","operations":[operation]}
+            command_file.write_bytes(bridge.encoded(command))
+            revision = core("apply", "--command", command_file)
+            assert core("generations") == []
+            expect_rejection(lambda: core("generation", "--id", previous["generation_id"]), "current scope")
+            approve(revision["id"])
+            result = bridge.ingest(binary, store, "synthetic", revision["id"], compiler_root, root / f"annotation-{index}")
+            current = core("generation", "--id", result["generation_id"])
+            span = next(n for n in current["graph"]["nodes"] if n["properties"]["anchor"]["kind"] == "span")
+            token = next(n for n in current["graph"]["nodes"] if n["properties"]["anchor"]["external_id"] == "w-1")
+            assert span["properties"]["source"]["token_ids"] == ["w-2","w-3"]
+            assert span["properties"]["source"]["fields"]["label"] == "repaired synthetic span"
+            assert result["node_count"] == 8 and result["edge_count"] == (12 if index == 2 else 13)
+            if index == 1:
+                assert token["properties"]["source"]["attrs"]["relation_target"] == "#w-2"
+            if index == 2:
+                assert "relation_target" not in token["properties"]["source"]["attrs"]
+            assert current["contract"]["artifact_manifest"]["Raw/asr.raw.json"] == original_contract["artifact_manifest"]["Raw/asr.raw.json"]
+            assert current["contract"]["artifact_manifest"]["Audio/synthetic.wav"] == original_contract["artifact_manifest"]["Audio/synthetic.wav"]
+            annotation_generations.append(result["generation_id"])
+            previous = result
+        assert graph1["graph"] == core("generation", "--id", r1["generation_id"], "--historical", "yes")["graph"]
         evidence = {"synthetic_only":True,"semantica_version":"0.6.8","compiler_commit":bridge.compiler_identity(compiler_root)[0],
                     "mapping":"corpus-evidence/1","nodes_per_generation":r2["node_count"],"edges_per_generation":r2["edge_count"],
                     "initial_ingestion":True,"native_reopen":True,"retry_reuses_one_generation":True,"correction_stales_prior_default_query":True,
@@ -107,6 +142,8 @@ def verify(binary, compiler_root, output):
                     "historical_generation_unchanged":True,"forged_projection_rejected":True,"backup_restore_graph_equal":True,
                     "review_retraction_filters_current":True,"missing_word_times_preserved":True,
                     "r1_generation":r1["generation_id"],"r2_generation":r2["generation_id"],"audio_artifact_hash":original_contract["artifact_manifest"]["Audio/synthetic.wav"]["sha256"],"hash_prefixed_relation":True,"raw_artifact_hash":original_contract["artifact_manifest"]["Raw/asr.raw.json"]["sha256"],
+                    "annotation_generations":annotation_generations,"annotation_mutations_stale_current":True,
+                    "repaired_span_and_relation_in_native_graph":True,"cleared_relation_removes_authored_edge":True,
                     "external_database":False,"model":None,"real_pilot_ingested":False}
         output.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
         return evidence

@@ -283,3 +283,121 @@ fn schema_one_upgrade_and_backup_preserve_authority_and_generation_objects() {
     fs::write(backup.join("objects").join(&c.graph_hash), "corrupt").unwrap();
     assert!(Store::open(&backup).is_err());
 }
+
+#[test]
+fn ambiguous_legacy_span_generation_is_historical_only_after_upgrade() {
+    let (tmp, base, mut completion, bytes) = fixture();
+    let mut contract = base
+        .approved_contract("p", completion.binding.revision)
+        .unwrap();
+    let annotations = tmp.path().join("input/Annotations");
+    fs::create_dir(&annotations).unwrap();
+    for (name, label) in [("a_demo.xml", "FIRST"), ("b_demo.xml", "SECOND")] {
+        fs::write(
+            annotations.join(name),
+            format!("<spanGrp><span id='s1' corresp='#w-1' label='{label}'/></spanGrp>"),
+        )
+        .unwrap();
+    }
+    let authority = tmp.path().join("legacy");
+    let mut s = Store::open(&authority).unwrap();
+    let r = s.import(&tmp.path().join("input"), "p").unwrap();
+    s.review(
+        "local-owner",
+        "p",
+        r.id,
+        &r.snapshot_hash,
+        "approved",
+        "Synthetic legacy fixture",
+    )
+    .unwrap();
+    let view = s.view("p", None).unwrap();
+    assert!(s
+        .approved_contract("p", r.id)
+        .unwrap_err()
+        .to_string()
+        .contains("ambiguous span IDs"));
+    // Reconstruct the mapping-v1 contract/graph accepted before this guard.
+    // Its one SECOND span node silently omitted the FIRST sidecar judgment.
+    contract["revision"] = serde_json::to_value(&r).unwrap();
+    contract["bundle_hash"] = json!(r.snapshot_hash);
+    contract["documents"] = serde_json::to_value(&view.documents).unwrap();
+    contract["artifact_manifest"] = serde_json::to_value(&view.snapshot.files).unwrap();
+    contract["review"] = s.receipt("p", r.id).unwrap()["reviews"]
+        .as_array()
+        .unwrap()
+        .last()
+        .unwrap()
+        .clone();
+    completion.binding.revision = r.id;
+    completion.binding.snapshot_hash = r.snapshot_hash.clone();
+    completion.binding.contract_hash = digest(&contract).unwrap();
+    let lineage = json!({"project_id":"p","revision":r.id,"bundle_hash":r.snapshot_hash,"config_hash":completion.binding.config_hash,"contract_hash":completion.binding.contract_hash,"recipe_hash":digest(&completion.binding.recipe).unwrap(),"access_policy":"local-only"});
+    let mut graph: Value = serde_json::from_slice(&bytes).unwrap();
+    for node in graph["nodes"].as_array_mut().unwrap() {
+        for (key, value) in lineage.as_object().unwrap() {
+            node["properties"][key] = value.clone();
+        }
+    }
+    for edge in graph["edges"].as_array_mut().unwrap() {
+        edge["properties"] = lineage.clone();
+    }
+    let anchor = Anchor {
+        document: "xmlfiles/demo.xml".into(),
+        kind: "span".into(),
+        external_id: "s1".into(),
+    };
+    completion.anchors.insert("s".into(), anchor.clone());
+    let mut properties = lineage.clone();
+    properties["anchor"] = serde_json::to_value(anchor).unwrap();
+    properties["source"] = serde_json::to_value(&view.documents[0].spans[1]).unwrap();
+    properties["artifact_hash"] = json!(view.snapshot.files["xmlfiles/demo.xml"].sha256);
+    properties["rights"] = json!(view.snapshot.config.rights);
+    properties["definition_version"] = json!(view.snapshot.config.version);
+    properties["content"] = json!("SECOND");
+    graph["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"id":"s","type":"CorpusSpan","properties":properties}));
+    for (target, kind) in [("d", "partOfDocument"), ("t", "anchorsToken")] {
+        graph["edges"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"source_id":"s","target_id":target,"type":kind,"properties":lineage}));
+    }
+    let bytes = serde_json::to_vec(&graph).unwrap();
+    completion.graph_hash = package::hash(&bytes);
+    completion.node_count = 3;
+    completion.edge_count = 3;
+    assert!(s
+        .accept_generation(&completion, &bytes, Fault::None)
+        .unwrap_err()
+        .to_string()
+        .contains("ambiguous span IDs"));
+    // Emulate a pre-upgrade row; current writes still require the API above.
+    s.objects
+        .put(&serde_json::to_vec(&contract).unwrap(), "compiler-contract")
+        .unwrap();
+    s.objects.put(&bytes, "compiler-graph").unwrap();
+    let receipt = s
+        .objects
+        .put(
+            &serde_json::to_vec(&completion).unwrap(),
+            "compiler-receipt",
+        )
+        .unwrap();
+    let id = digest(&completion.binding).unwrap();
+    s.conn.execute("INSERT INTO derived_generations(id,project,revision,snapshot_hash,recipe_hash,receipt_hash,graph_hash) VALUES(?,'p',?,?,?,?,?)",rusqlite::params![id,r.id,r.snapshot_hash,digest(&completion.binding.recipe).unwrap(),receipt.sha256,completion.graph_hash]).unwrap();
+    drop(s);
+    let s = Store::open(&authority).unwrap();
+    assert!(s.generations("p", false).unwrap().is_empty());
+    assert!(s.generation("p", &id, false).is_err());
+    let historical = s.generation("p", &id, true).unwrap();
+    assert_eq!(historical["generation"]["current"], false);
+    assert_eq!(historical["graph"], graph);
+    assert_eq!(historical["contract"], contract);
+    assert_eq!(
+        digest(&historical["receipt"]).unwrap(),
+        digest(&completion).unwrap()
+    );
+}
