@@ -46,7 +46,7 @@ npm run test:e2e --prefix ui
 npm audit --prefix ui --audit-level=low
 ```
 
-There are 124 Rust contract/recovery tests and eighteen actual browser flows. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI checks Windows x86-64, Linux x86-64 and Linux ARM64 plus Linux browser QA. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
+There are 133 Rust contract/recovery tests, eighteen actual host browser flows and an additional container browser/persistence journey. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI is configured for Windows x86-64, Linux x86-64 and Linux ARM64 plus browser/container QA; configuring it does not prove the new hosted checks ran. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
 
 ## Scope and data rights
 
