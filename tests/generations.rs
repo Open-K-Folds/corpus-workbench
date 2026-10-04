@@ -113,7 +113,7 @@ fn fixture() -> (TempDir, Store, Completion, Vec<u8>) {
 
 #[test]
 fn generation_idempotency_binds_complete_recipe_and_output() {
-    let (_, mut s, c, bytes) = fixture();
+    let (_tmp, mut s, c, bytes) = fixture();
     let first = s.accept_generation(&c, &bytes, Fault::None).unwrap();
     assert_eq!(first, s.accept_generation(&c, &bytes, Fault::None).unwrap());
     assert_eq!(s.generations("p", true).unwrap().len(), 1);
@@ -156,7 +156,7 @@ fn complete_export_preserves_generation_contract_receipt_and_graph() {
 #[test]
 fn false_source_rights_lineage_edges_and_incomplete_graph_are_rejected() {
     for mutation in 0..7 {
-        let (_, mut s, mut c, bytes) = fixture();
+        let (_tmp, mut s, mut c, bytes) = fixture();
         let mut graph: Value = serde_json::from_slice(&bytes).unwrap();
         match mutation {
             0 => graph["nodes"][1]["properties"]["source"]["start_us"] = json!(123),
@@ -182,7 +182,7 @@ fn false_source_rights_lineage_edges_and_incomplete_graph_are_rejected() {
 
 #[test]
 fn correction_and_review_retraction_exclude_history_from_default_queries() {
-    let (_, mut s, c, bytes) = fixture();
+    let (_tmp, mut s, c, bytes) = fixture();
     let generation = s.accept_generation(&c, &bytes, Fault::None).unwrap();
     let id = generation["generation_id"].as_str().unwrap();
     assert!(
@@ -217,7 +217,7 @@ fn correction_and_review_retraction_exclude_history_from_default_queries() {
         "original"
     );
     assert!(s.accept_generation(&c, &bytes, Fault::None).is_err());
-    let (_, mut other, c, bytes) = fixture();
+    let (_tmp, mut other, c, bytes) = fixture();
     other.accept_generation(&c, &bytes, Fault::None).unwrap();
     other
         .review(

@@ -74,7 +74,7 @@ fn noop_all_files_byte_identical() {
 }
 #[test]
 fn intended_edit_preserves_every_unaffected_byte() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = edit(&s, "correct", "hello & \"'😀");
     s.apply("local-owner", &c, Fault::None).unwrap();
     let snap = s.snapshot(&s.head("pilot").unwrap()).unwrap();
@@ -94,7 +94,7 @@ fn intended_edit_preserves_every_unaffected_byte() {
 }
 #[test]
 fn stable_id_not_derived_from_text() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let id = s.view("pilot", None).unwrap().documents[0].tokens[0]
         .internal_id
         .clone();
@@ -121,7 +121,7 @@ fn unknown_xml_comments_pi_entity_quote_and_nested_forms_preserved() {
 }
 #[test]
 fn overlapping_speech_and_missing_word_times_are_not_filled() {
-    let (_, s) = fixture();
+    let (_tmp, s) = fixture();
     let doc = &s.view("pilot", None).unwrap().documents[0];
     assert_eq!(doc.segments[1].start_us, Some(2_000_000));
     assert!(doc
@@ -137,7 +137,7 @@ fn decimal_time_base_exact() {
 }
 #[test]
 fn stale_tab_rejected() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let a = edit(&s, "a", "A");
     let b = edit(&s, "b", "B");
     s.apply("local-owner", &a, Fault::None).unwrap();
@@ -150,7 +150,7 @@ fn stale_tab_rejected() {
 }
 #[test]
 fn idempotent_retry_returns_original_revision() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = edit(&s, "retry", "A");
     let r = s.apply("local-owner", &c, Fault::None).unwrap();
     assert_eq!(r.id, s.apply("local-owner", &c, Fault::None).unwrap().id);
@@ -158,7 +158,7 @@ fn idempotent_retry_returns_original_revision() {
 }
 #[test]
 fn idempotency_payload_binding_rejects_changed_request() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let mut c = edit(&s, "retry", "A");
     s.apply("local-owner", &c, Fault::None).unwrap();
     c.label = "changed".into();
@@ -170,7 +170,7 @@ fn idempotency_payload_binding_rejects_changed_request() {
 }
 #[test]
 fn source_preimage_and_configuration_preconditions_checked() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let mut c = edit(&s, "preimage", "A");
     c.preimage_hash = "0".repeat(64);
     assert!(s.apply("local-owner", &c, Fault::None).is_err());
@@ -210,7 +210,7 @@ fn response_loss_after_commit_can_be_retried_after_restart() {
 }
 #[test]
 fn batch_is_atomic_when_later_operation_invalid() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let mut c = edit(&s, "atomic", "A");
     c.operations.push(Operation::AddRelation {
         document: "xmlfiles/demo.xml".into(),
@@ -224,7 +224,7 @@ fn batch_is_atomic_when_later_operation_invalid() {
 }
 #[test]
 fn approval_does_not_follow_changed_or_restored_content() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let r = s.head("pilot").unwrap();
     s.review(
         "local-owner",
@@ -246,7 +246,7 @@ fn approval_does_not_follow_changed_or_restored_content() {
 }
 #[test]
 fn history_diff_and_restore_retain_intervening_records() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let r = s.head("pilot").unwrap();
     let c = edit(&s, "A", "A");
     let a = s.apply("local-owner", &c, Fault::None).unwrap();
@@ -263,7 +263,7 @@ fn history_diff_and_restore_retain_intervening_records() {
 }
 #[test]
 fn unicode_codepoints_not_utf16_or_bytes() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let op = Operation::AddSpan {
         document: "xmlfiles/demo.xml".into(),
         id: "an-unicode".into(),
@@ -286,7 +286,7 @@ fn unicode_codepoints_not_utf16_or_bytes() {
 }
 #[test]
 fn character_span_becomes_unresolved_after_correction_and_blocks_review() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = command(
         &s,
         "span",
@@ -358,7 +358,7 @@ fn discontinuous_span_and_directed_relation_export() {
 }
 #[test]
 fn custom_language_and_explicit_override_survive_default_change() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = command(
         &s,
         "define",
@@ -392,7 +392,7 @@ fn custom_language_and_explicit_override_survive_default_change() {
 }
 #[test]
 fn independent_normalized_and_corrected_layers() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = command(
         &s,
         "layers",
@@ -413,7 +413,7 @@ fn independent_normalized_and_corrected_layers() {
 }
 #[test]
 fn raw_asr_cannot_be_overwritten_by_edit() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let before = s.snapshot(&s.head("pilot").unwrap()).unwrap().files["Raw/asr.raw.json"].clone();
     let c = edit(&s, "a", "A");
     s.apply("local-owner", &c, Fault::None).unwrap();
@@ -469,7 +469,7 @@ fn layer_cycles_and_impossible_containment_rejected() {
 }
 #[test]
 fn nested_token_edits_blocked_without_flattening() {
-    let (_, s) = fixture();
+    let (_tmp, s) = fixture();
     let snap = s.snapshot(&s.head("pilot").unwrap()).unwrap();
     let text = s
         .objects
@@ -539,7 +539,7 @@ fn incomplete_media_package_blocks_complete_export() {
 }
 #[test]
 fn cross_project_and_actor_access_rejected() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = edit(&s, "a", "A");
     assert!(s.apply("other", &c, Fault::None).is_err());
     assert!(s.revision("other", c.base_revision).is_err());
@@ -553,7 +553,7 @@ fn future_database_schema_refused() {
 }
 #[test]
 fn current_approved_compiler_contract_only_and_no_ingestion_claim() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let r = s.head("pilot").unwrap();
     assert!(s.approved_contract("pilot", r.id).is_err());
     s.review(
@@ -582,7 +582,7 @@ fn nonexistent_directory_import_rejected() {
 
 #[test]
 fn correction_invalidates_retained_normalization_until_explicitly_confirmed() {
-    let (_, mut s) = fixture();
+    let (_tmp, mut s) = fixture();
     let c = command(
         &s,
         "normalized",
