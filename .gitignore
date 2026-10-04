@@ -10,3 +10,4 @@ __pycache__/
 /evidence/*.local.json
 /release/
 /audit/
+/ui/dist-reader/

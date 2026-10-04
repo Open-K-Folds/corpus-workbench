@@ -194,6 +194,13 @@ impl Store {
             );
             for op in &command.operations {
                 match op {
+                    Operation::InstallTeitokReader { profile_hash } => {
+                        ensure!(
+                            command.operations.len() == 1,
+                            "reader installation must be its own operation group"
+                        );
+                        self.install_teitok_reader(&mut snapshot, profile_hash)?;
+                    }
                     Operation::Retokenize {
                         request,
                         preview_hash,

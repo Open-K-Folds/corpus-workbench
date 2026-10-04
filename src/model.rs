@@ -139,6 +139,9 @@ pub enum SpanAnchorUpdate {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Operation {
+    InstallTeitokReader {
+        profile_hash: String,
+    },
     Retokenize {
         request: crate::retokenize::RetokenizeRequest,
         preview_hash: String,

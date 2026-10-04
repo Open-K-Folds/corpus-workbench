@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-dev.4 - Unreleased
+
+- Package a finite TEITOK reader profile and its annotation definition in complete exports; verify native TEITOK rendering/layer switches/span listing and byte-exact download/reimport without manual project fixes.
+- Install the exact profile through revision-bound preview and one atomic configuration change. Preserve custom settings/definitions, reject aliases and unsupported reader paths, and invalidate review on change.
+- Add ten native reader contracts and two actual browser flows; reject undeclared annotation families during structural proof and discard late reader success/error responses after navigation.
+- Include structural synthetic generation and profile assets in the future preview packaging recipe. Existing published assets remain immutable.
+
 ## 0.2.0-dev.3 - Unreleased
 
 - Prove and commit a bounded plain untimed token split/merge, with independent text layers, ordered span coverage, exact Unicode character remaps and explicit incoming relation choice. Block every unsupported carrier before mutation.

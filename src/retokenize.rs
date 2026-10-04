@@ -661,9 +661,31 @@ impl Store {
             p.blockers
                 .push(format!("{}: {}", issue.target, issue.message));
         }
+        let packaged_reader = view
+            .snapshot
+            .files
+            .get(crate::teitok_reader::SETTINGS_PATH)
+            .is_some_and(|artifact| {
+                artifact.sha256 == package::hash(crate::teitok_reader::SETTINGS.as_bytes())
+            });
+        if packaged_reader
+            && !view
+                .snapshot
+                .files
+                .contains_key(crate::teitok_reader::DEFINITION_PATH)
+        {
+            p.blockers
+                .push("Packaged reader profile requires its annotation definition".into());
+        }
+        if packaged_reader {
+            p.blockers
+                .extend(crate::teitok_reader::scope_blockers(&view.snapshot));
+        }
         for a in &inv.artifacts {
             let bytes = self.objects.read(&a.artifact)?;
-            let checked = if history.paths.contains(&a.path) {
+            let checked = if history.paths.contains(&a.path)
+                || crate::teitok_reader::known(&a.path, &bytes)
+            {
                 Ok(())
             } else if a.path.starts_with("Resources/retokenization/") {
                 known_lineage(&a.path, &bytes)
@@ -701,7 +723,7 @@ impl Store {
             if let Err(e) = checked {
                 p.blockers.push(format!("{}: {e}", a.path));
             } else {
-                p.artifact_rules.insert(a.path.clone(), if history.paths.contains(&a.path) {"hash/schema-verified immutable export history; references remain historical"} else if a.path.starts_with("Resources/retokenization/") {"strictly typed hash-bound immutable successor lineage"} else {"closed XML carrier grammar; literal fields remain literal; declared current endpoints remapped"}.into());
+                p.artifact_rules.insert(a.path.clone(), if crate::teitok_reader::known(&a.path, &bytes) {"byte-exact immutable reader profile; fixed schema keys/labels and installation asset paths are literal, never document token endpoints"} else if history.paths.contains(&a.path) {"hash/schema-verified immutable export history; references remain historical"} else if a.path.starts_with("Resources/retokenization/") {"strictly typed hash-bound immutable successor lineage"} else {"closed XML carrier grammar; literal fields remain literal; declared current endpoints remapped"}.into());
             }
         }
         if !p.blockers.is_empty() {

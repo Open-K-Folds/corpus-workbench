@@ -1,6 +1,6 @@
 [package]
 name = "corpus-workbench"
-version = "0.2.0-dev.3"
+version = "0.2.0-dev.4"
 edition = "2021"
 rust-version = "1.90"
 license = "GPL-3.0-or-later"

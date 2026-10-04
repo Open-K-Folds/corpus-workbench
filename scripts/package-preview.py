@@ -36,11 +36,11 @@ stage.mkdir(parents=True)
 (stage / 'bin').mkdir()
 shutil.copy2(args.binary, stage / 'bin' / args.binary.name)
 tracked = subprocess.check_output(['git', '-C', str(root), 'ls-files', '-z']).decode().split('\0')
-allowed = {'scripts/prepare-synthetic.py', 'scripts/start-workbench.ps1', 'LICENSE', 'NOTICE',
+allowed = {'scripts/prepare-synthetic.py', 'scripts/prepare-structural-synthetic.py', 'scripts/start-workbench.ps1', 'LICENSE', 'NOTICE',
            'README.md', 'CHANGELOG.md', 'MILESTONES.md', 'Open-Workbench.cmd',
            'evidence/dependency-inventory.json'}
 for name in tracked:
-    if name in allowed or name.startswith(('docs/', 'fixtures/synthetic/')):
+    if name in allowed or name.startswith(('docs/', 'fixtures/synthetic/', 'assets/teitok-reader/')):
         source = root / name
         if source.is_symlink():
             raise SystemExit('Symlinks are not accepted in this preview recipe.')

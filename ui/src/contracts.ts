@@ -10,7 +10,9 @@ export interface Snapshot {schema:number;project:string;files:Record<string,Arti
 export interface Revision {id:number;parent:number|null;snapshot_hash:string;actor:string;label:string;created_at:string;command_id:string}
 export interface View {api_version:number;revision:Revision;snapshot:Snapshot;documents:Document[];issues:{code:string;target:string;message:string;blocking:boolean}[];approved:boolean}
 export interface Diff {from:number;to:number;changes:{document:string;sidecar?:string;target:string;field:string;before:string|null;after:string|null}[];files:{path:string}[];config_before:Config;config_after:Config}
+export interface ReaderPreview {profile:string;profile_hash:string;revision:number;snapshot_hash:string;enabled:boolean;installed:boolean;blockers:string[];candidate_xml:Record<string,string>;before_hashes:Record<string,string|null>}
 export type Operation =
+ | {kind:'install_teitok_reader';profile_hash:string}
  | {kind:'retokenize';request:RetokenizeRequest;preview_hash:string}
  | {kind:'set_token';document:string;token:string;fields:Record<string,string>}
  | {kind:'define_language';value:string;description:string}
