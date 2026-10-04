@@ -5,8 +5,10 @@ or UI framework replacement is adopted. The current Rust/TypeScript/SQLite desig
 already passes revision, Unicode, unknown-byte and browser contracts; replacement
 would require equivalent evidence before changing that authority.
 
-The container packages the native core with a Bookworm glibc base matching the
-pinned Rust builder and embeds only the compiled UI. This minimizes runtime
+The original container milestone used a Bookworm glibc base matching the pinned
+Rust builder. [ADR 0004](ADR-0004-TRIXIE-RUNTIME.md) updates the local runtime to
+one qualified Trixie candidate, retaining the Bookworm builder. The container
+embeds only the native executable and compiled UI. This minimizes runtime
 dependencies and avoids an additional Node server, dynamic plugin execution or
 database service. Linux/ARM64 manifests exist for the pinned official bases;
 Windows uses Docker Desktop's Linux engine while retaining native Windows checks.

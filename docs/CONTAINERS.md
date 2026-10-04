@@ -3,8 +3,10 @@
 The container uses the same native SQLite authority, immutable artifacts and
 TypeScript UI as the Windows workbench. Schema remains version 2. It does not
 introduce a second ledger, external database, public service or speech model.
-Official Rust 1.90.0, Node 24.18.0 and Debian Bookworm base manifests are pinned in
-Dockerfile; compiler packages use signed Debian snapshot indexes dated 2026-09-18.
+Official Rust 1.90.0/Node 24.18.0 Bookworm builders and Debian 13 Trixie runtime manifests are pinned in
+Dockerfile; compiler packages use signed Debian snapshot indexes dated 2026-09-18,
+and runtime refresh uses 2026-10-04. The [Trixie qualification](TRIXIE-RUNTIME-MILESTONE.md)
+records the exact local tested image, package inventory and remaining decisions.
 Cargo/npm locks fix application dependencies. Builds use the existing Docker
 engine/BuildKit, without a privileged builder or Docker socket mount in the app.
 Pinned inputs and recorded artifact checksums are provided; bit-identical builds

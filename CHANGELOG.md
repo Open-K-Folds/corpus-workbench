@@ -5,7 +5,9 @@
 - Select one digest-pinned official Trixie runtime with signed date-pinned package refresh; retain Bookworm Rust/Node builders and application contracts.
 - Remove unused setuid/setgid program mode bits without removing essential packages or changing the Compose network/security profile.
 - Add a separate runtime-contracts image that executes the existing compiled native suite with the actual Trixie loader; its binaries and runner are excluded from production.
-- Keep production signoff, exact candidate qualification and publication explicit pending gates.
+- Qualify the exact local amd64 candidate with 134 Windows/Bookworm/Trixie contracts, eighteen host browser flows, a production-container browser journey and independently repeated dev.7 upgrade/rollback.
+- Retain all scan findings:164 package/advisory pairs across 73 IDs, zero critical findings, five new IDs; reconcile all four prior critical versions with Debian fixes and record exact 78-package/source inventory.
+- Keep production risk signoff, native ARM64/Pi validation and publication explicit pending gates; [evidence](docs/TRIXIE-RUNTIME-MILESTONE.md).
 
 ## 0.2.0-dev.7 - Unreleased
 

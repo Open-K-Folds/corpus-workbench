@@ -1,7 +1,7 @@
 # ADR 0004: bounded Debian 13 runtime qualification
 
-Status: one local candidate selected for qualification; production signoff and
-publication remain gated. This updates the runtime compatibility choice in
+Status: one local amd64 candidate qualified; [exact results and inventory](TRIXIE-RUNTIME-MILESTONE.md).
+Production risk signoff, native ARM64/Pi and publication remain gated. This updates the runtime compatibility choice in
 [ADR 0001](ADR-0001-CONTAINER-RUNTIME.md), retaining native Rust, TypeScript,
 SQLite 3.53.2, all application contracts and the single revision authority.
 
