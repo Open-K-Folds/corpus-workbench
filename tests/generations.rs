@@ -68,6 +68,7 @@ fn fixture() -> (TempDir, Store, Completion, Vec<u8>) {
                 document: "xmlfiles/demo.xml".into(),
                 kind: "document".into(),
                 external_id: "xmlfiles/demo.xml".into(),
+                sidecar: None,
             },
         ),
         (
@@ -76,6 +77,7 @@ fn fixture() -> (TempDir, Store, Completion, Vec<u8>) {
                 document: "xmlfiles/demo.xml".into(),
                 kind: "token".into(),
                 external_id: "w-1".into(),
+                sidecar: None,
             },
         ),
     ]);
@@ -346,6 +348,7 @@ fn ambiguous_legacy_span_generation_is_historical_only_after_upgrade() {
         document: "xmlfiles/demo.xml".into(),
         kind: "span".into(),
         external_id: "s1".into(),
+        sidecar: None,
     };
     completion.anchors.insert("s".into(), anchor.clone());
     let mut properties = lineage.clone();
@@ -400,4 +403,116 @@ fn ambiguous_legacy_span_generation_is_historical_only_after_upgrade() {
         digest(&historical["receipt"]).unwrap(),
         digest(&completion).unwrap()
     );
+    // The same exact approved revision may now receive a qualified v2 graph.
+    let mut s = s;
+    let contract2 = s
+        .approved_contract_for_mapping("p", r.id, "corpus-evidence/2")
+        .unwrap();
+    let mut c2 = completion.clone();
+    c2.binding.contract_hash = digest(&contract2).unwrap();
+    c2.binding.recipe.mapping_version = "corpus-evidence/2".into();
+    c2.anchors.remove("s");
+    let lineage2 = json!({"project_id":"p","revision":r.id,"bundle_hash":r.snapshot_hash,"config_hash":c2.binding.config_hash,"contract_hash":c2.binding.contract_hash,"recipe_hash":digest(&c2.binding.recipe).unwrap(),"access_policy":"local-only"});
+    let mut graph2 = graph.clone();
+    graph2["nodes"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|n| n["id"] != "s");
+    graph2["edges"]
+        .as_array_mut()
+        .unwrap()
+        .retain(|e| e["source_id"] != "s");
+    for node in graph2["nodes"].as_array_mut().unwrap() {
+        for (k, v) in lineage2.as_object().unwrap() {
+            node["properties"][k] = v.clone();
+        }
+        node["properties"]["transcript_hash"] =
+            json!(view.snapshot.files["xmlfiles/demo.xml"].sha256);
+    }
+    for edge in graph2["edges"].as_array_mut().unwrap() {
+        edge["properties"] = lineage2.clone();
+    }
+    for (index, span) in view.documents[0].spans.iter().enumerate() {
+        let id = format!("span-{index}");
+        let anchor = Anchor {
+            document: "xmlfiles/demo.xml".into(),
+            kind: "span".into(),
+            external_id: span.id.clone(),
+            sidecar: Some(span.sidecar.clone()),
+        };
+        c2.anchors.insert(id.clone(), anchor.clone());
+        let mut properties = lineage2.clone();
+        properties["anchor"] = serde_json::to_value(anchor).unwrap();
+        properties["source"] = serde_json::to_value(span).unwrap();
+        properties["artifact_hash"] = json!(view.snapshot.files[&span.sidecar].sha256);
+        properties["transcript_hash"] = json!(view.snapshot.files["xmlfiles/demo.xml"].sha256);
+        properties["rights"] = json!(view.snapshot.config.rights);
+        properties["definition_version"] = json!(view.snapshot.config.version);
+        graph2["nodes"]
+            .as_array_mut()
+            .unwrap()
+            .push(json!({"id":id,"type":"CorpusSpan","properties":properties}));
+        for (target, kind) in [("d", "partOfDocument"), ("t", "anchorsToken")] {
+            graph2["edges"]
+                .as_array_mut()
+                .unwrap()
+                .push(json!({"source_id":id,"target_id":target,"type":kind,"properties":lineage2}));
+        }
+    }
+    let bytes2 = serde_json::to_vec(&graph2).unwrap();
+    c2.graph_hash = package::hash(&bytes2);
+    c2.node_count = 4;
+    c2.edge_count = 5;
+    let inventory_before = digest(&s.reference_inventory("p", r.id).unwrap()).unwrap();
+    for mutation in 0..4 {
+        let mut bad = c2.clone();
+        let mut forged = graph2.clone();
+        match mutation {
+            0 => bad.anchors.get_mut("span-0").unwrap().sidecar = None,
+            1 => {
+                bad.anchors.get_mut("span-0").unwrap().sidecar =
+                    Some("Annotations/nonexistent.xml".into())
+            }
+            2 => {
+                forged["nodes"][2]["properties"]["artifact_hash"] =
+                    json!(view.snapshot.files["xmlfiles/demo.xml"].sha256)
+            }
+            _ => {
+                forged["edges"].as_array_mut().unwrap().pop();
+            }
+        }
+        let bytes = serde_json::to_vec(&forged).unwrap();
+        bad.graph_hash = package::hash(&bytes);
+        assert!(s.accept_generation(&bad, &bytes, Fault::None).is_err());
+    }
+    let fresh = s.accept_generation(&c2, &bytes2, Fault::None).unwrap();
+    assert_eq!(s.generations("p", false).unwrap().len(), 1);
+    assert_eq!(s.generations("p", true).unwrap().len(), 2);
+    assert_eq!(s.generation("p", &id, true).unwrap(), historical);
+    assert_eq!(
+        digest(&s.reference_inventory("p", r.id).unwrap()).unwrap(),
+        inventory_before
+    );
+    let exported = tmp.path().join("mixed-export");
+    s.export("p", r.id, &exported).unwrap();
+    let mut imported = Store::open(&tmp.path().join("mixed-import")).unwrap();
+    imported.import(&exported, "p").unwrap();
+    assert_eq!(fresh["node_count"], 4);
+    assert_eq!(fresh["edge_count"], 5);
+}
+
+#[test]
+fn legacy_anchor_serialization_omits_new_scope_and_preserves_digest() {
+    let old = json!({"document":"xmlfiles/demo.xml","kind":"span","external_id":"s1"});
+    let anchor: Anchor = serde_json::from_value(old.clone()).unwrap();
+    assert!(anchor.sidecar.is_none());
+    assert_eq!(serde_json::to_value(&anchor).unwrap(), old);
+    assert_eq!(digest(&anchor).unwrap(), digest(&old).unwrap());
+}
+#[test]
+fn unsupported_mapping_never_grants_approved_contract() {
+    let (_tmp, s, c, _bytes) = fixture();
+    assert!(s
+        .approved_contract_for_mapping("p", c.binding.revision, "corpus-evidence/3")
+        .is_err());
 }

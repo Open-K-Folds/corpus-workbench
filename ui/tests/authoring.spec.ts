@@ -11,6 +11,7 @@ test.beforeAll(async()=>{
   writeFileSync(resolve(root,'.runtime','latest-browser-qa.txt'),runtime);
   execFileSync('python',['-c',`from pathlib import Path; import shutil, math, struct, wave; p=Path(r'${runtime}'); shutil.copytree(Path(r'${root}')/'fixtures'/'synthetic',p/'package'); a=p/'package'/'Audio'; a.mkdir(); w=wave.open(str(a/'synthetic-workbench.wav'),'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(16000); w.writeframes(b''.join(struct.pack('<h',int(1200*math.sin(2*math.pi*220*i/16000))) for i in range(128000))); w.close()`]);
   const document=resolve(runtime,'package','xmlfiles','SYNTHETIC-WORKBENCH.xml');writeFileSync(document,readFileSync(document,'utf8').replace('<body>',"<body><tok id='w-outside' form='untimed'>untimed</tok>"));
+  mkdirSync(resolve(runtime,'package','Other'),{recursive:true});writeFileSync(resolve(runtime,'package','Other','links.psdx'),"<opaque id='parser-1'><ref target='../xmlfiles/SYNTHETIC-WORKBENCH.xml#w-1'/><ref target='#missing'/></opaque>");writeFileSync(resolve(runtime,'package','Other','opaque.bin'),Buffer.from([0,255,17]));
   const binary=process.env.WB_BINARY??resolve(root,'target','debug','corpus-workbench'+(process.platform==='win32'?'.exe':''));
   execFileSync(binary,['import','--store',resolve(runtime,'authority'),'--package',resolve(runtime,'package'),'--project','synthetic']);
   service=spawn(binary,['serve','--store',resolve(runtime,'authority'),'--project','synthetic','--ui',process.env.WB_UI??resolve(root,'ui','dist'),'--port','18912'],{cwd:runtime,stdio:'pipe'});
@@ -105,7 +106,7 @@ test('stale annotation draft remains explicit and can be reapplied',async({page,
 });
 
 test('HTTP boundary rejects unauthenticated reads and forged commands',async({request})=>{
-  expect((await request.get('/api/view')).status()).toBe(403);expect((await request.get('/api/media?path=Audio%2Fsynthetic-workbench.wav')).status()).toBe(403);
+  expect((await request.get('/api/view')).status()).toBe(403);expect((await request.get('/api/inventory')).status()).toBe(403);expect((await request.post('/api/preflight',{data:{}})).status()).toBe(403);expect((await request.get('/api/media?path=Audio%2Fsynthetic-workbench.wav')).status()).toBe(403);
   await request.post('/api/session',{data:{code},headers:{Origin:'http://127.0.0.1:18912'}});
   expect((await request.post('/api/command',{data:{}})).status()).toBe(403);
   const view=await (await request.get('/api/view')).json();
@@ -124,4 +125,37 @@ test('failed duplicate service launch preserves working session capability',asyn
   expect(()=>execFileSync(binary,['serve','--store',resolve(runtime,'authority'),'--project','synthetic','--ui',process.env.WB_UI??resolve(root,'ui','dist'),'--port','18912'],{cwd:runtime,stdio:'pipe'})).toThrow();
   expect(readFileSync(resolve(runtime,'.runtime','session-code'),'utf8')).toBe(code);expect(readFileSync(launcher,'utf8')).toBe(original);
   expect((await request.post('/api/session',{data:{code},headers:{Origin:'http://127.0.0.1:18912'}})).status()).toBe(200);
+});
+
+test('reference inventory and structural prerequisites remain revision bound and read only',async({page})=>{
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
+  await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R23');
+  const before=await page.evaluate(async()=> (await fetch('/api/view')).json());
+  const original=await page.evaluate(async()=> (await fetch('/api/inventory?revision=23')).json());
+  await page.locator('[data-token="w-1"]').click();await page.getByRole('button',{name:'References',exact:true}).click();await expect(page.getByRole('heading',{name:'Package reference inventory · R23'})).toBeVisible();
+  await page.getByLabel('Artifact filter').selectOption('Other/links.psdx');await expect(page.locator('#reference-list')).toContainText('resolved');await expect(page.locator('#reference-list')).toContainText('unresolved');
+  await page.getByLabel('Resolution filter').selectOption('unresolved');await expect(page.locator('#reference-count')).toContainText('1 matching carriers');
+  const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Download inventory evidence',exact:true}).click()]);const file=resolve(runtime,'reference-inventory.json');await download.saveAs(file);expect(JSON.parse(readFileSync(file,'utf8'))).toEqual(original);
+  await page.getByRole('button',{name:'Check prerequisites',exact:true}).click();await expect(page.locator('#preflight-status')).toContainText('blocked');await expect(page.locator('#preflight-evidence')).toContainText('"execution_enabled": false');await expect(page.locator('#preflight-evidence')).toContainText('Other/opaque.bin');
+  expect((await page.evaluate(async()=> (await fetch('/api/view')).json())).revision).toEqual(before.revision);
+  await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:resolve(root,'.runtime','reference-inventory-mobile.png'),fullPage:true});await page.setViewportSize({width:1440,height:1000});
+  const status=await page.evaluate(async({csrf,prior})=>{
+    const v=await (await fetch('/api/view')).json();const target=prior.inventory.ids.find((id:{artifact:string;id:string})=>id.artifact==='xmlfiles/SYNTHETIC-WORKBENCH.xml'&&id.id==='w-1');
+    const request={schema:1,project:'synthetic',revision:v.revision.id,snapshot_hash:prior.inventory.snapshot_hash,config_hash:prior.inventory.config_hash,inventory_hash:prior.inventory_hash,operation:'retokenize',targets:[target]};
+    const post=(path:string,data:unknown)=>fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-WB-CSRF':csrf},body:JSON.stringify(data)});
+    const cross=await post('/api/preflight',{...request,project:'outside'});
+    const cmd={schema:1,project:'synthetic',command_id:'inventory-currentness',base_revision:v.revision.id,preimage_hash:v.revision.snapshot_hash,config_version:v.snapshot.config.version,label:'Synthetic inventory currentness',operations:[{kind:'define_language',value:'synthetic-inventory',description:'Synthetic only'}]};
+    const changed=await post('/api/command',cmd);if(!changed.ok)throw new Error(await changed.text());
+    const stale=await post('/api/preflight',request);return {cross:cross.status,stale:stale.status};
+  },{csrf:code,prior:original});expect(status).toEqual({cross:403,stale:409});
+  await page.getByRole('button',{name:'Check prerequisites',exact:true}).click();await expect(page.locator('#preflight-status')).toContainText('stale');expect(await page.evaluate(async()=> (await fetch('/api/inventory?revision=23')).json())).toEqual(original);
+  await page.reload();await expect(page.locator('#save-state')).toContainText('Saved R24');await page.getByRole('button',{name:'References',exact:true}).click();await expect(page.getByRole('heading',{name:'Package reference inventory · R24'})).toBeVisible();expect(errors).toEqual([]);
+  writeFileSync(resolve(runtime,'reference-inventory-evidence.json'),JSON.stringify({revision:23,after:24,full_inventory_download:true,opaque_coverage:true,read_only_preflight:true,qualified_scope:true,cross_project_denied:true,stale_rejected:true,historical_digest_unchanged:true,mobile:true,page_errors:errors},null,2));
+});
+
+test('newer reference selection wins when older inventory response arrives late',async({page})=>{
+  await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R24');
+  let release!:()=>void;let delivered!:()=>void;const hold=new Promise<void>(r=>release=r);const firstDelivered=new Promise<void>(r=>delivered=r);let requests=0;
+  await page.route('**/api/inventory?revision=*',async route=>{const sequence=++requests;const response=await route.fetch();if(sequence===1)await hold;await route.fulfill({response});if(sequence===1)delivered();});
+  await page.locator('[data-token="w-1"]').click();await page.getByRole('button',{name:'References',exact:true}).click();await expect.poll(()=>requests).toBe(1);await page.locator('[data-token="w-2"]').click();await expect.poll(()=>requests).toBe(2);await expect(page.locator('#preflight-form')).toHaveCount(1);const resumed=page.waitForResponse(r=>r.url().includes('/api/inventory?revision='));release();await firstDelivered;await (await resumed).finished();await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));await expect(page.locator('#preflight-form')).toHaveCount(1);await expect(page.locator('#preflight-form [name="target"] option:checked')).toContainText('w-2');await page.unroute('**/api/inventory?revision=*');
 });

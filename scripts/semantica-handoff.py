@@ -49,7 +49,7 @@ def effective_recipe(root):
                for distribution in importlib.metadata.distributions()}
     runtime.update(python=platform.python_version(), platform=platform.platform())
     recipe = {
-        "mapping_version": "corpus-evidence/1",
+        "mapping_version": "corpus-evidence/2",
         "adapter_hash": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "compiler_commit": commit, "compiler_source_hash": source_hash,
         "compiler_version": "semantica/0.6.8", "runtime_hash": digest(runtime),
@@ -73,13 +73,16 @@ def map_evidence(contract, recipe):
                "access_policy": "local-only"}
     records, anchors = [], {}
 
-    def node(document, kind, external_id, source, text):
+    def node(document, kind, external_id, source, text, sidecar=None):
         anchor = {"document": document, "kind": kind, "external_id": external_id}
+        if sidecar is not None:
+            anchor["sidecar"] = sidecar
         identity = "corpus:" + digest({"project": binding["project"], **anchor})
         anchors[identity] = anchor
         records.append({"id": identity, "type": "Corpus" + kind.title(), "text": text,
                         "properties": {**lineage, "anchor": anchor, "source": source,
-                                       "artifact_hash": contract["artifact_manifest"][document]["sha256"],
+                                       "artifact_hash": contract["artifact_manifest"][sidecar or document]["sha256"],
+                                       "transcript_hash": contract["artifact_manifest"][document]["sha256"],
                                        "rights": contract["rights"],
                                        "definition_version": contract["definition_version"]}})
         return identity
@@ -104,7 +107,7 @@ def map_evidence(contract, recipe):
             if token["utterance"] is not None:
                 edge(identity, segments[token["utterance"]], "partOfUtterance")
         for span in doc["spans"]:
-            identity = node(path, "span", span["id"], span, span["fields"].get("label", span["id"]))
+            identity = node(path, "span", span["id"], span, span["fields"].get("label", span["id"]), span["sidecar"])
             edge(identity, document, "partOfDocument")
             for token in span["token_ids"]:
                 edge(identity, tokens[token], "anchorsToken")
@@ -120,7 +123,7 @@ def map_evidence(contract, recipe):
 
 def ingest(binary, store, project, revision, compiler_root, output):
     # The native authority checks review and exact-head eligibility before dispatch.
-    contract = core(binary, store, project, "contract", "--revision", revision)
+    contract = core(binary, store, project, "contract", "--revision", revision, "--mapping-version", "corpus-evidence/2")
     recipe, runtime = effective_recipe(compiler_root)
     binding, seed, anchors = map_evidence(contract, recipe)
     generation_id = digest(binding)

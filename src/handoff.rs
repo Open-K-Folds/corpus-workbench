@@ -40,6 +40,8 @@ pub struct Anchor {
     pub document: String,
     pub kind: String,
     pub external_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidecar: Option<String>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -91,7 +93,8 @@ impl Store {
             ensure!(hash_value(value), "invalid generation hash");
         }
         ensure!(
-            binding.recipe.mapping_version == "corpus-evidence/1"
+            ["corpus-evidence/1", "corpus-evidence/2"]
+                .contains(&binding.recipe.mapping_version.as_str())
                 && binding.recipe.compiler_version == "semantica/0.6.8"
                 && binding.recipe.compiler_commit.len() == 40
                 && binding
@@ -104,7 +107,11 @@ impl Store {
                 && binding.recipe.options.get("access").map(String::as_str) == Some("local-only"),
             "unsupported effective recipe"
         );
-        let contract = self.approved_contract(&binding.project, binding.revision)?;
+        let contract = self.approved_contract_for_mapping(
+            &binding.project,
+            binding.revision,
+            &binding.recipe.mapping_version,
+        )?;
         ensure!(
             binding.snapshot_hash == contract["bundle_hash"]
                 && binding.config_hash == contract["config_hash"]
@@ -183,13 +190,14 @@ impl Store {
         let mut expected = BTreeMap::new();
         for doc in &view.documents {
             let document = &doc.path;
-            expected.insert(Anchor{document:document.clone(),kind:"document".into(),external_id:document.clone()}, json!({"path":doc.path,"title":doc.title,"media":doc.media,"metadata":doc.metadata,"opaque_elements":doc.opaque_elements}));
+            expected.insert(Anchor{document:document.clone(),kind:"document".into(),external_id:document.clone(),sidecar:None}, json!({"path":doc.path,"title":doc.title,"media":doc.media,"metadata":doc.metadata,"opaque_elements":doc.opaque_elements}));
             for token in &doc.tokens {
                 expected.insert(
                     Anchor {
                         document: document.clone(),
                         kind: "token".into(),
                         external_id: token.id.clone(),
+                        sidecar: None,
                     },
                     serde_json::to_value(token)?,
                 );
@@ -200,6 +208,7 @@ impl Store {
                         document: document.clone(),
                         kind: "utterance".into(),
                         external_id: segment.id.clone(),
+                        sidecar: None,
                     },
                     serde_json::to_value(segment)?,
                 );
@@ -210,6 +219,8 @@ impl Store {
                         document: document.clone(),
                         kind: "span".into(),
                         external_id: span.id.clone(),
+                        sidecar: (binding.recipe.mapping_version == "corpus-evidence/2")
+                            .then(|| span.sidecar.clone()),
                     },
                     serde_json::to_value(span)?,
                 );
@@ -236,7 +247,12 @@ impl Store {
             };
             ensure!(
                 node["type"] == expected_type
-                    && properties["artifact_hash"] == view.snapshot.files[&anchor.document].sha256
+                    && properties["artifact_hash"]
+                        == view.snapshot.files[anchor.sidecar.as_ref().unwrap_or(&anchor.document)]
+                            .sha256
+                    && (binding.recipe.mapping_version != "corpus-evidence/2"
+                        || properties["transcript_hash"]
+                            == view.snapshot.files[&anchor.document].sha256)
                     && properties["rights"] == view.snapshot.config.rights
                     && properties["definition_version"] == view.snapshot.config.version,
                 "graph evidence type/artifact/rights mismatch"
@@ -269,14 +285,16 @@ impl Store {
             .collect();
         let mut expected_edges = BTreeSet::new();
         for doc in &view.documents {
-            let identity = |kind: &str, external_id: &str| {
+            let scoped_identity = |kind: &str, external_id: &str, sidecar: Option<&str>| {
                 by_anchor[&Anchor {
                     document: doc.path.clone(),
                     kind: kind.into(),
                     external_id: external_id.into(),
+                    sidecar: sidecar.map(str::to_string),
                 }]
                     .clone()
             };
+            let identity = |kind: &str, external_id: &str| scoped_identity(kind, external_id, None);
             let document = identity("document", &doc.path);
             for segment in &doc.segments {
                 expected_edges.insert((
@@ -311,7 +329,12 @@ impl Store {
                 }
             }
             for span in &doc.spans {
-                let id = identity("span", &span.id);
+                let id = scoped_identity(
+                    "span",
+                    &span.id,
+                    (binding.recipe.mapping_version == "corpus-evidence/2")
+                        .then_some(span.sidecar.as_str()),
+                );
                 expected_edges.insert((id.clone(), document.clone(), "partOfDocument".into()));
                 for token in &span.token_ids {
                     expected_edges.insert((
@@ -360,18 +383,29 @@ impl Store {
         // A concurrent head/review change cannot be mixed with older eligibility.
         type Row = (String, i64, String, String, String, String, bool);
         let entries: Vec<Row> = self.conn.prepare("SELECT g.id,g.revision,g.snapshot_hash,g.recipe_hash,g.receipt_hash,g.graph_hash, CASE WHEN g.revision=p.head AND g.snapshot_hash=r.snapshot_hash AND (SELECT decision FROM reviews WHERE project=p.id AND revision=p.head AND snapshot_hash=r.snapshot_hash AND scope='full' ORDER BY id DESC LIMIT 1)='approved' THEN 1 ELSE 0 END FROM derived_generations g JOIN projects p ON p.id=g.project JOIN revisions r ON r.id=p.head WHERE g.project=? ORDER BY g.rowid DESC")?.query_map([project], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?,r.get(5)?,r.get(6)?)))?.collect::<rusqlite::Result<_>>()?;
+        let mut result = Vec::new();
         let mut eligibility = BTreeMap::new();
-        for entry in &entries {
-            if entry.6 && !eligibility.contains_key(&entry.1) {
-                let view = self.view(project, Some(entry.1))?;
-                eligibility.insert(entry.1, package::compiler_scope(&view.documents).is_ok());
+        for (id, revision, snapshot, recipe, receipt, graph, current) in entries {
+            let completion: Completion =
+                serde_json::from_slice(&self.objects.read_hash(&receipt)?)?;
+            let mapping = completion.binding.recipe.mapping_version;
+            let key = (revision, mapping.clone());
+            if current && !eligibility.contains_key(&key) {
+                let view = self.view(project, Some(revision))?;
+                eligibility.insert(
+                    key.clone(),
+                    !view.issues.iter().any(|i| i.blocking)
+                        && package::compiler_scope_for_mapping(&view.documents, &mapping).is_ok(),
+                );
+            }
+            let current = current && eligibility.get(&key).copied().unwrap_or(false);
+            if include_stale || current {
+                result.push(json!({"generation_id":id,"revision":revision,"snapshot_hash":snapshot,"recipe_hash":recipe,"receipt_hash":receipt,"graph_hash":graph,"current":current}));
             }
         }
-        Ok(entries.into_iter().filter_map(|(id,revision,snapshot,recipe,receipt,graph,current)| {
-            let current = current && eligibility.get(&revision).copied().unwrap_or(false);
-            (include_stale || current).then(|| json!({"generation_id":id,"revision":revision,"snapshot_hash":snapshot,"recipe_hash":recipe,"receipt_hash":receipt,"graph_hash":graph,"current":current}))
-        }).collect())
+        Ok(result)
     }
+
     pub fn generation(&self, project: &str, id: &str, historical: bool) -> Result<Value> {
         let entry = self
             .generations(project, historical)?

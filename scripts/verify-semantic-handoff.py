@@ -135,8 +135,33 @@ def verify(binary, compiler_root, output):
             annotation_generations.append(result["generation_id"])
             previous = result
         assert graph1["graph"] == core("generation", "--id", r1["generation_id"], "--historical", "yes")["graph"]
+        # Qualified identities must survive repeated bare IDs in different
+        # documents and sidecars in the actual native compiler, not only fixtures.
+        duplicate_package=root/"duplicate-package"
+        for directory in ["Resources","xmlfiles","Annotations"]:(duplicate_package/directory).mkdir(parents=True)
+        (duplicate_package/"Resources/settings.xml").write_text("<ttsettings/>")
+        for name in ["demo","other"]:
+            (duplicate_package/f"xmlfiles/{name}.xml").write_text("<TEI><text><tok id='same-token' form='SYNTHETIC'>SYNTHETIC</tok></text></TEI>")
+        for name in ["first_demo","second_demo","first_other"]:
+            (duplicate_package/f"Annotations/{name}.xml").write_text(f"<spanGrp><span id='same-span' corresp='#same-token' label='{name}'/></spanGrp>")
+        duplicate_store=root/"duplicate-authority"
+        dr=core("import","--package",duplicate_package,authority=duplicate_store)
+        core("review","--revision",dr["id"],"--decision","approved","--note","Synthetic qualified identity fixture",authority=duplicate_store)
+        expect_rejection(lambda:core("contract","--revision",dr["id"],authority=duplicate_store),"ambiguous span IDs")
+        qualified=bridge.ingest(binary,duplicate_store,"synthetic",dr["id"],compiler_root,root/"qualified-v2")
+        actual=core("generation","--id",qualified["generation_id"],authority=duplicate_store)
+        assert qualified["node_count"]==7 and qualified["edge_count"]==8
+        token_nodes=[n for n in actual["graph"]["nodes"] if n["properties"]["anchor"]["kind"]=="token"]
+        span_nodes=[n for n in actual["graph"]["nodes"] if n["properties"]["anchor"]["kind"]=="span"]
+        assert len(token_nodes)==2 and len({n["id"] for n in token_nodes})==2
+        assert len(span_nodes)==3 and len({n["id"] for n in span_nodes})==3
+        for n in span_nodes:
+            anchor=n["properties"]["anchor"]
+            assert n["properties"]["artifact_hash"]==actual["contract"]["artifact_manifest"][anchor["sidecar"]]["sha256"]
+            assert n["properties"]["transcript_hash"]==actual["contract"]["artifact_manifest"][anchor["document"]]["sha256"]
+        assert actual["receipt"]["binding"]["recipe"]["mapping_version"]=="corpus-evidence/2"
         evidence = {"synthetic_only":True,"semantica_version":"0.6.8","compiler_commit":bridge.compiler_identity(compiler_root)[0],
-                    "mapping":"corpus-evidence/1","nodes_per_generation":r2["node_count"],"edges_per_generation":r2["edge_count"],
+                    "mapping":"corpus-evidence/2","nodes_per_generation":r2["node_count"],"edges_per_generation":r2["edge_count"],
                     "initial_ingestion":True,"native_reopen":True,"retry_reuses_one_generation":True,"correction_stales_prior_default_query":True,
                     "unreviewed_dispatch_denied":True,"stale_completion_denied":True,"reviewed_correction_visible":True,
                     "historical_generation_unchanged":True,"forged_projection_rejected":True,"backup_restore_graph_equal":True,
@@ -144,6 +169,7 @@ def verify(binary, compiler_root, output):
                     "r1_generation":r1["generation_id"],"r2_generation":r2["generation_id"],"audio_artifact_hash":original_contract["artifact_manifest"]["Audio/synthetic.wav"]["sha256"],"hash_prefixed_relation":True,"raw_artifact_hash":original_contract["artifact_manifest"]["Raw/asr.raw.json"]["sha256"],
                     "annotation_generations":annotation_generations,"annotation_mutations_stale_current":True,
                     "repaired_span_and_relation_in_native_graph":True,"cleared_relation_removes_authored_edge":True,
+                    "qualified_identity_generation":{"nodes":7,"edges":8,"token_ids_repeat_across_documents":True,"span_ids_repeat_across_sidecars":True,"sidecar_and_transcript_artifacts_bound":True},
                     "external_database":False,"model":None,"real_pilot_ingested":False}
         output.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
         return evidence

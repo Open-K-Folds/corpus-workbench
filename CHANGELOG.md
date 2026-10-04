@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-dev.2 - Unreleased
+
+- Inventory every artifact and parsed lexical XML carrier, including namespaces, mixed text/CDATA, stand-off pointers and parser sidecars; expose qualified lookup, opaque coverage, downloads and blocked structural impact inspection.
+- Bind preflight to exact revision/snapshot/config/inventory and qualified targets. Keep historical reports immutable; preserve unsupported relation-only spans and block ambiguous definition filenames.
+- Add sidecar-qualified compiler mapping V2 with actual sidecar/transcript provenance and per-recipe currentness. Keep V1 serialization, receipts and explicit history intact.
+- Add 17 native regressions, two real browser flows and optional installed-native repeated-ID compiler acceptance. No converter/split/merge execution or preview/session replacement.
+
 ## 0.2.0-dev.1 - Unreleased
 
 - Edit saved span fields, ordered/discontinuous anchors and Unicode subtoken judgments while preserving IDs, supplied mixed content and unknown XML. Correct or clear inline relations; clearing retains token notes.

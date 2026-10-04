@@ -505,14 +505,26 @@ impl Store {
         )
     }
     pub fn approved_contract(&self, project: &str, revision: i64) -> Result<Value> {
+        self.approved_contract_for_mapping(project, revision, "corpus-evidence/1")
+    }
+    pub fn approved_contract_for_mapping(
+        &self,
+        project: &str,
+        revision: i64,
+        mapping: &str,
+    ) -> Result<Value> {
         let view = self.view(project, Some(revision))?;
         ensure!(
             self.head(project)?.id == revision && view.approved,
             "current approved revision required for default compiler export"
         );
-        package::compiler_scope(&view.documents)?;
+        ensure!(
+            !view.issues.iter().any(|i| i.blocking),
+            "current validation blocks compiler export"
+        );
+        package::compiler_scope_for_mapping(&view.documents, mapping)?;
         Ok(
-            json!({"contract_version":1,"authority":"research-intelligence","project_id":project,"revision":view.revision,"bundle_hash":view.revision.snapshot_hash,"config_hash":package::hash(&serde_json::to_vec(&view.snapshot.config)?),"definition_version":view.snapshot.config.version,"definitions":view.snapshot.config,"artifact_manifest":view.snapshot.files,"rights":view.snapshot.config.rights,"access_policy":"local-only; public/model-training permission not implied","documents":view.documents,"review":self.receipt(project,revision)?["reviews"].as_array().context("review records")?.last().context("approved review")?,"ingestion_status":"not tested; no Semantica dispatch performed by this contract endpoint"}),
+            json!({"contract_version":if mapping == "corpus-evidence/2" {2}else{1},"authority":"research-intelligence","project_id":project,"revision":view.revision,"bundle_hash":view.revision.snapshot_hash,"config_hash":package::hash(&serde_json::to_vec(&view.snapshot.config)?),"definition_version":view.snapshot.config.version,"definitions":view.snapshot.config,"artifact_manifest":view.snapshot.files,"rights":view.snapshot.config.rights,"access_policy":"local-only; public/model-training permission not implied","documents":view.documents,"review":self.receipt(project,revision)?["reviews"].as_array().context("review records")?.last().context("approved review")?,"ingestion_status":"not tested; no Semantica dispatch performed by this contract endpoint"}),
         )
     }
     pub fn backup(&self, destination: &Path) -> Result<()> {

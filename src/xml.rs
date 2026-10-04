@@ -49,7 +49,10 @@ pub fn valid_name(name: &str) -> bool {
 
 // Locate attributes lexically in the opening tag only. DOM is used for validation
 // and projection; untouched bytes, quote style, entities and order stay original.
-fn lexical_attrs(text: &str, start: usize) -> Result<(BTreeMap<String, Range<usize>>, usize)> {
+pub(crate) fn lexical_attrs(
+    text: &str,
+    start: usize,
+) -> Result<(BTreeMap<String, Range<usize>>, usize)> {
     let b = text.as_bytes();
     let mut i = start + 1;
     while i < b.len() && !b[i].is_ascii_whitespace() && !matches!(b[i], b'>' | b'/') {

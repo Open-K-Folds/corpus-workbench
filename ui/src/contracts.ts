@@ -21,6 +21,9 @@ export type Operation =
  | {kind:'clear_relation';document:string;from:string}
  | {kind:'restore';revision:number};
 export interface Command {schema:1;project:string;command_id:string;base_revision:number;preimage_hash:string;config_version:number;label:string;operations:Operation[]}
+export interface QualifiedTarget {artifact:string;element_start:number;id:string}
+export interface Carrier {artifact:string;artifact_hash:string;element_start:number;element:string;namespace:string|null;kind:string;qname:string;byte_start:number;byte_end:number;value:string;syntax:string;resolution:string;targets:QualifiedTarget[];note:string}
+export interface InventoryEnvelope {inventory_hash:string;inventory:{schema:number;project:string;revision:number;snapshot_hash:string;config_hash:string;artifacts:{path:string;artifact:Artifact;coverage:string;reason:string;carriers:number}[];carriers:Carrier[];ids:QualifiedTarget[];structural_execution_enabled:false;limitations:string[]}}
 export function checkView(value:View):View {
   if(value.api_version!==1 || value.snapshot.schema!==1 || !Number.isInteger(value.revision.id) || !Array.isArray(value.documents) || !value.revision.snapshot_hash.match(/^[a-f0-9]{64}$/)) throw new Error('Unsupported server contract');
   for(const doc of value.documents) for(const token of doc.tokens) if(typeof token.id!=='string' || typeof token.original!=='string' || typeof token.internal_id!=='string') throw new Error('Invalid token contract');

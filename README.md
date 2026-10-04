@@ -1,6 +1,6 @@
 # Corpus workbench
 
-Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. **0.1.0-preview.1 is an engineering preview.** Source development is now **0.2.0-dev.1**, including the [annotation editing milestone](docs/ANNOTATION-MILESTONE.md). The full approved migration is still in progress; the published preview stays immutable.
+Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. **0.1.0-preview.1 is an engineering preview.** Source development is now **0.2.0-dev.2**, including [annotation editing](docs/ANNOTATION-MILESTONE.md) and the [reference inventory foundation](docs/REFERENCE-INVENTORY-MILESTONE.md). The full approved migration is still in progress; the published preview stays immutable.
 
 Import a complete TEITOK directory, listen to its media, correct tokens, maintain custom language values, create and edit discontinuous spans and relations, compare/undo/restore named revisions, review an exact revision, and export the complete package. SQLite transactions own revisions and review; immutable objects preserve source artifacts. Optional native Semantica generations are derived from approved exact snapshots and excluded from current queries after correction or review rejection.
 

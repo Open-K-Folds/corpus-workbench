@@ -356,7 +356,11 @@ pub fn documents(objects: &Objects, snapshot: &Snapshot) -> Result<Vec<Document>
                     .split_whitespace()
                     .map(|v| v.trim_start_matches('#').into())
                     .collect();
-                ensure!(!tokens.is_empty(), "span without supported token anchors");
+                if tokens.is_empty() {
+                    doc.opaque_elements
+                        .push(format!("unprojected-annotation:{sidecar}:{id}"));
+                    continue;
+                }
                 for id in &tokens {
                     ensure!(
                         doc.tokens.iter().any(|t| &t.id == id),
@@ -398,7 +402,35 @@ pub fn validate(objects: &Objects, snapshot: &Snapshot) -> Result<Vec<Issue>> {
         }
     }
     let mut issues = Vec::new();
-    for doc in documents(objects, snapshot)? {
+    let projected = documents(objects, snapshot)?;
+    for path in snapshot.files.keys().filter(|p| {
+        snapshot.files[*p].role == "annotation-sidecar-or-definition"
+            && p.to_ascii_lowercase().ends_with(".xml")
+    }) {
+        let text = objects.text(snapshot, path)?;
+        let tree = xml::parse(&text)?;
+        if !tree
+            .descendants()
+            .any(|n| n.is_element() && n.tag_name().name() == "span")
+        {
+            continue;
+        }
+        let owners: Vec<_> = projected
+            .iter()
+            .filter(|d| {
+                d.spans.iter().any(|s| &s.sidecar == path)
+                    || d.opaque_elements
+                        .iter()
+                        .any(|s| s.starts_with(&format!("unprojected-annotation:{path}:")))
+            })
+            .collect();
+        if path.to_ascii_lowercase().ends_with("_def.xml") {
+            issues.push(Issue{code:"ambiguous-annotation-definition".into(),target:path.clone(),message:"Span-bearing definition filename requires an explicit transcript/definition association; bytes preserved read-only".into(),blocking:true});
+        } else if owners.len() != 1 {
+            issues.push(Issue{code:"ambiguous-annotation-association".into(),target:path.clone(),message:format!("Span-bearing sidecar has {} projected transcript owners; explicit association required; bytes preserved read-only",owners.len()),blocking:true});
+        }
+    }
+    for doc in projected {
         for media in &doc.media {
             if resolve_media(snapshot, media).is_none() {
                 issues.push(Issue {
@@ -417,7 +449,10 @@ pub fn validate(objects: &Objects, snapshot: &Snapshot) -> Result<Vec<Issue>> {
                     "Preserved structures with read-only editing: {}",
                     doc.opaque_elements.join(", ")
                 ),
-                blocking: false,
+                blocking: doc
+                    .opaque_elements
+                    .iter()
+                    .any(|s| s.starts_with("unprojected-annotation:")),
             });
         }
         for span in &doc.spans {
@@ -678,6 +713,7 @@ pub fn add_span(
         .to_str()
         .context("basename")?;
     let path = format!("Annotations/review_{basename}");
+    ensure!(!path.to_ascii_lowercase().ends_with("_def.xml"),"reserved annotation definition filename; explicit association required before creating a span");
     ensure!(docs.iter().filter(|d| Path::new(&d.path).file_name().and_then(|n| n.to_str()) == Some(basename)).count() == 1,
         "sidecar matches multiple transcripts; explicit association required before creating a span");
     let old = if snapshot.files.contains_key(&path) {
@@ -900,12 +936,19 @@ pub fn relation_source(
 // Mapping v1 uses document + bare span ID. Keep ambiguous packages lossless,
 // but never silently collapse their source evidence into a current graph.
 pub fn compiler_scope(documents: &[Document]) -> Result<()> {
+    compiler_scope_for_mapping(documents, "corpus-evidence/1")
+}
+pub fn compiler_scope_for_mapping(documents: &[Document], mapping: &str) -> Result<()> {
+    ensure!(
+        ["corpus-evidence/1", "corpus-evidence/2"].contains(&mapping),
+        "unsupported compiler mapping"
+    );
     let mut owners = BTreeMap::new();
     for doc in documents {
         let mut ids = BTreeSet::new();
         for span in &doc.spans {
             ensure!(
-                ids.insert(&span.id),
+                mapping == "corpus-evidence/2" || ids.insert(&span.id),
                 "ambiguous span IDs across sidecars; qualified compiler mapping required"
             );
             if let Some(owner) = owners.insert(&span.sidecar, &doc.path) {

@@ -510,12 +510,14 @@ fn sidecar_aliasing_between_equal_transcript_filenames_blocks_edits_and_handoff(
     }
     reject_unchanged(&mut s, "aliased", vec![operation]);
     assert_eq!(text(&s, SIDE), SPANS);
-    assert!(approve(&mut s));
+    assert!(!approve(&mut s));
     assert!(s
-        .approved_contract("p", s.head("p").unwrap().id)
-        .unwrap_err()
-        .to_string()
-        .contains("multiple transcripts"));
+        .view("p", None)
+        .unwrap()
+        .issues
+        .iter()
+        .any(|i| i.code == "ambiguous-annotation-association" && i.blocking));
+    assert!(s.approved_contract("p", s.head("p").unwrap().id).is_err());
 }
 
 #[test]
