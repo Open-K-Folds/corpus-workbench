@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import platform
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -49,7 +50,12 @@ for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version
         raise SystemExit(f"No license notice for {package['name']}")
     if package['name'] == 'libsqlite3-sys':
         sqlite = (source / 'sqlite3/sqlite3.c').read_text()
-        (destination / 'SQLITE-PUBLIC-DOMAIN.txt').write_text(sqlite[:sqlite.index('*/') + 2])
+        sqlite_public_domain = sqlite[:sqlite.index('*/') + 2]
+        (destination / 'SQLITE-PUBLIC-DOMAIN.txt').write_text(sqlite_public_domain)
+        sqlite_version = re.search(r'#define SQLITE_VERSION\s+"([0-9.]+)"', sqlite).group(1)
+        components.append({'ecosystem': 'bundled-c', 'name': 'sqlite', 'version': sqlite_version,
+            'license': 'LicenseRef-SQLite-Public-Domain', 'scope': 'linked runtime via libsqlite3-sys',
+            'notices': ['cargo/' + destination.name + '/SQLITE-PUBLIC-DOMAIN.txt']})
     components.append({'ecosystem': 'cargo', 'name': package['name'], 'version': package['version'],
                        'license': package['license'], 'scope': 'runtime/build/test graph', 'notices': files})
 
@@ -58,21 +64,20 @@ for location, package in sorted(lock['packages'].items()):
     if not location or not (root / 'ui' / location).is_dir():
         continue
     source = root / 'ui' / location
-    name = location.removeprefix('node_modules/')
+    installed = json.loads((source / 'package.json').read_text())
+    name = installed['name']
+    if installed['version'] != package['version']:
+        raise SystemExit(f'Installed version differs from lock for {location}')
     notice_status = 'retained license text'
     destination = notices / 'npm' / (name.replace('/', '__') + '-' + package['version'])
     files = copy_notices(source, destination)
-    if not files and location.startswith(('node_modules/@esbuild/', 'node_modules/@rollup/')):
-        parent = 'esbuild' if '/@esbuild/' in location else 'rollup'
-        files = copy_notices(root / 'ui/node_modules' / parent, destination)
-    if not files and location.startswith('node_modules/@napi-rs/lzma-'):
-        # This optional Rollup build tool omits license text in its npm tarball
-        # and exact upstream gitHead. Preserve the declared metadata honestly;
-        # its binary/source is not shipped in the runtime image.
-        destination.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source / 'package.json', destination / 'DECLARED-PACKAGE-METADATA.json')
-        files = ['DECLARED-PACKAGE-METADATA.json']
-        notice_status = 'declared MIT metadata only; omitted upstream text; build tool not redistributed'
+    if not files and name.startswith(('@esbuild/', '@rollup/')):
+        parent = 'esbuild' if name.startswith('@esbuild/') else 'rollup'
+        candidates = [root / 'ui' / path for path in lock['packages']
+                      if path.endswith('/' + parent) and (root / 'ui' / path).is_dir()]
+        if len(candidates) != 1:
+            raise SystemExit(f'Unambiguous parent license is required for {location}')
+        files = copy_notices(candidates[0], destination)
     if not files:
         raise SystemExit(f'No license notice for {location}')
     components.append({'ecosystem': 'npm', 'name': name, 'version': package['version'],
@@ -97,7 +102,7 @@ for name in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'Dockerfile', 'c
     shutil.copy2(root / name, source_out / name)
 for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic'):
     shutil.copytree(root / name, source_out / name)
-for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'evidence/dependency-inventory.json', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
+for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'evidence/dependency-inventory.json', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
     destination = source_out / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, destination)
@@ -125,7 +130,11 @@ spdx = {'spdxVersion': 'SPDX-2.3', 'dataLicense': 'CC0-1.0', 'SPDXID': 'SPDXRef-
     'name': f'corpus-workbench-{version}-{platform.machine()}',
     'documentNamespace': f'https://github.com/Open-K-Folds/corpus-workbench/spdx/{args.commit}/{platform.machine()}',
     'creationInfo': {'creators': ['Tool: corpus-workbench container-inventory'], 'created': '2026-10-04T00:00:00Z'},
-    'packages': packages, 'relationships': [{'spdxElementId': 'SPDXRef-DOCUMENT', 'relationshipType': 'DESCRIBES', 'relatedSpdxElement': 'SPDXRef-Application'}]}
+    'packages': packages,
+    'hasExtractedLicensingInfos': [{'licenseId': 'LicenseRef-SQLite-Public-Domain',
+        'name': 'SQLite public domain dedication', 'extractedText': sqlite_public_domain,
+        'seeAlsos': ['https://sqlite.org/copyright.html']}],
+    'relationships': [{'spdxElementId': 'SPDXRef-DOCUMENT', 'relationshipType': 'DESCRIBES', 'relatedSpdxElement': 'SPDXRef-Application'}]}
 (out / 'SBOM.spdx.json').write_text(json.dumps(spdx, indent=2))
 lines = []
 for file in sorted(out.rglob('*')):

@@ -52,12 +52,15 @@ is made. Same-version recreation and verified clone restore are proven; real
 cross-version upgrades/downgrades require separate tests and retained image/data
 pairs. A comprehensive external image vulnerability scan is also a release gate.
 
-One optional Linux x64 Rollup build tool omits upstream license text. Its declared
+Dev.6 has one optional Linux x64 Rollup build tool with omitted upstream license text. Its declared
 MIT metadata is retained with an explicit status, and its code/binary is absent
 from the runtime; license review remains a publication gate. The inventory is not
 legal clearance. TEITOK GPLv3+ notices and attribution remain; no AGPL LaBB-CAT code
 is copied and corpus rights remain separate. Omnilingual/GPU/model/aligner worker
 images stay resource-gated and separate pending their durable native job contract.
+
+Dev.7 addresses dependency/license, image scan and bounded cross-version gates in
+[release qualification](RELEASE-QUALIFICATION.md); this dev.6 record is historical.
 
 Broader format/schema editing, shared roles, durable drafts/jobs, CWB/CQP parity and
 the remaining approved migration backlog remain ongoing work.

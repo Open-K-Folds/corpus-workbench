@@ -9,7 +9,15 @@ RUN npm ci --ignore-scripts && npm rebuild esbuild
 COPY ui/ ./
 RUN npm run build
 
-FROM ${RUNTIME_IMAGE} AS os-inventory
+FROM ${RUNTIME_IMAGE} AS runtime-base
+# Historical, signed APT indexes plus exact versions make available fixes explicit.
+# HTTP transport is protected by Debian archive signatures/package hashes; this
+# slim base has no TLS certificate bundle. Never allow unsigned/trusted=yes repos.
+RUN printf 'Types: deb\nURIs: http://snapshot.debian.org/archive/debian/20261004T000000Z\nSuites: bookworm bookworm-updates\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\nCheck-Valid-Until: no\n\nTypes: deb\nURIs: http://snapshot.debian.org/archive/debian-security/20261004T000000Z\nSuites: bookworm-security\nComponents: main\nSigned-By: /usr/share/keyrings/debian-archive-keyring.gpg\nCheck-Valid-Until: no\n' > /etc/apt/sources.list.d/debian.sources && \
+    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      libpcre2-8-0=10.42-1+deb12u2 tzdata=2026c-0+deb12u1 && rm -rf /var/lib/apt/lists/*
+
+FROM runtime-base AS os-inventory
 RUN mkdir -p /inventory/notices && dpkg-query -W -f='${binary:Package}\t${Version}\t${Architecture}\n' > /inventory/packages.tsv && \
     for file in /usr/share/doc/*/copyright; do [ ! -f "$file" ] || cp --parents "$file" /inventory/notices; done
 
@@ -36,9 +44,9 @@ RUN mkdir -p /package && python3 scripts/prepare-synthetic.py --out /package/syn
     python3 scripts/container-inventory.py --commit "$SOURCE_COMMIT" --out /package --cargo /cargo-metadata.json --os /os-inventory && \
     find /package -type d -exec chmod 0755 {} + && find /package -type f -exec chmod 0644 {} + && chmod 0755 /package/bin/corpus-workbench
 
-FROM ${RUNTIME_IMAGE} AS runtime
+FROM runtime-base AS runtime
 ARG SOURCE_COMMIT=working-tree
-ARG VERSION=0.2.0-dev.6
+ARG VERSION=0.2.0-dev.7
 ARG TARGETPLATFORM
 LABEL org.opencontainers.image.title="Corpus Workbench" \
       org.opencontainers.image.description="Native corpus authoring; synthetic demonstration only" \

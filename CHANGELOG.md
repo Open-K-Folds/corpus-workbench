@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-dev.7 - Unreleased
+
+- Remove the omitted-license optional build tool with an exact official Rollup pin; retain complete notices and handle nested npm package paths.
+- Apply exact available Debian PCRE2/timezone fixes from signed snapshot indexes.
+- Update the official SQLite wrapper/bundle to SQLite 3.53.2, report its compiled version and inventory the linked C engine separately.
+- Add a fresh synthetic two-version upgrade/rollback harness with retained volumes, exact history/review/media/export checks and immutable backup-source hashes.
+- Record bounded release qualification, primary sources and remaining publication/hardware/security limits.
+
 ## 0.2.0-dev.6 - Unreleased
 
 - Add pinned multi-stage Linux builds, exact Git archive contexts, non-root Compose authoring/tools, persistent authority/runtime/backup volumes and host-loopback publication.

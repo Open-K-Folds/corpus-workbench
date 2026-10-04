@@ -121,24 +121,32 @@ for location, package in lock['packages'].items():
     source = root / 'ui' / location
     if not source.is_dir():
         continue  # Optional platform-specific packages absent from this actual build.
+    installed = json.loads((source / 'package.json').read_text())
+    package_name = installed['name']
+    if installed['version'] != package['version']:
+        raise SystemExit(f'Installed version differs from lock for {location}')
     files = notice_files(source)
     notice_source = location
-    if not files and location.startswith(('node_modules/@esbuild/', 'node_modules/@rollup/')):
+    if not files and package_name.startswith(('@esbuild/', '@rollup/')):
         # Official platform-specific build tools share their parent project's
         # license but omit the text in these small platform packages.
-        parent = 'esbuild' if '/@esbuild/' in location else 'rollup'
-        source = root / 'ui/node_modules' / parent
+        parent = 'esbuild' if package_name.startswith('@esbuild/') else 'rollup'
+        candidates = [root / 'ui' / path for path in lock['packages']
+                      if path.endswith('/' + parent) and (root / 'ui' / path).is_dir()]
+        if len(candidates) != 1:
+            raise SystemExit(f'Unambiguous parent license required for {location}')
+        source = candidates[0]
         files = notice_files(source)
-        notice_source = 'node_modules/' + parent
+        notice_source = source.relative_to(root / 'ui').as_posix()
     if not files:
         raise SystemExit(f'No retained license file found for npm package {location}')
-    name = location.removeprefix('node_modules/').replace('/', '__')
+    name = package_name.replace('/', '__')
     destination = licenses / 'npm' / (name + '-' + package['version'])
     for file in files:
         target = destination / file.relative_to(source)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(file, target)
-    index.append({'ecosystem':'npm','name':location.removeprefix('node_modules/'),
+    index.append({'ecosystem':'npm','name':package_name,
                   'version':package['version'],'license':package.get('license'),
                   'notice_source':notice_source,
                   'files':[p.relative_to(source).as_posix() for p in files]})

@@ -733,7 +733,7 @@ fn overlapping_retries_recheck_exact_binding_after_lookup_or_proof_races() {
         statement: *mut c_void,
         _time: *mut c_void,
     ) -> i32 {
-        if kind == ffi::SQLITE_TRACE_PROFILE as u32 {
+        if kind == ffi::SQLITE_TRACE_PROFILE {
             // SQLite invokes this synchronously with the registered live Box and statement.
             let gate = unsafe { &mut *(context as *mut Gate) };
             let sql =
@@ -781,7 +781,7 @@ fn overlapping_retries_recheck_exact_binding_after_lookup_or_proof_races() {
                 assert_eq!(
                     ffi::sqlite3_trace_v2(
                         first.conn.handle(),
-                        ffi::SQLITE_TRACE_PROFILE as u32,
+                        ffi::SQLITE_TRACE_PROFILE,
                         Some(trace),
                         (&mut *gate as *mut Gate).cast()
                     ),

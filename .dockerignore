@@ -34,6 +34,7 @@ scripts/**
 !scripts/container-inventory.py
 !scripts/build-containers.py
 !scripts/container-smoke.py
+!scripts/container-upgrade-smoke.py
 !containers/
 !containers/**
 !LICENSE

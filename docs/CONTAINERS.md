@@ -83,8 +83,9 @@ commit rolls the migration back. Unknown future schema versions are refused.
 Process-crash recovery is tested; physical power loss is a separate gate.
 Rollback selects the retained old image and untouched old volume. An old binary
 must never open a newer migrated volume unless a separately proven compatible
-migration supports it. This milestone verifies same-version image recreation and
-clone restoration, not an automatic cross-version downgrade or production cutover.
+migration supports it. The dev.6 milestone verifies same-version image recreation and clone restoration.
+Dev.7 adds the bounded two-version harness described in release qualification;
+it does not promise arbitrary future-schema downgrade or production cutover.
 
 ## Contracts and artifacts
 
@@ -106,11 +107,11 @@ includes the resolved Cargo graph, installed npm build/test dependencies, Rust
 standard library and Debian runtime package list, with scope comments; absent
 optional platform npm tools are excluded. OS declared licenses use NOASSERTION
 and retain base-image copyright texts where available. This is an inventory,
-not vulnerability scanning or legal clearance. The optional Linux x64 Rollup
-build tool `@napi-rs/lzma-linux-x64-gnu@1.5.1` omits license text in its locked
-tarball and exact upstream tree: declared MIT package metadata is retained and
-marked explicitly, and its code/binary is not redistributed in the runtime.
-License review of that inventory entry remains a publication gate. The image excludes Git history,
+not legal clearance. Dev.7 pins official Rollup 4.62.2 to remove the optional tool
+with omitted upstream license text; complete retained notices are required.
+See [ADR 0002](ADR-0002-BUILD-TOOL-LICENSE.md) for the temporary pin and tradeoffs,
+and [release qualification](RELEASE-QUALIFICATION.md) for offline image assessment,
+SQLite engine evidence and the bounded cross-version harness. The image excludes Git history,
 credentials, private fixtures, real recordings/transcripts, model caches and
 compiler/Node/Python runtimes. The generated synthetic tone is clearly marked.
 
@@ -118,8 +119,8 @@ compiler/Node/Python runtimes. The generated synthetic tone is clearly marked.
 GitHub runners, including actual browser/persistence checks. Local amd64 execution
 and any ARM64 emulation are reported separately. Configuring CI does not prove it
 ran. Windows native tests remain in the existing CI matrix. Raspberry Pi/CM5
-hardware, 4 GB resource qualification, production operations and cross-version
-upgrade tests remain gates.
+hardware, 4 GB resource qualification and production operations remain gates.
+The tested cross-version pair is recorded in release qualification.
 
 The explicit read-only backup opener requires schema 2 and a complete, closed
 checkpoint with no WAL/SHM files. It verifies committed artifact hashes and uses
