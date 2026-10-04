@@ -64,7 +64,7 @@ for location, package in sorted(lock['packages'].items()):
     if not location or not (root / 'ui' / location).is_dir():
         continue
     source = root / 'ui' / location
-    installed = json.loads((source / 'package.json').read_text())
+    installed = json.loads((source / 'package.json').read_text(encoding='utf-8'))
     name = installed['name']
     if installed['version'] != package['version']:
         raise SystemExit(f'Installed version differs from lock for {location}')

@@ -121,7 +121,7 @@ for location, package in lock['packages'].items():
     source = root / 'ui' / location
     if not source.is_dir():
         continue  # Optional platform-specific packages absent from this actual build.
-    installed = json.loads((source / 'package.json').read_text())
+    installed = json.loads((source / 'package.json').read_text(encoding='utf-8'))
     package_name = installed['name']
     if installed['version'] != package['version']:
         raise SystemExit(f'Installed version differs from lock for {location}')
