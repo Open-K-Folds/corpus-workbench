@@ -1,0 +1,42 @@
+name: make-ghcr-public-once
+
+on:
+  push:
+    branches:
+      - release/ghcr-0.2.0-dev.8
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY_IMAGE: ghcr.io/open-k-folds/corpus-workbench
+  SOURCE_TAG: sha-3be85c7
+  VERSION: 0.2.0-dev.8
+
+jobs:
+  make-public-and-verify:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify package metadata
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api /orgs/Open-K-Folds/packages/container/corpus-workbench --jq '{name,package_type,visibility,html_url}'
+      - name: Make package public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh api --method PATCH /orgs/Open-K-Folds/packages/container/corpus-workbench -f visibility=public
+      - name: Verify anonymous multi-arch manifests
+        shell: bash
+        run: |
+          export DOCKER_CONFIG="$RUNNER_TEMP/anonymous-docker"
+          mkdir -p "$DOCKER_CONFIG"
+          docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" --raw > "$RUNNER_TEMP/version-manifest.json"
+          docker buildx imagetools inspect "$REGISTRY_IMAGE:$SOURCE_TAG" --raw > "$RUNNER_TEMP/source-manifest.json"
+          jq -e '[.manifests[].platform.architecture] | sort == ["amd64", "arm64"]' "$RUNNER_TEMP/version-manifest.json"
+          jq -e '[.manifests[].platform.architecture] | sort == ["amd64", "arm64"]' "$RUNNER_TEMP/source-manifest.json"
+          version_digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" | awk '/^Digest:/ {print $2}')"
+          source_digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$SOURCE_TAG" | awk '/^Digest:/ {print $2}')"
+          test -n "$version_digest"
+          test "$version_digest" = "$source_digest"
+          printf 'Verified public `%s:%s` and `%s:%s` at `%s`.\n' "$REGISTRY_IMAGE" "$VERSION" "$REGISTRY_IMAGE" "$SOURCE_TAG" "$version_digest" >> "$GITHUB_STEP_SUMMARY"

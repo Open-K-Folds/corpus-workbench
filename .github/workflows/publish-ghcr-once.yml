@@ -3,7 +3,7 @@ name: publish-tested-containers-once
 on:
   push:
     branches:
-      - release/ghcr-0.2.0-dev.8
+      - disabled/ghcr-0.2.0-dev.8
 
 permissions:
   contents: read
