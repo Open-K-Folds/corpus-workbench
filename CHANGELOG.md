@@ -6,7 +6,9 @@
 - Apply exact available Debian PCRE2/timezone fixes from signed snapshot indexes.
 - Update the official SQLite wrapper/bundle to SQLite 3.53.2, report its compiled version and inventory the linked C engine separately.
 - Add a fresh synthetic two-version upgrade/rollback harness with retained volumes, exact history/review/media/export checks and immutable backup-source hashes.
-- Record bounded release qualification, primary sources and remaining publication/hardware/security limits.
+- Pass 134 Windows/Linux native contracts, eighteen host Chrome flows, an exact container browser/persistence journey and dev.6/dev.7 synthetic upgrade/rollback with immutable backup-source hashes.
+- Repair independently reproduced Windows UTF-8 notice packaging and bind test execution to inspected immutable image IDs.
+- Record the offline image assessment: two available fixes applied, 234 remaining package/advisory pairs visible; publication and native ARM64/Pi remain gates.
 
 ## 0.2.0-dev.6 - Unreleased
 

@@ -15,7 +15,7 @@ The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 
 - [x] Revisioned finite TEITOK reader settings/definition, native browser reopen without manual project fixes; [evidence and limits](docs/TEITOK-READER-MILESTONE.md).
 - [x] Detailed authoring experience: corpus/source navigation, search/filter/status, readable review/diff/history, recoverable drafts, keyboard access and typed extensibility; [behavior and limits](docs/AUTHORING-EXPERIENCE.md).
 - [x] Local container workflow: pinned multi-stage builds, exact-source contexts, Compose development/test, non-root persistent storage, readiness, backup/restore, documented safe upgrade/rollback and x86-64/ARM64 CI configuration; [tested scope and gates](docs/CONTAINER-MILESTONE.md).
-- [ ] Bounded dev.7 dependency/license, image assessment and cross-version qualification; [checklist](docs/RELEASE-QUALIFICATION.md).
+- [x] Bounded dev.7 dependency/license, offline image assessment and compatible cross-version upgrade/rollback qualification; [evidence and remaining gates](docs/RELEASE-QUALIFICATION.md).
 - [ ] Hosted native ARM64 container CI, native Pi/resource qualification and approved registry publication.
 - [ ] Full TEITOK/CWB/CQP parity and arbitrary-schema/structural editing; external exported-package lineage reconciliation.
 - [ ] Native durable job/outbox/worker fencing, shared assertions, ontology/model recipes and permanent rights-withdrawal lifecycle.
