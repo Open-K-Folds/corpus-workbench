@@ -6,7 +6,7 @@ that an older application can read an arbitrary future database format.
 """
 import argparse
 import hashlib
-import http.cookiejar
+from http.cookiejar import CookieJar
 import io
 import json
 import os
@@ -81,7 +81,7 @@ def start(project, image, store):
         projects.append(project)
     compose(project, image, store, 'up', '-d', '--no-build', 'authoring')
     opener = urllib.request.build_opener(
-        urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+        urllib.request.HTTPCookieProcessor(CookieJar()))
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
         try:
