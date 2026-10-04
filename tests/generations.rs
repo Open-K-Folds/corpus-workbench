@@ -516,3 +516,85 @@ fn unsupported_mapping_never_grants_approved_contract() {
         .approved_contract_for_mapping("p", c.binding.revision, "corpus-evidence/3")
         .is_err());
 }
+#[test]
+fn retokenization_preserves_prior_compiler_ids_graphs_and_exact_receipts() {
+    use corpus_workbench::retokenize::{Reading, RetokenizeRequest};
+    let (tmp, mut s, completion, bytes) = fixture();
+    let generation = s
+        .accept_generation(&completion, &bytes, Fault::None)
+        .unwrap();
+    let id = generation["generation_id"].as_str().unwrap();
+    let old = s.generation("p", id, true).unwrap();
+    let inv = s.reference_inventory("p", s.head("p").unwrap().id).unwrap();
+    let request = RetokenizeRequest {
+        schema: 1,
+        project: "p".into(),
+        revision: inv.revision,
+        snapshot_hash: inv.snapshot_hash.clone(),
+        config_hash: inv.config_hash.clone(),
+        inventory_hash: digest(&inv).unwrap(),
+        document: "xmlfiles/demo.xml".into(),
+        targets: vec![inv.ids.iter().find(|t| t.id == "w-1").unwrap().clone()],
+        replacement: vec![
+            Reading {
+                id: "successor-a".into(),
+                original: "orig".into(),
+                corrected: None,
+                normalized: None,
+            },
+            Reading {
+                id: "successor-b".into(),
+                original: "inal".into(),
+                corrected: None,
+                normalized: None,
+            },
+        ],
+        relation_endpoint: None,
+    };
+    let preview = s.retokenization_preview(&request).unwrap();
+    assert!(preview.execution_enabled, "{:?}", preview.blockers);
+    let view = s.view("p", None).unwrap();
+    let c = Command {
+        schema: 1,
+        project: "p".into(),
+        command_id: "split".into(),
+        base_revision: view.revision.id,
+        preimage_hash: view.revision.snapshot_hash,
+        config_version: view.snapshot.config.version,
+        label: "Split synthetic token".into(),
+        operations: vec![Operation::Retokenize {
+            request,
+            preview_hash: digest(&preview).unwrap(),
+        }],
+    };
+    s.apply("local-owner", &c, Fault::None).unwrap();
+    assert!(s.generations("p", false).unwrap().is_empty());
+    assert!(s.generation("p", id, false).is_err());
+    let historical = s.generation("p", id, true).unwrap();
+    for key in ["graph", "receipt", "contract"] {
+        assert_eq!(historical[key], old[key]);
+    }
+    assert_eq!(s.generations("p", true).unwrap().len(), 1);
+    let out = tmp.path().join("structural-export");
+    s.export("p", s.head("p").unwrap().id, &out).unwrap();
+    let namespace = fs::read_dir(out.join("Workbench/exports"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    assert_eq!(
+        fs::read(
+            namespace
+                .join("history-objects")
+                .join(&completion.graph_hash)
+        )
+        .unwrap(),
+        bytes
+    );
+    let backup = tmp.path().join("structural-backup");
+    s.backup(&backup).unwrap();
+    let restored = Store::open(&backup).unwrap();
+    let historical = restored.generation("p", id, true).unwrap();
+    assert_eq!(historical["graph"], old["graph"]);
+}

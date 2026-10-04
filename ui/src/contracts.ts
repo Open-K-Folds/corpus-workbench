@@ -11,6 +11,7 @@ export interface Revision {id:number;parent:number|null;snapshot_hash:string;act
 export interface View {api_version:number;revision:Revision;snapshot:Snapshot;documents:Document[];issues:{code:string;target:string;message:string;blocking:boolean}[];approved:boolean}
 export interface Diff {from:number;to:number;changes:{document:string;sidecar?:string;target:string;field:string;before:string|null;after:string|null}[];files:{path:string}[];config_before:Config;config_after:Config}
 export type Operation =
+ | {kind:'retokenize';request:RetokenizeRequest;preview_hash:string}
  | {kind:'set_token';document:string;token:string;fields:Record<string,string>}
  | {kind:'define_language';value:string;description:string}
  | {kind:'set_language_default';value:string|null}
@@ -22,6 +23,9 @@ export type Operation =
  | {kind:'restore';revision:number};
 export interface Command {schema:1;project:string;command_id:string;base_revision:number;preimage_hash:string;config_version:number;label:string;operations:Operation[]}
 export interface QualifiedTarget {artifact:string;element_start:number;id:string}
+export interface Reading {id:string;original:string;corrected:string|null;normalized:string|null}
+export interface RetokenizeRequest {schema:1;project:string;revision:number;snapshot_hash:string;config_hash:string;inventory_hash:string;document:string;targets:QualifiedTarget[];replacement:Reading[];relation_endpoint:string|null}
+export interface StructuralPreview {preview_hash:string;preview:{schema:number;grammar:string;request:RetokenizeRequest;execution_enabled:boolean;blockers:string[];mapping:Record<string,string[]>;candidate_snapshot_hash:string|null;candidate_xml:Record<string,string>;artifact_rules:Record<string,string>;lineage_path:string|null;proof:string}}
 export interface Carrier {artifact:string;artifact_hash:string;element_start:number;element:string;namespace:string|null;kind:string;qname:string;byte_start:number;byte_end:number;value:string;syntax:string;resolution:string;targets:QualifiedTarget[];note:string}
 export interface InventoryEnvelope {inventory_hash:string;inventory:{schema:number;project:string;revision:number;snapshot_hash:string;config_hash:string;artifacts:{path:string;artifact:Artifact;coverage:string;reason:string;carriers:number}[];carriers:Carrier[];ids:QualifiedTarget[];structural_execution_enabled:false;limitations:string[]}}
 export function checkView(value:View):View {

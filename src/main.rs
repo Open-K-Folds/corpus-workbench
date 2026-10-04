@@ -33,13 +33,14 @@ fn main() -> Result<()> {
         "review" => { let mut s=Store::open(&root)?; let revision:i64=option(&args,"--revision","").parse()?; let r=s.revision(&project,revision)?; println!("{}",s.review("local-owner",&project,revision,&r.snapshot_hash,&option(&args,"--decision",""),&option(&args,"--note",""))?); }
         "inventory" => {let s=Store::open(&root)?;let revision=option(&args,"--revision",&s.head(&project)?.id.to_string()).parse()?;println!("{}",serde_json::to_string(&s.reference_inventory(&project,revision)?)?);}
         "preflight" => {let s=Store::open(&root)?;let request:corpus_workbench::inventory::Preflight=serde_json::from_slice(&fs::read(option(&args,"--request",""))?)?;ensure!(request.project==project,"project scope denied");println!("{}",s.reference_preflight(&request)?);}
+        "retokenize-preview" => {let s=Store::open(&root)?;let request:corpus_workbench::retokenize::RetokenizeRequest=serde_json::from_slice(&fs::read(option(&args,"--request",""))?)?;ensure!(request.project==project,"project scope denied");let preview=s.retokenization_preview(&request)?;println!("{}",json!({"preview_hash":corpus_workbench::handoff::digest(&preview)?,"preview":preview}));}
         "contract" => { let s=Store::open(&root)?; let revision=option(&args,"--revision","").parse()?; println!("{}",s.approved_contract_for_mapping(&project,revision,&option(&args,"--mapping-version","corpus-evidence/1"))?); }
         "accept-generation" => { let mut s=Store::open(&root)?; let bytes=fs::read(option(&args,"--receipt",""))?; ensure!(bytes.len()<=1_048_576,"completion size limit"); let c:Completion=serde_json::from_slice(&bytes)?; ensure!(c.binding.project==project,"project scope denied"); let graph=fs::read(option(&args,"--graph",""))?; println!("{}",s.accept_generation(&c,&graph,Fault::None)?); }
         "generations" => println!("{}",serde_json::to_string(&Store::open(&root)?.generations(&project,option(&args,"--historical","no")=="yes")?)?),
         "generation" => println!("{}",Store::open(&root)?.generation(&project,&option(&args,"--id",""),option(&args,"--historical","no")=="yes")?),
         "apply" => { let mut s=Store::open(&root)?; let c:Command=serde_json::from_slice(&fs::read(option(&args,"--command",""))?)?; let fault=match option(&args,"--fault","none").as_str() { "after-stage"=>Fault::AfterStage,"before-commit"=>Fault::BeforeCommit,"after-commit"=>Fault::AfterCommit,_=>Fault::None }; let r=s.apply("local-owner",&c,fault)?; println!("{}",serde_json::to_string(&r)?); }
         "serve" => serve(Store::open(&root)?,&project,&PathBuf::from(option(&args,"--ui","ui/dist")),option(&args,"--port","18910").parse()?)?,
-        _ => println!("corpus-workbench import|serve|view|export|backup|apply|review|inventory|preflight|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
+        _ => println!("corpus-workbench import|serve|view|export|backup|apply|review|inventory|preflight|retokenize-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
     }
     Ok(())
 }
@@ -293,6 +294,15 @@ fn serve(mut store: Store, project: &str, ui: &Path, port: u16) -> Result<()> {
                             serde_json::from_value(body(&mut request)?)?;
                         ensure!(request.project == project, "project scope denied");
                         store.reference_preflight(&request)
+                    }
+                    (Method::Post, "/api/retokenize-preview") => {
+                        let r: corpus_workbench::retokenize::RetokenizeRequest =
+                            serde_json::from_value(body(&mut request)?)?;
+                        ensure!(r.project == project, "project scope denied");
+                        let preview = store.retokenization_preview(&r)?;
+                        Ok(
+                            json!({"preview_hash":corpus_workbench::handoff::digest(&preview)?,"preview":preview}),
+                        )
                     }
                     (Method::Get, "/api/view") => store
                         .view(

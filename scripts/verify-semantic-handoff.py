@@ -160,6 +160,47 @@ def verify(binary, compiler_root, output):
             assert n["properties"]["artifact_hash"]==actual["contract"]["artifact_manifest"][anchor["sidecar"]]["sha256"]
             assert n["properties"]["transcript_hash"]==actual["contract"]["artifact_manifest"][anchor["document"]]["sha256"]
         assert actual["receipt"]["binding"]["recipe"]["mapping_version"]=="corpus-evidence/2"
+        # Structural evidence is a separate closed-dialect fixture. The richer
+        # ASR/media fixture above remains immutable and intentionally unsupported
+        # for structural mutation until its carrier decoders are proved.
+        structural_package=root/"structural-package"
+        for directory in ["Resources","xmlfiles","Annotations"]:(structural_package/directory).mkdir(parents=True)
+        (structural_package/"Resources/settings.xml").write_text("<ttsettings/>")
+        (structural_package/"xmlfiles/demo.xml").write_text("<TEI><text><u id='u1' start='0' end='5'><tok id='w1' form='é🙂x' nform='a🙂bc' wb_normalized='A🙂BC' variety='local'>é🙂x</tok><tok id='w2' form='two' relation_target='#w1' relation_type='context'>two</tok><tok id='w3' form='three'>three</tok></u></text></TEI>",encoding="utf-8")
+        (structural_package/"Annotations/review_demo.xml").write_text("<spanGrp><span id='s1' corresp='#w1 #w3'/><span id='s2' corresp='#w1' wb_start='1' wb_end='2' wb_coordinate='unicode-codepoint' wb_layer='corrected' wb_quote='🙂' wb_status='resolved'/></spanGrp>",encoding="utf-8")
+        structural_store=root/"structural-authority"
+        sr=core("import","--package",structural_package,authority=structural_store)
+        core("review","--revision",sr["id"],"--decision","approved","--note","Synthetic structural fixture",authority=structural_store)
+        initial=bridge.ingest(binary,structural_store,"synthetic",sr["id"],compiler_root,root/"structure-initial")
+        initial_graph=core("generation","--id",initial["generation_id"],authority=structural_store)
+        structural_generations=[initial]
+        def structural_edit(ids, replacement, endpoint, name):
+            view=core("view",authority=structural_store)
+            inv=core("inventory",authority=structural_store)
+            request={"schema":1,"project":"synthetic","revision":inv["revision"],"snapshot_hash":inv["snapshot_hash"],"config_hash":inv["config_hash"],"inventory_hash":bridge.digest(inv),"document":"xmlfiles/demo.xml","targets":[next(t for t in inv["ids"] if t["artifact"]=="xmlfiles/demo.xml" and t["id"]==id) for id in ids],"replacement":replacement,"relation_endpoint":endpoint}
+            request_file=root/f"{name}-request.json";request_file.write_bytes(bridge.encoded(request))
+            proof=core("retokenize-preview","--request",request_file,authority=structural_store)
+            assert proof["preview"]["execution_enabled"], proof["preview"]["blockers"]
+            command={"schema":1,"project":"synthetic","command_id":name,"base_revision":view["revision"]["id"],"preimage_hash":view["revision"]["snapshot_hash"],"config_version":view["snapshot"]["config"]["version"],"label":name,"operations":[{"kind":"retokenize","request":request,"preview_hash":proof["preview_hash"]}]}
+            command_file=root/f"{name}-command.json";command_file.write_bytes(bridge.encoded(command))
+            revision=core("apply","--command",command_file,authority=structural_store)
+            assert revision["snapshot_hash"]==proof["preview"]["candidate_snapshot_hash"]
+            assert core("generations",authority=structural_store)==[]
+            assert core("generation","--id",initial["generation_id"],"--historical","yes",authority=structural_store)["graph"]==initial_graph["graph"]
+            expect_rejection(lambda:bridge.ingest(binary,structural_store,"synthetic",revision["id"],compiler_root,root/f"{name}-unapproved"),"current approved")
+            core("review","--revision",revision["id"],"--decision","approved","--note","Synthetic remapping reviewed",authority=structural_store)
+            result=bridge.ingest(binary,structural_store,"synthetic",revision["id"],compiler_root,root/name)
+            actual=core("generation","--id",result["generation_id"],authority=structural_store)
+            assert all(n["properties"]["source"]["start_us"] is None for n in actual["graph"]["nodes"] if n["properties"]["anchor"]["kind"]=="token")
+            structural_generations.append(result)
+            return actual
+        split_graph=structural_edit(["w1"],[{"id":"part-a","original":"é🙂","corrected":"a🙂","normalized":"A🙂"},{"id":"part-b","original":"x","corrected":"bc","normalized":"BC"}],"part-b","structure-split")
+        split_ids={n["properties"]["anchor"]["external_id"] for n in split_graph["graph"]["nodes"] if n["properties"]["anchor"]["kind"]=="token"}
+        assert split_ids=={"part-a","part-b","w2","w3"}
+        merged_graph=structural_edit(["part-a","part-b"],[{"id":"merged","original":"é🙂x","corrected":"a🙂bc","normalized":"A🙂BC"}],None,"structure-merge")
+        merged=next(n for n in merged_graph["graph"]["nodes"] if n["properties"]["anchor"]["external_id"]=="merged")
+        assert merged["properties"]["source"]["normalized"]=="A🙂BC" and merged["properties"]["source"]["original"]=="é🙂x"
+        assert len(core("generations","--historical","yes",authority=structural_store))==3
         evidence = {"synthetic_only":True,"semantica_version":"0.6.8","compiler_commit":bridge.compiler_identity(compiler_root)[0],
                     "mapping":"corpus-evidence/2","nodes_per_generation":r2["node_count"],"edges_per_generation":r2["edge_count"],
                     "initial_ingestion":True,"native_reopen":True,"retry_reuses_one_generation":True,"correction_stales_prior_default_query":True,
@@ -170,6 +211,7 @@ def verify(binary, compiler_root, output):
                     "annotation_generations":annotation_generations,"annotation_mutations_stale_current":True,
                     "repaired_span_and_relation_in_native_graph":True,"cleared_relation_removes_authored_edge":True,
                     "qualified_identity_generation":{"nodes":7,"edges":8,"token_ids_repeat_across_documents":True,"span_ids_repeat_across_sidecars":True,"sidecar_and_transcript_artifacts_bound":True},
+                    "structural_generations":[{"nodes":g["node_count"],"edges":g["edge_count"]} for g in structural_generations],"split_merge_exact_native_generations":True,"retired_compiler_graph_unchanged":True,
                     "external_database":False,"model":None,"real_pilot_ingested":False}
         output.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
         return evidence

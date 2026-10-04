@@ -77,6 +77,53 @@ pub fn role(path: &str) -> String {
     }
     .into()
 }
+// Managed exports promise complete linear native history, including restored
+// states. Missing ancestors can otherwise erase retired identity claims.
+pub(crate) fn validate_history_rows(receipt: &serde_json::Value) -> Result<Vec<Revision>> {
+    let exported: Revision = serde_json::from_value(receipt["revision"].clone())?;
+    let mut rows = BTreeMap::new();
+    let mut ordered = Vec::new();
+    for value in receipt["history"]
+        .as_array()
+        .context("managed export history missing")?
+    {
+        let row: Revision = serde_json::from_value(value.clone())?;
+        ensure!(
+            *value == serde_json::to_value(&row)? && row.id > 0,
+            "unknown or invalid managed history row"
+        );
+        ensure!(
+            row.parent.is_none_or(|p| p > 0 && p < row.id),
+            "invalid managed history parent"
+        );
+        ensure!(
+            rows.insert(row.id, row.clone()).is_none(),
+            "duplicate managed history revision"
+        );
+        ordered.push(row);
+    }
+    ensure!(
+        receipt["revision"] == serde_json::to_value(&exported)?
+            && rows.get(&exported.id).is_some_and(
+                |row| serde_json::to_value(row).ok() == Some(receipt["revision"].clone())
+            ),
+        "exported revision row differs from history"
+    );
+    let mut seen = BTreeSet::new();
+    let mut next = Some(exported.id);
+    while let Some(id) = next {
+        ensure!(seen.insert(id), "managed history cycle");
+        next = rows
+            .get(&id)
+            .context("missing managed history parent revision")?
+            .parent;
+    }
+    ensure!(
+        seen.len() == rows.len(),
+        "detached managed history revision"
+    );
+    Ok(ordered)
+}
 pub struct Objects {
     pub root: PathBuf,
 }
@@ -216,6 +263,7 @@ pub fn import(objects: &Objects, dir: &Path, project: &str) -> Result<Snapshot> 
             continue;
         }
         let value: serde_json::Value = serde_json::from_slice(&objects.read(artifact)?)?;
+        validate_history_rows(&value)?;
         managed_receipts += 1;
         let exported: Snapshot = serde_json::from_value(value["snapshot"].clone())
             .context("malformed managed export snapshot")?;

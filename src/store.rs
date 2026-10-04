@@ -180,141 +180,192 @@ impl Store {
             );
             return self.revision(&command.project, id);
         }
-        let head = self.head(&command.project)?;
-        ensure!(
-            head.id == command.base_revision && head.snapshot_hash == command.preimage_hash,
-            "stale revision/preimage conflict; current head {}",
-            head.id
-        );
-        let mut snapshot = self.snapshot(&head)?;
-        ensure!(
-            snapshot.config.version == command.config_version,
-            "stale configuration"
-        );
-        for op in &command.operations {
-            match op {
-                Operation::SetToken {
-                    document,
-                    token,
-                    fields,
-                } => package::token_fields(&self.objects, &mut snapshot, document, token, fields)?,
-                Operation::DefineLanguage { value, description } => {
-                    ensure!(
-                        !value.trim().is_empty() && value.len() <= 128 && description.len() <= 2048,
-                        "invalid language definition"
-                    );
-                    snapshot
-                        .config
-                        .language_values
-                        .insert(value.clone(), description.clone());
-                    snapshot.config.version += 1;
-                }
-                Operation::SetLanguageDefault { value } => {
-                    if let Some(value) = value {
+        let prepared = (|| -> Result<_> {
+            let head = self.head(&command.project)?;
+            ensure!(
+                head.id == command.base_revision && head.snapshot_hash == command.preimage_hash,
+                "stale revision/preimage conflict; current head {}",
+                head.id
+            );
+            let mut snapshot = self.snapshot(&head)?;
+            ensure!(
+                snapshot.config.version == command.config_version,
+                "stale configuration"
+            );
+            for op in &command.operations {
+                match op {
+                    Operation::Retokenize {
+                        request,
+                        preview_hash,
+                    } => {
                         ensure!(
-                            snapshot.config.language_values.contains_key(value),
-                            "undefined language default"
+                            command.operations.len() == 1,
+                            "retokenization must be its own operation group"
                         );
+                        ensure!(
+                            request.project == command.project
+                                && request.revision == command.base_revision
+                                && request.snapshot_hash == command.preimage_hash,
+                            "structural command binding conflict"
+                        );
+                        self.apply_retokenization(&mut snapshot, request, preview_hash)?;
                     }
-                    snapshot.config.language_default = value.clone();
-                    snapshot.config.version += 1;
-                }
-                Operation::AddSpan {
-                    document,
-                    id,
-                    token_ids,
-                    fields,
-                    character,
-                } => package::add_span(
-                    &self.objects,
-                    &mut snapshot,
-                    document,
-                    id,
-                    token_ids,
-                    fields,
-                    character,
-                )?,
-                Operation::AddRelation {
-                    document,
-                    from,
-                    to,
-                    relation_type,
-                    note,
-                } => {
-                    ensure!(
-                        !relation_type.trim().is_empty() && from != to,
-                        "invalid relation"
-                    );
-                    package::token_fields(
+                    Operation::SetToken {
+                        document,
+                        token,
+                        fields,
+                    } => package::token_fields(
                         &self.objects,
                         &mut snapshot,
                         document,
-                        from,
-                        &BTreeMap::from([
-                            ("relation_target".into(), to.clone()),
-                            ("relation_type".into(), relation_type.clone()),
-                            ("note".into(), note.clone()),
-                        ]),
-                    )?;
-                }
-                Operation::Restore { revision } => {
-                    ensure!(
-                        command.operations.len() == 1,
-                        "restore must be its own operation group"
-                    );
-                    snapshot = self.snapshot(&self.revision(&command.project, *revision)?)?;
-                    snapshot.index_status = "stale after restore; rebuild required".into();
-                }
-                Operation::SetSpan {
-                    document,
-                    sidecar,
-                    id,
-                    fields,
-                    anchor,
-                } => {
-                    package::set_span(
+                        token,
+                        fields,
+                    )?,
+                    Operation::DefineLanguage { value, description } => {
+                        ensure!(
+                            !value.trim().is_empty()
+                                && value.len() <= 128
+                                && description.len() <= 2048,
+                            "invalid language definition"
+                        );
+                        snapshot
+                            .config
+                            .language_values
+                            .insert(value.clone(), description.clone());
+                        snapshot.config.version += 1;
+                    }
+                    Operation::SetLanguageDefault { value } => {
+                        if let Some(value) = value {
+                            ensure!(
+                                snapshot.config.language_values.contains_key(value),
+                                "undefined language default"
+                            );
+                        }
+                        snapshot.config.language_default = value.clone();
+                        snapshot.config.version += 1;
+                    }
+                    Operation::AddSpan {
+                        document,
+                        id,
+                        token_ids,
+                        fields,
+                        character,
+                    } => package::add_span(
                         &self.objects,
                         &mut snapshot,
+                        document,
+                        id,
+                        token_ids,
+                        fields,
+                        character,
+                    )?,
+                    Operation::AddRelation {
+                        document,
+                        from,
+                        to,
+                        relation_type,
+                        note,
+                    } => {
+                        ensure!(
+                            !relation_type.trim().is_empty() && from != to,
+                            "invalid relation"
+                        );
+                        package::token_fields(
+                            &self.objects,
+                            &mut snapshot,
+                            document,
+                            from,
+                            &BTreeMap::from([
+                                ("relation_target".into(), to.clone()),
+                                ("relation_type".into(), relation_type.clone()),
+                                ("note".into(), note.clone()),
+                            ]),
+                        )?;
+                    }
+                    Operation::Restore { revision } => {
+                        ensure!(
+                            command.operations.len() == 1,
+                            "restore must be its own operation group"
+                        );
+                        snapshot = self.snapshot(&self.revision(&command.project, *revision)?)?;
+                        snapshot.index_status = "stale after restore; rebuild required".into();
+                    }
+                    Operation::SetSpan {
                         document,
                         sidecar,
                         id,
                         fields,
                         anchor,
-                    )?;
-                }
-                Operation::SetRelation {
-                    document,
-                    from,
-                    to,
-                    relation_type,
-                    note,
-                } => {
-                    let token = package::relation_source(&self.objects, &snapshot, document, from)?;
-                    ensure!(
-                        !to.trim().is_empty()
-                            && !relation_type.trim().is_empty()
-                            && from != to.trim_start_matches('#'),
-                        "invalid relation"
-                    );
-                    let mut fields = BTreeMap::from([
-                        ("relation_target".into(), to.clone()),
-                        ("relation_type".into(), relation_type.clone()),
-                    ]);
-                    if let Some(note) = note {
-                        fields.insert("note".into(), note.clone());
+                    } => {
+                        package::set_span(
+                            &self.objects,
+                            &mut snapshot,
+                            document,
+                            sidecar,
+                            id,
+                            fields,
+                            anchor,
+                        )?;
                     }
-                    fields.retain(|key, value| token.attrs.get(key) != Some(value));
-                    package::token_fields(&self.objects, &mut snapshot, document, from, &fields)?;
-                }
-                Operation::ClearRelation { document, from } => {
-                    package::clear_relation(&self.objects, &mut snapshot, document, from)?;
+                    Operation::SetRelation {
+                        document,
+                        from,
+                        to,
+                        relation_type,
+                        note,
+                    } => {
+                        let token =
+                            package::relation_source(&self.objects, &snapshot, document, from)?;
+                        ensure!(
+                            !to.trim().is_empty()
+                                && !relation_type.trim().is_empty()
+                                && from != to.trim_start_matches('#'),
+                            "invalid relation"
+                        );
+                        let mut fields = BTreeMap::from([
+                            ("relation_target".into(), to.clone()),
+                            ("relation_type".into(), relation_type.clone()),
+                        ]);
+                        if let Some(note) = note {
+                            fields.insert("note".into(), note.clone());
+                        }
+                        fields.retain(|key, value| token.attrs.get(key) != Some(value));
+                        package::token_fields(
+                            &self.objects,
+                            &mut snapshot,
+                            document,
+                            from,
+                            &fields,
+                        )?;
+                    }
+                    Operation::ClearRelation { document, from } => {
+                        package::clear_relation(&self.objects, &mut snapshot, document, from)?;
+                    }
                 }
             }
-        }
-        package::validate(&self.objects, &snapshot)?;
-        let artifact = self
-            .objects
-            .put(&serde_json::to_vec(&snapshot)?, "revision-snapshot")?;
+            package::validate(&self.objects, &snapshot)?;
+            let artifact = self
+                .objects
+                .put(&serde_json::to_vec(&snapshot)?, "revision-snapshot")?;
+            Ok((head, artifact))
+        })();
+        let (head, artifact) = match prepared {
+            Ok(value) => value,
+            Err(error) => {
+                // A matching writer may have committed between the first key lookup
+                // and a head/proof read. Resolve only its exact payload binding;
+                // unrelated stale or invalid requests retain their original error.
+                let committed: Option<(String, i64)> = self.conn.query_row("SELECT request_hash,revision FROM commands WHERE project=? AND actor=? AND command_id=?", params![command.project,actor,command.command_id], |r| Ok((r.get(0)?,r.get(1)?))).optional()?;
+                if let Some((hash, id)) = committed {
+                    ensure!(
+                        hash == request_hash,
+                        "idempotency key bound to different payload"
+                    );
+                    return self.revision(&command.project, id);
+                }
+                return Err(error);
+            }
+        };
         if fault == Fault::AfterStage {
             injected_failure("injected crash after blob staging")?;
         }
@@ -400,6 +451,16 @@ impl Store {
         let a = self.view(project, Some(from))?;
         let b = self.view(project, Some(to))?;
         let mut changes = Vec::new();
+        for (path, artifact) in b.snapshot.files.iter().filter(|(p, artifact)| {
+            p.starts_with("Resources/retokenization/")
+                && a.snapshot.files.get(*p) != Some(*artifact)
+        }) {
+            if let Ok(summary) =
+                crate::retokenize::lineage_summary(path, &self.objects.read(artifact)?)
+            {
+                changes.push(json!({"document":summary["document"],"target":path,"field":"retokenization-lineage","before":null,"after":serde_json::to_string(&summary)?}));
+            }
+        }
         for doc in &b.documents {
             if let Some(old) = a.documents.iter().find(|d| d.path == doc.path) {
                 for t in &doc.tokens {
@@ -411,7 +472,16 @@ impl Store {
                                 changes.push(json!({"document":doc.path,"target":t.id,"field":key,"before":before.attrs.get(key),"after":t.attrs.get(key)}));
                             }
                         }
+                    } else {
+                        changes.push(json!({"document":doc.path,"target":t.id,"field":"token-added","before":null,"after":serde_json::to_string(t)?}));
                     }
+                }
+                for t in old
+                    .tokens
+                    .iter()
+                    .filter(|t| !doc.tokens.iter().any(|v| v.id == t.id))
+                {
+                    changes.push(json!({"document":doc.path,"target":t.id,"field":"token-retired","before":serde_json::to_string(t)?,"after":null}));
                 }
                 let ids: std::collections::BTreeSet<_> = old
                     .spans

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-dev.3 - Unreleased
+
+- Prove and commit a bounded plain untimed token split/merge, with independent text layers, ordered span coverage, exact Unicode character remaps and explicit incoming relation choice. Block every unsupported carrier before mutation.
+- Preserve hash-bound successor lineage and reserve historical IDs through restore/copy/reimport; require complete connected exported ancestry. Keep prior compiler IDs and objects unchanged.
+- Add draft-safe structural preview/commit forms, structural diffs, 23 native regressions and four actual browser flows. Optional native compiler verification adds three reviewed structural generations.
+- Resolve overlapping exact-payload retries after lookup/proof races, preserve dirty structural drafts across review, and report the captured reviewed revision when another tab advances the head.
+- Keep broader converters, timing/deletion, media/raw/configuration decoders, new releases and runtime cutover gated.
+
 ## 0.2.0-dev.2 - Unreleased
 
 - Inventory every artifact and parsed lexical XML carrier, including namespaces, mixed text/CDATA, stand-off pointers and parser sidecars; expose qualified lookup, opaque coverage, downloads and blocked structural impact inspection.
