@@ -8,8 +8,10 @@ use corpus_workbench::{
 use serde_json::{json, Value};
 use std::{
     fs,
-    io::Read,
+    io::{Read, Write},
+    net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
+    time::Duration,
 };
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
@@ -20,6 +22,13 @@ fn option(args: &[String], name: &str, fallback: &str) -> String {
         .cloned()
         .unwrap_or_else(|| fallback.into())
 }
+fn verification_store(root: &Path, args: &[String]) -> Result<Store> {
+    if option(args, "--readonly-backup", "no") == "yes" {
+        Store::open_backup_readonly(root)
+    } else {
+        Store::open(root)
+    }
+}
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mode = args.get(1).map(String::as_str).unwrap_or("help");
@@ -27,9 +36,11 @@ fn main() -> Result<()> {
     let project = option(&args, "--project", "pilot");
     match mode {
         "import" => { let mut s=Store::open(&root)?; let r=s.import(Path::new(&option(&args,"--package","")),&project)?; println!("{}",serde_json::to_string(&r)?); }
-        "view" => println!("{}",serde_json::to_string(&Store::open(&root)?.view(&project,None)?)?),
+        "view" => println!("{}",serde_json::to_string(&verification_store(&root,&args)?.view(&project,None)?)?),
         "export" => { let s=Store::open(&root)?; let revision=option(&args,"--revision",&s.head(&project)?.id.to_string()).parse()?; s.export(&project,revision,Path::new(&option(&args,"--out","")))?; println!("Exported exact revision {revision}"); }
-        "backup" => { Store::open(&root)?.backup(Path::new(&option(&args,"--out","")))?; println!("Verified backup and clean restore"); }
+        "backup" => { verification_store(&root,&args)?.backup(Path::new(&option(&args,"--out","")))?; println!("Verified backup and clean restore"); }
+        "check" => { ensure!(root.join("ledger.sqlite").is_file(),"existing authority required"); let s=verification_store(&root,&args)?; ensure!(!s.projects()?.is_empty(),"no imported projects"); println!("{}",json!({"status":"verified","projects":s.projects()?.len(),"revisions":s.all_revisions()?.len(),"schema":2})); }
+        "health" => health(option(&args,"--port","18910").parse()?)?,
         "review" => { let mut s=Store::open(&root)?; let revision:i64=option(&args,"--revision","").parse()?; let r=s.revision(&project,revision)?; println!("{}",s.review("local-owner",&project,revision,&r.snapshot_hash,&option(&args,"--decision",""),&option(&args,"--note",""))?); }
         "inventory" => {let s=Store::open(&root)?;let revision=option(&args,"--revision",&s.head(&project)?.id.to_string()).parse()?;println!("{}",serde_json::to_string(&s.reference_inventory(&project,revision)?)?);}
         "preflight" => {let s=Store::open(&root)?;let request:corpus_workbench::inventory::Preflight=serde_json::from_slice(&fs::read(option(&args,"--request",""))?)?;ensure!(request.project==project,"project scope denied");println!("{}",s.reference_preflight(&request)?);}
@@ -40,10 +51,44 @@ fn main() -> Result<()> {
         "generations" => println!("{}",serde_json::to_string(&Store::open(&root)?.generations(&project,option(&args,"--historical","no")=="yes")?)?),
         "generation" => println!("{}",Store::open(&root)?.generation(&project,&option(&args,"--id",""),option(&args,"--historical","no")=="yes")?),
         "apply" => { let mut s=Store::open(&root)?; let c:Command=serde_json::from_slice(&fs::read(option(&args,"--command",""))?)?; let fault=match option(&args,"--fault","none").as_str() { "after-stage"=>Fault::AfterStage,"before-commit"=>Fault::BeforeCommit,"after-commit"=>Fault::AfterCommit,_=>Fault::None }; let r=s.apply("local-owner",&c,fault)?; println!("{}",serde_json::to_string(&r)?); }
-        "serve" => serve(Store::open(&root)?,&project,&PathBuf::from(option(&args,"--ui","ui/dist")),option(&args,"--port","18910").parse()?)?,
-        _ => println!("corpus-workbench import|serve|view|export|backup|apply|review|inventory|preflight|retokenize-preview|teitok-reader-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
+        "serve" => serve(Store::open(&root)?,&project,&PathBuf::from(option(&args,"--ui","ui/dist")),option(&args,"--port","18910").parse()?, option(&args,"--container-network","no")=="yes")?,
+        _ => println!("corpus-workbench import|serve|view|export|backup|check|health|apply|review|inventory|preflight|retokenize-preview|teitok-reader-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
     }
     Ok(())
+}
+fn health(port: u16) -> Result<()> {
+    let mut stream = TcpStream::connect_timeout(
+        &SocketAddr::from(([127, 0, 0, 1], port)),
+        Duration::from_secs(3),
+    )?;
+    stream.set_read_timeout(Some(Duration::from_secs(3)))?;
+    stream.set_write_timeout(Some(Duration::from_secs(3)))?;
+    write!(
+        stream,
+        "GET /health/ready HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+    )?;
+    let mut bytes = Vec::new();
+    stream.take(4096).read_to_end(&mut bytes)?;
+    ensure!(
+        bytes.starts_with(b"HTTP/1.1 200 ") || bytes.starts_with(b"HTTP/1.0 200 "),
+        "workbench is not ready"
+    );
+    println!("ready");
+    Ok(())
+}
+fn bind_address(port: u16, container_network: bool) -> Result<String> {
+    if container_network {
+        ensure!(
+            cfg!(target_os = "linux")
+                && (Path::new("/.dockerenv").is_file()
+                    || Path::new("/run/.containerenv").is_file()),
+            "container network requires a Linux container"
+        );
+        ensure!(port >= 1024, "container port must be unprivileged");
+        Ok(format!("0.0.0.0:{port}"))
+    } else {
+        Ok(format!("127.0.0.1:{port}"))
+    }
 }
 fn h(name: &str, value: &str) -> Header {
     Header::from_bytes(name, value).unwrap()
@@ -92,7 +137,13 @@ fn respond(request: Request, status: u16, bytes: Vec<u8>, mime: &str, extra: Vec
     }
     let _ = request.respond(response);
 }
-fn serve(mut store: Store, project: &str, ui: &Path, port: u16) -> Result<()> {
+fn serve(
+    mut store: Store,
+    project: &str,
+    ui: &Path,
+    port: u16,
+    container_network: bool,
+) -> Result<()> {
     ensure!(store.project_exists(project)?, "project not imported");
     ensure!(
         ui.join("index.html").exists(),
@@ -105,7 +156,8 @@ fn serve(mut store: Store, project: &str, ui: &Path, port: u16) -> Result<()> {
     );
     // Bind before publishing a capability. A failed second launch must not
     // replace the working session's launcher with an unusable new code.
-    let server = Server::http(format!("127.0.0.1:{port}")).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let server =
+        Server::http(bind_address(port, container_network)?).map_err(|e| anyhow::anyhow!("{e}"))?;
     fs::create_dir_all(".runtime")?;
     fs::write(".runtime/session-code", &token)?;
     let url = format!("http://127.0.0.1:{port}/");
@@ -117,6 +169,28 @@ fn serve(mut store: Store, project: &str, ui: &Path, port: u16) -> Result<()> {
     for mut request in server.incoming_requests() {
         let path = request.url().split('?').next().unwrap_or("").to_string();
         let method = request.method().clone();
+        if path == "/health/ready" {
+            let ready = method == Method::Get
+                && ui.join("index.html").is_file()
+                && store
+                    .head(project)
+                    .and_then(|revision| store.snapshot(&revision))
+                    .is_ok();
+            respond(
+                request,
+                if method != Method::Get {
+                    405
+                } else if ready {
+                    200
+                } else {
+                    503
+                },
+                serde_json::to_vec(&json!({"status":if ready {"ready"} else {"unavailable"}}))?,
+                "application/json",
+                vec![],
+            );
+            continue;
+        }
         let is_api = path.starts_with("/api/");
         let session = header(&request, "Cookie")
             .unwrap_or_default()

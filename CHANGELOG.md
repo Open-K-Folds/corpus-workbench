@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0-dev.6 - Unreleased
+
+- Add pinned multi-stage Linux builds, exact Git archive contexts, non-root Compose authoring/tools, persistent authority/runtime/backup volumes and host-loopback publication.
+- Commit schema migrations atomically; reject future schema before persistent PRAGMAs, expose minimal verified readiness and preserve host-loopback defaults.
+- Verify closed read-only backups without creating source files, and restore to a fresh clone through the native backup API.
+- Include corresponding source, scoped SPDX inventory, retained notices and checksums; record an omitted build-only upstream license text explicitly.
+- Pass 133 native tests on Windows and Linux amd64, eighteen host browser flows and an additional actual container playback/edit/diff/undo/review/export/persistence journey. Configure native amd64/ARM64 container CI; hosted CI/Pi and registry publication remain gates.
+
 ## 0.2.0-dev.5 - Unreleased
 
 - Add searchable corpus/source navigation, independent reading layers, timing/correction filters, next-match and keyboard selection, and a responsive authoring design system.

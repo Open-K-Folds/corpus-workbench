@@ -4,7 +4,7 @@ use crate::{
     xml,
 };
 use anyhow::{ensure, Context, Result};
-use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, Connection, OpenFlags, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 use std::{
     collections::BTreeMap,
@@ -33,35 +33,100 @@ pub struct Store {
 impl Store {
     pub fn open(root: &Path) -> Result<Self> {
         fs::create_dir_all(root)?;
-        let conn = Connection::open(root.join("ledger.sqlite"))?;
+        let mut conn = Connection::open(root.join("ledger.sqlite"))?;
         conn.busy_timeout(std::time::Duration::from_secs(5))?;
+        let existing_version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        ensure!(
+            existing_version <= 2,
+            "unsupported database schema; refusing to open"
+        );
         conn.execute_batch(
             "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;",
         )?;
-        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        // Read the schema while holding the migration writer lock. All DDL and
+        // the version marker commit together, including on concurrent startup.
+        let migration = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let version: i64 = migration.query_row("PRAGMA user_version", [], |r| r.get(0))?;
         ensure!(
             version <= 2,
             "unsupported database schema; refusing to open"
         );
-        conn.execute_batch("CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, head INTEGER, FOREIGN KEY(head) REFERENCES revisions(id));
+        migration.execute_batch("CREATE TABLE IF NOT EXISTS projects(id TEXT PRIMARY KEY, head INTEGER, FOREIGN KEY(head) REFERENCES revisions(id));
             CREATE TABLE IF NOT EXISTS revisions(id INTEGER PRIMARY KEY, project TEXT NOT NULL REFERENCES projects(id), parent INTEGER REFERENCES revisions(id), snapshot_hash TEXT NOT NULL, actor TEXT NOT NULL, label TEXT NOT NULL, command_id TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
             CREATE TABLE IF NOT EXISTS commands(project TEXT NOT NULL, actor TEXT NOT NULL, command_id TEXT NOT NULL, request_hash TEXT NOT NULL, revision INTEGER NOT NULL REFERENCES revisions(id), PRIMARY KEY(project,actor,command_id));
             CREATE TABLE IF NOT EXISTS reviews(id INTEGER PRIMARY KEY, project TEXT NOT NULL REFERENCES projects(id), revision INTEGER NOT NULL REFERENCES revisions(id), snapshot_hash TEXT NOT NULL, actor TEXT NOT NULL, decision TEXT NOT NULL, scope TEXT NOT NULL, note TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
             CREATE TABLE IF NOT EXISTS derived_generations(id TEXT PRIMARY KEY, project TEXT NOT NULL REFERENCES projects(id), revision INTEGER NOT NULL REFERENCES revisions(id), snapshot_hash TEXT NOT NULL, recipe_hash TEXT NOT NULL, receipt_hash TEXT NOT NULL, graph_hash TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
-            PRAGMA user_version=2;")?;
+            ")?;
+        if version < 2 && std::env::var("WORKBENCH_TEST_SCHEMA_HARD_CRASH").as_deref() == Ok("yes")
+        {
+            std::process::exit(73);
+        }
+        migration.pragma_update(None, "user_version", 2)?;
+        migration.commit()?;
         let store = Self {
             conn,
             objects: Objects::new(&root.join("objects"))?,
             root: root.into(),
         };
-        // Opening an authority fails loudly if a committed reference is corrupt.
-        for revision in store.all_revisions()? {
-            store.snapshot(&revision)?;
-        }
-        for hash in store.generation_objects()? {
-            store.objects.read_hash(&hash)?;
-        }
+        store.verify_committed_objects()?;
         Ok(store)
+    }
+    /// A closed, checkpointed backup only. Immutable SQLite mode is never used
+    /// for a live authority because it would ignore pending WAL transactions.
+    pub fn open_backup_readonly(root: &Path) -> Result<Self> {
+        ensure!(
+            root.join("ledger.sqlite").is_file() && root.join("objects").is_dir(),
+            "existing complete backup required"
+        );
+        ensure!(
+            !root.join("ledger.sqlite-wal").exists()
+                && !root.join("ledger.sqlite-shm").exists()
+                && !root.join("ledger.sqlite-journal").exists(),
+            "read-only backup must be closed with no WAL or SHM files"
+        );
+        let canonical = fs::canonicalize(root.join("ledger.sqlite"))?;
+        let path = canonical
+            .to_str()
+            .context("backup path must be UTF-8")?
+            .replace('\\', "/");
+        let path = path.strip_prefix("//?/").unwrap_or(&path);
+        let mut encoded = String::new();
+        for byte in path.bytes() {
+            if byte.is_ascii_alphanumeric() || b"/:._-".contains(&byte) {
+                encoded.push(byte as char);
+            } else {
+                encoded.push_str(&format!("%{byte:02X}"));
+            }
+        }
+        let conn = Connection::open_with_flags(
+            format!("file:{encoded}?mode=ro&immutable=1"),
+            OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI,
+        )?;
+        conn.execute_batch("PRAGMA foreign_keys=ON; PRAGMA query_only=ON;")?;
+        let version: i64 = conn.query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        ensure!(
+            version == 2,
+            "read-only backup requires current schema 2; migrate a writable clone separately"
+        );
+        let store = Self {
+            conn,
+            objects: Objects {
+                root: root.join("objects"),
+            },
+            root: root.into(),
+        };
+        store.verify_committed_objects()?;
+        Ok(store)
+    }
+    fn verify_committed_objects(&self) -> Result<()> {
+        // Opening an authority fails loudly if a committed reference is corrupt.
+        for revision in self.all_revisions()? {
+            self.snapshot(&revision)?;
+        }
+        for hash in self.generation_objects()? {
+            self.objects.read_hash(&hash)?;
+        }
+        Ok(())
     }
     pub fn import(&mut self, directory: &Path, project: &str) -> Result<Revision> {
         ensure!(!self.project_exists(project)?, "project already imported");
