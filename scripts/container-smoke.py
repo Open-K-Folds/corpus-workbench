@@ -86,6 +86,10 @@ def login():
 try:
     image = json.loads(run(['docker', 'image', 'inspect', args.image]).stdout)[0]
     assert image['Config']['User'] == '10001:10001'
+    # Execute the inspected immutable identity throughout, even if an input tag
+    # is retargeted concurrently. Keep the caller's tag as descriptive evidence.
+    args.image = image['Id']
+    env['WB_IMAGE'] = args.image
     evidence['image_id'] = image['Id']
     evidence['architecture'] = image['Architecture']
     evidence['source_commit'] = image['Config']['Labels']['org.opencontainers.image.revision']

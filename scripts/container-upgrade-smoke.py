@@ -172,7 +172,7 @@ for tag in (args.old_image, args.new_image):
                    'version': labels['org.opencontainers.image.version']})
 assert images[0]['version'] != images[1]['version'], 'Different application versions required.'
 assert images[0]['architecture'] == images[1]['architecture']
-old, new = args.old_image, args.new_image
+old, new = (image['image_id'] for image in images)
 seed, upgrade, compatibility, rollback = (prefix + suffix for suffix in ('-seed', '-new', '-compat', '-rollback'))
 authority = '/data/authority'
 restored = authority + '/restored'
