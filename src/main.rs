@@ -55,6 +55,15 @@ fn main() -> Result<()> {
     let root = PathBuf::from(option(&args, "--store", ".private/authority"));
     let project = option(&args, "--project", "pilot");
     match mode {
+        "search" | "search-projection" => {
+            let s=verification_store(&root,&args)?;
+            let bytes=fs::read(option(&args,"--request",""))?;
+            ensure!(bytes.len()<=1_048_576,"request size limit");
+            let q:corpus_workbench::search::Query=serde_json::from_slice(&bytes)?;
+            ensure!(q.project==project,"project scope denied");
+            let result=if mode=="search" {serde_json::to_value(s.search(&q)?)?} else {s.search_projection(&q)?};
+            println!("{}",result);
+        }
         "import" => { let mut s=Store::open(&root)?; let r=s.import(Path::new(&option(&args,"--package","")),&project)?; println!("{}",serde_json::to_string(&r)?); }
         "view" => println!("{}",serde_json::to_string(&verification_store(&root,&args)?.view(&project,None)?)?),
         "export" => { let s=Store::open(&root)?; let revision=option(&args,"--revision",&s.head(&project)?.id.to_string()).parse()?; s.export(&project,revision,Path::new(&option(&args,"--out","")))?; println!("Exported exact revision {revision}"); }
@@ -286,7 +295,11 @@ fn serve(
             let result = (|| -> Result<(PathBuf, u64, String)> {
                 let path = query(&request, "path").context("media path")?;
                 package::safe_relative(&path)?;
-                let snapshot = store.snapshot(&store.head(project)?)?;
+                let revision = query(&request, "revision")
+                    .map(|r| r.parse())
+                    .transpose()?
+                    .unwrap_or(store.head(project)?.id);
+                let snapshot = store.snapshot(&store.revision(project, revision)?)?;
                 let artifact = snapshot.files.get(&path).context("media not in project")?;
                 ensure!(
                     artifact.role == "source-media",
@@ -412,6 +425,18 @@ fn serve(
                         Ok(
                             json!({"preview_hash":corpus_workbench::handoff::digest(&preview)?,"preview":preview}),
                         )
+                    }
+                    (Method::Post, "/api/search") => {
+                        let q: corpus_workbench::search::Query =
+                            serde_json::from_value(body(&mut request)?)?;
+                        ensure!(q.project == project, "project scope denied");
+                        Ok(serde_json::to_value(store.search(&q)?)?)
+                    }
+                    (Method::Post, "/api/search/resolve") => {
+                        let q: corpus_workbench::search::Resolve =
+                            serde_json::from_value(body(&mut request)?)?;
+                        ensure!(q.query.project == project, "project scope denied");
+                        store.resolve_search_hit(&q)
                     }
                     (Method::Get, "/api/view") => store
                         .view(
