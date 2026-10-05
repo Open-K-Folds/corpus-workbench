@@ -84,3 +84,43 @@ are an accepted deployment choice. No registry visibility or credential change
 was made. Physical Pi/resource/power-loss qualification remains a deployment
 step and does not block application development. No physical-device result is
 claimed, and this milestone does not complete the full approved migration.
+
+## Exact-source qualification record
+
+Implementation `c6f3d9a6e863f5ffd96e5b885654024efebe38d2` is pushed on
+`feature/edited-package-reconciliation` in [draft PR #1](https://github.com/Open-K-Folds/corpus-workbench/pull/1).
+[Hosted contracts run 37315589536](https://github.com/Open-K-Folds/corpus-workbench/actions/runs/37315589536)
+passes native 155 contracts/release builds on Windows, Linux amd64 and native
+ARM64, the 23 browser journeys and locked dependency audits.
+[Container run 37315589490](https://github.com/Open-K-Folds/corpus-workbench/actions/runs/37315589490)
+passes exact-source build, actual runtime-loader contracts, browser and persistent
+restart on native amd64 and ARM64 runners. This is architecture evidence, not
+physical CM5 validation.
+
+The local native-Linux-engine amd64 image
+`corpus-workbench:0.2.0-dev.9-c6f3d9a-amd64` has inspected immutable image ID
+`sha256:b6a12e291154534cc3207ea628c9d8bb51eb5218e9cde08f501e7fcc002e8e58`;
+its actual-loader contract image is
+`sha256:e07574d9414500ea544c036212c7b03792fa6ac893a6cb2de5cd6e6b3099cc27`.
+Its application/label/build-record version is dev.9, source is c6f3d9a, and runtime
+UID is 10001. The included Trixie package table is byte-equal to the immutable Git
+blob (SHA256 `a4d5780b25933bb7b9b6facc790633bc71b579fb1c3cb53e41fe0cbe5730bf65`).
+Windows checkout newline conversion is distinct from corpus byte preservation.
+A subsequent packaging-only commit updates Dockerfile default version arguments
+to dev.9; explicit-version qualified builds already used dev.9. No deployment or
+new registry publication is implied.
+
+An isolated, protected synthetic preview runs at `http://127.0.0.1:18938/`.
+Its generated private launcher opens an authenticated session; session capability
+values are not published. Headless Chrome verified a complete copied-folder
+upload, ready preview, desktop 1440 and mobile 390 rendering, with no page errors
+and no committed demo edit. Existing trial projects and research originals were
+not used as mutation fixtures.
+
+A separate fresh non-root local-container return used 9 files totaling 83,891,352
+bytes, beyond its 64 MiB temporary filesystem. Complete-folder binary upload,
+frozen preview, atomic commit, exact idempotent retry, unchanged media hash and
+container restart persistence all passed with 1 GiB memory/2 CPU limits. Upload
+quarantine used the persistent runtime volume. Only the test container was
+stopped/removed; both fresh named volumes were retained. These are bounded
+synthetic runtime results, not a CM5 resource benchmark.
