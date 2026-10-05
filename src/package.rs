@@ -180,7 +180,7 @@ impl Objects {
         )?)?)
     }
 }
-pub fn import(objects: &Objects, dir: &Path, project: &str) -> Result<Snapshot> {
+pub(crate) fn collect_files(objects: &Objects, dir: &Path, project: &str) -> Result<Files> {
     ensure!(dir.is_dir(), "import requires a directory package");
     ensure!(xml::valid_name(project), "invalid project ID");
     let mut files = BTreeMap::new();
@@ -233,6 +233,10 @@ pub fn import(objects: &Objects, dir: &Path, project: &str) -> Result<Snapshot> 
         files.values().any(|f| f.role == "transcript"),
         "no transcript documents"
     );
+    Ok(files)
+}
+pub fn import(objects: &Objects, dir: &Path, project: &str) -> Result<Snapshot> {
+    let files = collect_files(objects, dir, project)?;
     let mut config = Config::default();
     if let Some(f) = files.get("Workbench/definitions.json") {
         config = serde_json::from_slice(&objects.read(f)?)?;

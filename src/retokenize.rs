@@ -689,6 +689,8 @@ impl Store {
                 Ok(())
             } else if a.path.starts_with("Resources/retokenization/") {
                 known_lineage(&a.path, &bytes)
+            } else if a.path.starts_with("Resources/reconciliation/") {
+                crate::reconcile::known_lineage(&a.path, &bytes)
             } else {
                 let kind = if a.artifact.role == "transcript" {
                     Some("transcript")

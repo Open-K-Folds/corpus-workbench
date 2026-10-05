@@ -259,6 +259,22 @@ impl Store {
             );
             for op in &command.operations {
                 match op {
+                    Operation::ReconcilePackage {
+                        request,
+                        preview_hash,
+                    } => {
+                        ensure!(
+                            command.operations.len() == 1,
+                            "package reconciliation requires its own operation group"
+                        );
+                        ensure!(
+                            request.project == command.project
+                                && request.revision == command.base_revision
+                                && request.snapshot_hash == command.preimage_hash,
+                            "reconciliation command binding mismatch"
+                        );
+                        self.apply_reconciliation(&mut snapshot, request, preview_hash)?;
+                    }
                     Operation::InstallTeitokReader { profile_hash } => {
                         ensure!(
                             command.operations.len() == 1,
