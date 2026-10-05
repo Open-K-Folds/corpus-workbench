@@ -13,7 +13,14 @@ pub struct Block {
     pub source_id: Option<String>,
     pub source_kind: String,
     pub anchor_token: Option<String>,
+    pub sections: Vec<Section>,
     pub runs: Vec<Run>,
+}
+#[derive(Debug, Serialize)]
+pub struct Section {
+    pub id: String,
+    pub kind: String,
+    pub number: Option<String>,
 }
 
 fn source_id(node: Node<'_, '_>) -> Option<String> {
@@ -24,11 +31,7 @@ fn source_id(node: Node<'_, '_>) -> Option<String> {
 
 pub fn project(xml: &str) -> Result<Vec<Block>> {
     let doc = Document::parse(xml)?;
-    let root = doc
-        .descendants()
-        .find(|n| n.has_tag_name("body"))
-        .or_else(|| doc.descendants().find(|n| n.has_tag_name("text")))
-        .unwrap_or(doc.root_element());
+    let root = doc.root_element();
     let mut blocks: Vec<Block> = Vec::new();
     let mut owner = None;
     let mut seen = std::collections::BTreeSet::new();
@@ -70,6 +73,17 @@ pub fn project(xml: &str) -> Result<Vec<Block>> {
                 source_id: source_id(container),
                 source_kind: container.tag_name().name().to_owned(),
                 anchor_token: None,
+                sections: container
+                    .ancestors()
+                    .filter(|n| n.has_tag_name("div"))
+                    .filter_map(|n| {
+                        source_id(n).map(|id| Section {
+                            id,
+                            kind: n.attribute("type").unwrap_or("section").to_owned(),
+                            number: n.attribute("n").map(str::to_owned),
+                        })
+                    })
+                    .collect(),
                 runs: Vec::new(),
             });
             owner = Some(container.id());
@@ -141,5 +155,16 @@ mod tests {
     #[test]
     fn unicode_is_not_normalized() {
         assert_eq!(text("<text><tok id='a'>é👩‍💻مرحبا</tok></text>"), "é👩‍💻مرحبا");
+    }
+    #[test]
+    fn multiple_bodies_are_not_silently_omitted() {
+        assert_eq!(text("<TEI><text><body><tok id='a'>A</tok></body><body><tok id='b'>B</tok></body></text></TEI>"), "AB");
+    }
+    #[test]
+    fn section_references_come_from_actual_xml() {
+        let blocks=project("<TEI><text><div type='chapter' id='chapter-a' n='3'><u id='u1'><tok id='a'>A</tok></u></div></text></TEI>").unwrap();
+        assert_eq!(blocks[0].sections[0].id, "chapter-a");
+        assert_eq!(blocks[0].sections[0].kind, "chapter");
+        assert_eq!(blocks[0].sections[0].number.as_deref(), Some("3"));
     }
 }

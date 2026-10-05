@@ -476,11 +476,15 @@ fn serve(
                             .files
                             .get(&path)
                             .context("source not in exact snapshot")?;
-                        let blocks = corpus_workbench::reading::project(
-                            &store.objects.text(&view.snapshot, &path)?,
-                        )?;
+                        let xml = store.objects.text(&view.snapshot, &path)?;
+                        let blocks = corpus_workbench::reading::project(&xml)?;
+                        let media_base_unsupported =
+                            roxmltree::Document::parse(&xml)?.descendants().any(|n| {
+                                n.attribute(("http://www.w3.org/XML/1998/namespace", "base"))
+                                    .is_some()
+                            });
                         Ok(
-                            json!({"schema":1,"project":project,"revision":revision,"snapshot_hash":rev.snapshot_hash,"document":path,"artifact_hash":artifact.sha256,"blocks":blocks}),
+                            json!({"schema":1,"project":project,"revision":revision,"snapshot_hash":rev.snapshot_hash,"document":path,"artifact_hash":artifact.sha256,"media_base_unsupported":media_base_unsupported,"blocks":blocks}),
                         )
                     }
                     (Method::Get, "/api/xml") => {

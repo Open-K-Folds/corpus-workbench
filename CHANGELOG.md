@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0-dev.11 - Integrated transcript authoring
+
+- Add faithful native lexical reading with exact revision/artifact binding,
+  stable source/section identities and preserved mixed-content separators.
+- Add native selection, ghost/replacement drafts, explicit Undo/Accept,
+  recorded edit history and Unicode/IME guards.
+- Add real document tabs, contextual tools, resizable/collapsible panes,
+  mobile focus, source-line/flowing layouts, interlinear display and themes.
+- Decode packaged waveforms; show supplied overlapping intervals, missing
+  word times, correction associations and unresolved text anchors.
+- Reconcile uncertain writes with the original command; protect stale drafts,
+  playback continuity and late-response state. Open the Windows editor directly.
+- Retain complete package exports, exact review, licensing and structural proofs.
+
 ## 0.2.0-dev.10 - Bounded corpus concordance
 
 - Add exact, revision-bound corpus token search with KWIC, reading/language/document
