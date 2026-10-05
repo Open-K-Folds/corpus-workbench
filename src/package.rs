@@ -56,6 +56,8 @@ pub fn role(path: &str) -> String {
         "source-media"
     } else if p.starts_with("raw/") {
         "immutable-machine-draft"
+    } else if p.starts_with("resources/reconciliation/") && p.ends_with(".json") {
+        "immutable-reconciliation-lineage"
     } else if p.starts_with("xmlfiles/") && p.ends_with(".xml") {
         "transcript"
     } else if p.contains("settings.xml") {
@@ -180,6 +182,22 @@ impl Objects {
         )?)?)
     }
 }
+pub fn safe_package_path(path: &str) -> Result<()> {
+    safe_relative(path)?;
+    ensure!(
+        ![
+            "credentials",
+            "password",
+            "users.xml",
+            "userlist",
+            "secrets"
+        ]
+        .iter()
+        .any(|s| path.to_ascii_lowercase().contains(s)),
+        "secret/account data excluded; remove from package"
+    );
+    Ok(())
+}
 pub(crate) fn collect_files(objects: &Objects, dir: &Path, project: &str) -> Result<Files> {
     ensure!(dir.is_dir(), "import requires a directory package");
     ensure!(xml::valid_name(project), "invalid project ID");
@@ -198,19 +216,7 @@ pub(crate) fn collect_files(objects: &Objects, dir: &Path, project: &str) -> Res
             .to_str()
             .context("non-Unicode path")?
             .replace('\\', "/");
-        safe_relative(&path)?;
-        ensure!(
-            ![
-                "credentials",
-                "password",
-                "users.xml",
-                "userlist",
-                "secrets"
-            ]
-            .iter()
-            .any(|s| path.to_ascii_lowercase().contains(s)),
-            "secret/account data excluded; remove from package"
-        );
+        safe_package_path(&path)?;
         ensure!(folded.insert(path.to_lowercase()), "case-colliding path");
         let size = entry.metadata()?.len();
         total += size;
@@ -653,19 +659,33 @@ pub fn token_fields(
         .get("nform")
         .is_some_and(|v| Some(v) != t.corrected.as_ref())
     {
-        for span in &doc.spans {
-            if span.token_ids.iter().any(|id| id == token) && span.fields.contains_key("wb_start") {
-                ensure!(docs.iter().filter(|d| d.spans.iter().any(|s| s.sidecar == span.sidecar)).count() == 1,
+        invalidate_character_anchors(objects, snapshot, document, token)?;
+    }
+    Ok(())
+}
+pub(crate) fn invalidate_character_anchors(
+    objects: &Objects,
+    snapshot: &mut Snapshot,
+    document: &str,
+    token: &str,
+) -> Result<()> {
+    let docs = documents(objects, snapshot)?;
+    let doc = docs
+        .iter()
+        .find(|d| d.path == document)
+        .context("document not found")?;
+    for span in &doc.spans {
+        if span.token_ids.iter().any(|id| id == token) && span.fields.contains_key("wb_start") {
+            ensure!(docs.iter().filter(|d| d.spans.iter().any(|s| s.sidecar == span.sidecar)).count() == 1,
                     "sidecar matches multiple transcripts; explicit association required before editing");
-                let old = objects.text(snapshot, &span.sidecar)?;
-                let new = xml::patch_attrs(
-                    &old,
-                    "span",
-                    &span.id,
-                    &BTreeMap::from([("wb_status".into(), "unresolved".into())]),
-                )?;
-                replace(objects, snapshot, &span.sidecar, &new)?;
-            }
+            let old = objects.text(snapshot, &span.sidecar)?;
+            let new = xml::patch_attrs(
+                &old,
+                "span",
+                &span.id,
+                &BTreeMap::from([("wb_status".into(), "unresolved".into())]),
+            )?;
+            replace(objects, snapshot, &span.sidecar, &new)?;
         }
     }
     Ok(())

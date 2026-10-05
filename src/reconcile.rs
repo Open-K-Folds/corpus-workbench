@@ -613,6 +613,25 @@ impl Store {
             });
         }
         for ((document, token), fields) in edits {
+            let now_xml = temporary.text(&candidate, &document)?;
+            let now_tree = xml::parse(&now_xml)?;
+            let now_fields = unqualified_fields(&now_tree, &token)?;
+            if fields
+                .get("wb_normalized")
+                .is_some_and(|value| value.as_ref().is_some_and(|s| !s.is_empty()))
+            {
+                let external = frozen.get(&document).context("changed return XML")?;
+                let external_tree = xml::parse(external)?;
+                let external_fields = unqualified_fields(&external_tree, &token)?;
+                let selected = fields
+                    .get("nform")
+                    .cloned()
+                    .unwrap_or_else(|| now_fields.get("nform").cloned());
+                if selected != external_fields.get("nform").cloned() {
+                    p.blockers.push(format!("Normalization uses a different corrected reading: {document}#{token}. Reconcile the correction first, then judge normalization in the current revision."));
+                    continue;
+                }
+            }
             let values = fields
                 .iter()
                 .map(|(k, v)| (k.clone(), v.clone().unwrap_or_default()))
@@ -632,6 +651,33 @@ impl Store {
                 let text = temporary.text(&candidate, &document)?;
                 let changed = xml::remove_attrs(&text, "tok", &token, &remove)?;
                 package::replace(&temporary, &mut candidate, &document, &changed)?;
+                if remove.contains(&"nform") {
+                    // Attribute absence has a different corrected-layer meaning
+                    // from an explicitly empty nform, even when the intermediate
+                    // token_fields patch was byte-identical.
+                    if !fields.contains_key("wb_normalized") {
+                        let text = temporary.text(&candidate, &document)?;
+                        let tree = xml::parse(&text)?;
+                        if unqualified_fields(&tree, &token)?.contains_key("wb_normalized") {
+                            let changed = xml::patch_attrs(
+                                &text,
+                                "tok",
+                                &token,
+                                &BTreeMap::from([(
+                                    "wb_normalized_status".into(),
+                                    "unresolved".into(),
+                                )]),
+                            )?;
+                            package::replace(&temporary, &mut candidate, &document, &changed)?;
+                        }
+                    }
+                    package::invalidate_character_anchors(
+                        &temporary,
+                        &mut candidate,
+                        &document,
+                        &token,
+                    )?;
+                }
             }
         }
         if !p.blockers.is_empty() {

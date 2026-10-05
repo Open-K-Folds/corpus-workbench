@@ -25,8 +25,12 @@ artifact; new active structures and changed settings, media or raw drafts block.
 No returned approvals or compiler generations become current approvals.
 
 Incremental publication: the native core passes the existing 134 Rust tests and
-`cargo check --locked`. Reconciliation-specific falsifications, browser directory
-upload/review, actual TEITOK save/reopen and recovery checks are pending. This
+`cargo check --locked`. Independent review added 13 passing reconciliation
+contracts and exposed defects repaired in the next incremental commit: complete
+namespace accounting, unqualified field extraction, exportable lineage roles,
+normalized-reading context and empty-versus-absent correction dependencies.
+Browser directory upload/review, actual TEITOK save/reopen and abrupt-process
+recovery checks are pending. This
 checkpoint is not the completed usable UI milestone or the whole migration plan.
 
 The published source before this checkpoint is `3be85c7`, with passing native
