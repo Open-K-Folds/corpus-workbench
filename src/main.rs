@@ -5,6 +5,7 @@ use corpus_workbench::{
     package,
     store::{Fault, Store},
 };
+use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
     fs,
@@ -21,6 +22,25 @@ fn option(args: &[String], name: &str, fallback: &str) -> String {
         .and_then(|i| args.get(i + 1))
         .cloned()
         .unwrap_or_else(|| fallback.into())
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UploadFile {
+    path: String,
+    bytes: u64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct UploadStart {
+    project: String,
+    revision: i64,
+    snapshot_hash: String,
+    files: Vec<UploadFile>,
+}
+struct Upload {
+    directory: PathBuf,
+    basis: UploadStart,
+    received: std::collections::BTreeSet<String>,
 }
 fn verification_store(root: &Path, args: &[String]) -> Result<Store> {
     if option(args, "--readonly-backup", "no") == "yes" {
@@ -54,7 +74,7 @@ fn main() -> Result<()> {
         "generation" => println!("{}",Store::open(&root)?.generation(&project,&option(&args,"--id",""),option(&args,"--historical","no")=="yes")?),
         "apply" => { let mut s=Store::open(&root)?; let c:Command=serde_json::from_slice(&fs::read(option(&args,"--command",""))?)?; let fault=match option(&args,"--fault","none").as_str() { "after-stage"=>Fault::AfterStage,"before-commit"=>Fault::BeforeCommit,"after-commit"=>Fault::AfterCommit,_=>Fault::None }; let r=s.apply("local-owner",&c,fault)?; println!("{}",serde_json::to_string(&r)?); }
         "serve" => serve(Store::open(&root)?,&project,&PathBuf::from(option(&args,"--ui","ui/dist")),option(&args,"--port","18910").parse()?, option(&args,"--container-network","no")=="yes")?,
-        _ => println!("corpus-workbench import|serve|view|export|backup|check|health|apply|review|inventory|preflight|retokenize-preview|teitok-reader-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
+        _ => println!("corpus-workbench import|serve|view|export|backup|check|health|apply|review|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
     }
     Ok(())
 }
@@ -168,6 +188,9 @@ fn serve(
     // A download belongs to this server's authenticated project session. Files
     // left by another server/project in a shared cwd confer no access.
     let mut downloads = std::collections::BTreeMap::<String, PathBuf>::new();
+    let upload_root =
+        PathBuf::from(".runtime/return-uploads").join(format!("session-{}", uuid::Uuid::new_v4()));
+    let mut uploads = std::collections::BTreeMap::<String, Upload>::new();
     for mut request in server.incoming_requests() {
         let path = request.url().split('?').next().unwrap_or("").to_string();
         let method = request.method().clone();
@@ -439,6 +462,130 @@ fn serve(
                             &c,
                             Fault::None,
                         )?)?)
+                    }
+                    (Method::Post, "/api/return/start") => {
+                        let start: UploadStart = serde_json::from_value(body(&mut request)?)?;
+                        ensure!(start.project == project, "project scope denied");
+                        let head = store.head(project)?;
+                        ensure!(
+                            start.revision == head.id && start.snapshot_hash == head.snapshot_hash,
+                            "stale upload basis"
+                        );
+                        ensure!(
+                            uploads.len() < 4
+                                && !start.files.is_empty()
+                                && start.files.len() <= package::MAX_ENTRIES,
+                            "return upload count limit"
+                        );
+                        let mut paths = std::collections::BTreeSet::new();
+                        let mut total = 0u64;
+                        for file in &start.files {
+                            package::safe_package_path(&file.path)?;
+                            ensure!(
+                                paths.insert(file.path.to_lowercase()),
+                                "case-colliding upload path"
+                            );
+                            total = total
+                                .checked_add(file.bytes)
+                                .context("return size overflow")?;
+                            ensure!(
+                                file.bytes <= package::MAX_FILE_BYTES
+                                    && total <= package::MAX_PACKAGE_BYTES,
+                                "return package limits exceeded"
+                            );
+                        }
+                        let id = uuid::Uuid::new_v4().to_string();
+                        let directory = upload_root.join(&id);
+                        fs::create_dir_all(&directory)?;
+                        uploads.insert(
+                            id.clone(),
+                            Upload {
+                                directory,
+                                basis: start,
+                                received: Default::default(),
+                            },
+                        );
+                        Ok(json!({"upload":id}))
+                    }
+                    (Method::Post, "/api/return/file") => {
+                        let id = query(&request, "upload").context("upload id")?;
+                        let path = query(&request, "path").context("upload path")?;
+                        let upload = uploads
+                            .get_mut(&id)
+                            .context("upload does not belong to this session")?;
+                        let expected = upload
+                            .basis
+                            .files
+                            .iter()
+                            .find(|file| file.path == path)
+                            .context("undeclared upload file")?
+                            .bytes;
+                        ensure!(
+                            !upload.received.contains(&path),
+                            "upload file already received"
+                        );
+                        if let Some(length) = request.body_length() {
+                            ensure!(length as u64 == expected, "upload length mismatch");
+                        }
+                        let target = upload.directory.join(&path);
+                        fs::create_dir_all(target.parent().context("upload parent")?)?;
+                        let result = (|| -> Result<()> {
+                            let mut file = fs::OpenOptions::new()
+                                .write(true)
+                                .create_new(true)
+                                .open(&target)?;
+                            let count = std::io::copy(
+                                &mut request.as_reader().take(expected + 1),
+                                &mut file,
+                            )?;
+                            ensure!(count == expected, "upload length mismatch");
+                            file.sync_all()?;
+                            Ok(())
+                        })();
+                        if result.is_err() {
+                            let _ = fs::remove_file(&target);
+                        }
+                        result?;
+                        upload.received.insert(path);
+                        Ok(
+                            json!({"received":upload.received.len(),"files":upload.basis.files.len()}),
+                        )
+                    }
+                    (Method::Post, "/api/return/finish") => {
+                        let data = body(&mut request)?;
+                        let id = data["upload"].as_str().context("upload id")?;
+                        let upload = uploads
+                            .get(id)
+                            .context("upload does not belong to this session")?;
+                        ensure!(
+                            upload.received.len() == upload.basis.files.len(),
+                            "return package incomplete"
+                        );
+                        let head = store.head(project)?;
+                        ensure!(
+                            upload.basis.revision == head.id
+                                && upload.basis.snapshot_hash == head.snapshot_hash,
+                            "stale upload basis"
+                        );
+                        let stage = store.stage_return(&upload.directory, project)?;
+                        let upload = uploads.remove(id).unwrap();
+                        fs::remove_dir_all(upload.directory)?;
+                        Ok(json!({"stage":stage}))
+                    }
+                    (Method::Post, "/api/return/cancel") => {
+                        let data = body(&mut request)?;
+                        if let Some(upload) =
+                            uploads.remove(data["upload"].as_str().context("upload id")?)
+                        {
+                            fs::remove_dir_all(upload.directory)?;
+                        }
+                        Ok(json!({"cancelled":true}))
+                    }
+                    (Method::Post, "/api/return/preview") => {
+                        let proposal: corpus_workbench::reconcile::Request =
+                            serde_json::from_value(body(&mut request)?)?;
+                        ensure!(proposal.project == project, "project scope denied");
+                        store.reconciliation_preview(&proposal)
                     }
                     (Method::Post, "/api/review") => {
                         let data = body(&mut request)?;

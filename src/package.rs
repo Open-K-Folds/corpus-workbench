@@ -56,8 +56,6 @@ pub fn role(path: &str) -> String {
         "source-media"
     } else if p.starts_with("raw/") {
         "immutable-machine-draft"
-    } else if p.starts_with("resources/reconciliation/") && p.ends_with(".json") {
-        "immutable-reconciliation-lineage"
     } else if p.starts_with("xmlfiles/") && p.ends_with(".xml") {
         "transcript"
     } else if p.contains("settings.xml") {
@@ -428,10 +426,7 @@ pub fn documents(objects: &Objects, snapshot: &Snapshot) -> Result<Vec<Document>
                 doc.spans.push(Span {
                     id: id.into(),
                     token_ids: tokens,
-                    fields: span
-                        .attributes()
-                        .map(|a| (a.name().into(), a.value().into()))
-                        .collect(),
+                    fields: xml::attrs(span),
                     sidecar: sidecar.into(),
                 });
             }

@@ -389,13 +389,24 @@ impl Store {
             let completion: Completion =
                 serde_json::from_slice(&self.objects.read_hash(&receipt)?)?;
             let mapping = completion.binding.recipe.mapping_version;
-            let key = (revision, mapping.clone());
+            let key = (
+                revision,
+                mapping.clone(),
+                completion.binding.contract_hash.clone(),
+            );
             if current && !eligibility.contains_key(&key) {
                 let view = self.view(project, Some(revision))?;
+                let contract: Value = serde_json::from_slice(
+                    &self.objects.read_hash(&completion.binding.contract_hash)?,
+                )?;
                 eligibility.insert(
                     key.clone(),
                     !view.issues.iter().any(|i| i.blocking)
-                        && package::compiler_scope_for_mapping(&view.documents, &mapping).is_ok(),
+                        && package::compiler_scope_for_mapping(&view.documents, &mapping).is_ok()
+                        && contract["documents"] == serde_json::to_value(&view.documents)?
+                        && contract["definitions"] == serde_json::to_value(&view.snapshot.config)?
+                        && contract["artifact_manifest"]
+                            == serde_json::to_value(&view.snapshot.files)?,
                 );
             }
             let current = current && eligibility.get(&key).copied().unwrap_or(false);

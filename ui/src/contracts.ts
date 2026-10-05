@@ -12,6 +12,7 @@ export interface View {api_version:number;revision:Revision;snapshot:Snapshot;do
 export interface Diff {from:number;to:number;changes:{document:string;sidecar?:string;target:string;field:string;before:string|null;after:string|null}[];files:{path:string}[];config_before:Config;config_after:Config}
 export interface ReaderPreview {profile:string;profile_hash:string;revision:number;snapshot_hash:string;enabled:boolean;installed:boolean;blockers:string[];candidate_xml:Record<string,string>;before_hashes:Record<string,string|null>}
 export type Operation =
+ | {kind:'reconcile_package';request:ReturnRequest;preview_hash:string}
  | {kind:'install_teitok_reader';profile_hash:string}
  | {kind:'retokenize';request:RetokenizeRequest;preview_hash:string}
  | {kind:'set_token';document:string;token:string;fields:Record<string,string>}
@@ -24,6 +25,9 @@ export type Operation =
  | {kind:'clear_relation';document:string;from:string}
  | {kind:'restore';revision:number};
 export interface Command {schema:1;project:string;command_id:string;base_revision:number;preimage_hash:string;config_version:number;label:string;operations:Operation[]}
+export interface ReturnRequest {schema:1;project:string;revision:number;snapshot_hash:string;stage:string;resolutions:Record<string,'current'|'external'>}
+export interface ReturnChange {key:string;document:string;token:string;field:string;base:string|null;current:string|null;external:string|null;state:'external_change'|'already_current'|'conflict';choice:'current'|'external'|null}
+export interface ReturnPreview {preview_hash:string;preview:{schema:1;grammar:string;request:ReturnRequest;exported_base:Revision;package_files:number;changed_xml:string[];retained_backups:string[];changes:ReturnChange[];blockers:string[];issues:View['issues'];candidate_snapshot_hash:string|null;lineage_path:string|null;ready:boolean}}
 export interface QualifiedTarget {artifact:string;element_start:number;id:string}
 export interface Reading {id:string;original:string;corrected:string|null;normalized:string|null}
 export interface RetokenizeRequest {schema:1;project:string;revision:number;snapshot_hash:string;config_hash:string;inventory_hash:string;document:string;targets:QualifiedTarget[];replacement:Reading[];relation_endpoint:string|null}

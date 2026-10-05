@@ -197,9 +197,17 @@ pub fn remove_attrs(text: &str, element: &str, id: &str, names: &[&str]) -> Resu
     parse(&result)?;
     Ok(result)
 }
-fn attrs(n: Node<'_, '_>) -> BTreeMap<String, String> {
+pub(crate) fn attrs(n: Node<'_, '_>) -> BTreeMap<String, String> {
     n.attributes()
-        .map(|a| (a.name().into(), a.value().into()))
+        .map(|a| {
+            (
+                a.namespace().map_or_else(
+                    || a.name().to_owned(),
+                    |uri| format!("{{{uri}}}{}", a.name()),
+                ),
+                a.value().into(),
+            )
+        })
         .collect()
 }
 pub fn time_us(value: Option<&str>) -> Result<Option<i64>> {

@@ -129,12 +129,11 @@ fn authority_objects(store: &Store) -> Vec<String> {
     names
 }
 fn assert_blocked(case: &Case, request: &Request) {
-    match case.store.reconciliation_preview(request) {
-        Ok(p) => assert_eq!(
+    if let Ok(p) = case.store.reconciliation_preview(request) {
+        assert_eq!(
             p["preview"]["ready"], false,
             "unexpected executable return: {p}"
-        ),
-        Err(_) => {}
+        );
     }
 }
 
@@ -230,6 +229,33 @@ fn selected_export_namespace_addition_is_not_silently_dropped() {
     )
     .unwrap();
     assert_blocked(&c, &c.request());
+}
+
+#[test]
+fn changed_managed_receipt_metadata_is_not_accepted_as_ordinary_token_return() {
+    for field in ["authority", "approved", "reviews", "unknown_key"] {
+        let c = Case::new(XML);
+        c.replace("nform='base'", "nform='external'");
+        let namespace = fs::read_dir(c.returned.join("Workbench/exports"))
+            .unwrap()
+            .next()
+            .unwrap()
+            .unwrap()
+            .path();
+        let path = namespace.join("export-receipt.json");
+        let mut receipt: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        receipt[field] = match field {
+            "authority" => Value::String("unsupported-external-authority".into()),
+            "approved" => Value::Bool(true),
+            "reviews" => {
+                serde_json::json!([{"revision":receipt["revision"]["id"],"snapshot_hash":receipt["revision"]["snapshot_hash"],"actor":"local-owner","decision":"approved","scope":"full","note":"synthetic forged review","created_at":"2026-10-05T00:00:00.000Z","self_review":true}])
+            }
+            "unknown_key" => serde_json::json!({"unsupported":"new metadata"}),
+            _ => unreachable!(),
+        };
+        fs::write(path, serde_json::to_vec_pretty(&receipt).unwrap()).unwrap();
+        assert_blocked(&c, &c.request());
+    }
 }
 
 #[test]
@@ -576,4 +602,525 @@ fn altered_preview_proof_and_staged_bytes_reject_without_revision() {
     assert!(c.store.reconciliation_preview(&r).is_err());
     assert_eq!(c.store.history("p").unwrap().len(), 1);
     assert_eq!(c.text(), XML);
+}
+
+#[test]
+fn changed_or_missing_non_transcript_and_new_unknown_artifacts_are_blocked() {
+    for mode in ["settings", "raw", "media", "deleted", "unknown"] {
+        let c = Case::new(XML);
+        c.replace("nform='base'", "nform='external'");
+        match mode {
+            "settings" => fs::write(
+                c.returned.join("Resources/settings.xml"),
+                "<ttsettings changed='yes'/>",
+            )
+            .unwrap(),
+            "raw" => fs::write(c.returned.join("Raw/asr.raw.json"), b"{\"changed\":true}").unwrap(),
+            "media" => fs::write(
+                c.returned.join("Audio/synthetic.wav"),
+                b"changed synthetic media",
+            )
+            .unwrap(),
+            "deleted" => fs::remove_file(c.returned.join("Audio/synthetic.wav")).unwrap(),
+            "unknown" => fs::write(
+                c.returned.join("Resources/new-opaque.bin"),
+                b"new opaque bytes",
+            )
+            .unwrap(),
+            _ => unreachable!(),
+        }
+        let before = authority_objects(&c.store);
+        let r = c.request();
+        assert_blocked(&c, &r);
+        assert_eq!(c.store.history("p").unwrap().len(), 1);
+        assert_eq!(authority_objects(&c.store), before);
+    }
+}
+
+#[test]
+fn reconciliation_hard_process_crashes_recover_and_retry_exactly_once() {
+    for (point, committed) in [
+        ("after-stage", false),
+        ("before-commit", false),
+        ("after-commit", true),
+    ] {
+        let mut c = Case::new(XML);
+        c.replace("nform='base'", "nform='external'");
+        let r = c.request();
+        let p = c.preview(&r);
+        let cmd = command(
+            &c.store,
+            "crash-retry-return",
+            vec![Operation::ReconcilePackage {
+                request: r,
+                preview_hash: p["preview_hash"].as_str().unwrap().into(),
+            }],
+        );
+        let file = c._tmp.path().join("crash-command.json");
+        fs::write(&file, serde_json::to_vec(&cmd).unwrap()).unwrap();
+        let root = c.store.root.clone();
+        drop(c.store);
+        let outcome = std::process::Command::new(env!("CARGO_BIN_EXE_corpus-workbench"))
+            .args(["apply", "--fault", point, "--command"])
+            .arg(&file)
+            .arg("--store")
+            .arg(&root)
+            .env("WORKBENCH_TEST_HARD_CRASH", "yes")
+            .output()
+            .unwrap();
+        assert_eq!(
+            outcome.status.code(),
+            Some(73),
+            "{point}: {}",
+            String::from_utf8_lossy(&outcome.stderr)
+        );
+        c.store = Store::open(&root).unwrap();
+        assert_eq!(
+            c.store.history("p").unwrap().len(),
+            if committed { 2 } else { 1 }
+        );
+        let saved = c.store.apply("local-owner", &cmd, Fault::None).unwrap();
+        assert_eq!(c.store.history("p").unwrap().len(), 2);
+        assert_eq!(
+            c.store.head("p").unwrap().snapshot_hash,
+            saved.snapshot_hash
+        );
+        assert_eq!(c.text(), XML.replace("nform='base'", "nform='external'"));
+        let export = c._tmp.path().join("recovered-export");
+        c.store.export("p", saved.id, &export).unwrap();
+        let mut copy = Store::open(&c._tmp.path().join("recovered-import")).unwrap();
+        copy.import(&export, "copy").unwrap();
+    }
+}
+
+#[test]
+fn accepted_return_remains_eligible_for_otherwise_proven_retokenization() {
+    use corpus_workbench::{
+        handoff::digest,
+        retokenize::{Reading, RetokenizeRequest},
+    };
+    let tmp = TempDir::new().unwrap();
+    let input = tmp.path().join("input");
+    fs::create_dir_all(input.join("Resources")).unwrap();
+    fs::create_dir_all(input.join("xmlfiles")).unwrap();
+    fs::write(input.join("Resources/settings.xml"), "<ttsettings/>").unwrap();
+    fs::write(input.join(DOC), "<TEI><text><tok id='w-1' form='one' nform='base'>one</tok> <tok id='w-2' form='two'>two</tok></text></TEI>").unwrap();
+    let mut store = Store::open(&tmp.path().join("authority")).unwrap();
+    store.import(&input, "p").unwrap();
+    let returned = tmp.path().join("return");
+    store
+        .export("p", store.head("p").unwrap().id, &returned)
+        .unwrap();
+    let mut c = Case {
+        _tmp: tmp,
+        store,
+        returned,
+    };
+    c.replace("nform='base'", "nform='next'");
+    let r = c.request();
+    let p = c.preview(&r);
+    c.apply("return-before-split", &r, &p, Fault::None).unwrap();
+    let view = c.store.view("p", None).unwrap();
+    let lineage_path = p["preview"]["lineage_path"].as_str().unwrap();
+    let lineage = c
+        .store
+        .objects
+        .read(&view.snapshot.files[lineage_path])
+        .unwrap();
+    let inv = c.store.reference_inventory("p", view.revision.id).unwrap();
+    let request = RetokenizeRequest {
+        schema: 1,
+        project: "p".into(),
+        revision: inv.revision,
+        snapshot_hash: inv.snapshot_hash.clone(),
+        config_hash: inv.config_hash.clone(),
+        inventory_hash: digest(&inv).unwrap(),
+        document: DOC.into(),
+        targets: vec![inv
+            .ids
+            .iter()
+            .find(|id| id.artifact == DOC && id.id == "w-1")
+            .unwrap()
+            .clone()],
+        replacement: vec![
+            Reading {
+                id: "fresh-a".into(),
+                original: "o".into(),
+                corrected: Some("n".into()),
+                normalized: None,
+            },
+            Reading {
+                id: "fresh-b".into(),
+                original: "ne".into(),
+                corrected: Some("ext".into()),
+                normalized: None,
+            },
+        ],
+        relation_endpoint: None,
+    };
+    let proof = c.store.retokenization_preview(&request).unwrap();
+    assert!(proof.execution_enabled, "{:?}", proof.blockers);
+    let command = command(
+        &c.store,
+        "split-after-return",
+        vec![Operation::Retokenize {
+            request,
+            preview_hash: digest(&proof).unwrap(),
+        }],
+    );
+    let saved = c.store.apply("local-owner", &command, Fault::None).unwrap();
+    let split = c.store.view("p", None).unwrap();
+    assert_eq!(
+        c.store
+            .objects
+            .read(&split.snapshot.files[lineage_path])
+            .unwrap(),
+        lineage
+    );
+    assert_eq!(
+        split.documents[0]
+            .tokens
+            .iter()
+            .map(|t| t.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["fresh-a", "fresh-b", "w-2"]
+    );
+    let export = c._tmp.path().join("return-then-split-export");
+    c.store.export("p", saved.id, &export).unwrap();
+    let mut copy = Store::open(&c._tmp.path().join("return-then-split-import")).unwrap();
+    copy.import(&export, "copy").unwrap();
+    let imported = copy.view("copy", None).unwrap();
+    assert_eq!(
+        copy.objects
+            .read(&imported.snapshot.files[lineage_path])
+            .unwrap(),
+        lineage
+    );
+}
+
+fn synthetic_generation(store: &Store) -> (corpus_workbench::handoff::Completion, Vec<u8>) {
+    use corpus_workbench::handoff::{digest, Anchor, Binding, Completion, Recipe};
+    use serde_json::json;
+    let view = store.view("p", None).unwrap();
+    let contract = store.approved_contract("p", view.revision.id).unwrap();
+    let binding = Binding {
+        schema: 1,
+        authority: "research-intelligence".into(),
+        project: "p".into(),
+        revision: view.revision.id,
+        snapshot_hash: view.revision.snapshot_hash,
+        config_hash: contract["config_hash"].as_str().unwrap().into(),
+        contract_hash: digest(&contract).unwrap(),
+        recipe: Recipe {
+            mapping_version: "corpus-evidence/1".into(),
+            adapter_hash: "a".repeat(64),
+            compiler_commit: "b".repeat(40),
+            compiler_source_hash: "c".repeat(64),
+            compiler_version: "semantica/0.6.8".into(),
+            runtime_hash: "d".repeat(64),
+            ontology_hash: "e".repeat(64),
+            model_hash: "f".repeat(64),
+            options: BTreeMap::from([
+                ("access".into(), "local-only".into()),
+                (
+                    "extraction".into(),
+                    "none; authored evidence mapping".into(),
+                ),
+            ]),
+        },
+    };
+    let lineage = json!({"project_id":"p","revision":binding.revision,"bundle_hash":binding.snapshot_hash,"config_hash":binding.config_hash,"contract_hash":binding.contract_hash,"recipe_hash":digest(&binding.recipe).unwrap(),"access_policy":"local-only"});
+    let doc = &contract["documents"][0];
+    let anchors = BTreeMap::from([
+        (
+            "d".into(),
+            Anchor {
+                document: DOC.into(),
+                kind: "document".into(),
+                external_id: DOC.into(),
+                sidecar: None,
+            },
+        ),
+        (
+            "t".into(),
+            Anchor {
+                document: DOC.into(),
+                kind: "token".into(),
+                external_id: "w-1".into(),
+                sidecar: None,
+            },
+        ),
+    ]);
+    let mut nodes = Vec::new();
+    for (id, source, kind, content) in [
+        (
+            "d",
+            json!({"path":doc["path"],"title":doc["title"],"media":doc["media"],"metadata":doc["metadata"],"opaque_elements":doc["opaque_elements"]}),
+            "CorpusDocument",
+            doc["title"].clone(),
+        ),
+        (
+            "t",
+            doc["tokens"][0].clone(),
+            "CorpusToken",
+            doc["tokens"][0]["corrected"].clone(),
+        ),
+    ] {
+        let mut properties = lineage.clone();
+        properties["anchor"] = serde_json::to_value(&anchors[id]).unwrap();
+        properties["source"] = source;
+        properties["artifact_hash"] = contract["artifact_manifest"][DOC]["sha256"].clone();
+        properties["rights"] = contract["rights"].clone();
+        properties["definition_version"] = contract["definition_version"].clone();
+        properties["content"] = content;
+        nodes.push(json!({"id":id,"type":kind,"properties":properties}));
+    }
+    let bytes = serde_json::to_vec(&json!({"nodes":nodes,"edges":[{"source_id":"t","target_id":"d","type":"partOfDocument","properties":lineage}]})).unwrap();
+    let completion = Completion {
+        schema: 1,
+        binding,
+        graph_hash: package::hash(&bytes),
+        node_count: 2,
+        edge_count: 1,
+        anchors,
+    };
+    (completion, bytes)
+}
+
+#[test]
+fn old_export_generation_history_remains_valid_after_local_authoring() {
+    let tmp = TempDir::new().unwrap();
+    let input = tmp.path().join("input");
+    fs::create_dir_all(input.join("Resources")).unwrap();
+    fs::create_dir_all(input.join("xmlfiles")).unwrap();
+    fs::write(input.join("Resources/settings.xml"), "<ttsettings/>").unwrap();
+    fs::write(
+        input.join(DOC),
+        "<TEI><text><tok id='w-1' form='one' nform='base'>one</tok></text></TEI>",
+    )
+    .unwrap();
+    let mut store = Store::open(&tmp.path().join("authority")).unwrap();
+    let base = store.import(&input, "p").unwrap();
+    store
+        .review(
+            "local-owner",
+            "p",
+            base.id,
+            &base.snapshot_hash,
+            "approved",
+            "synthetic compiler fixture",
+        )
+        .unwrap();
+    let (completion, graph) = synthetic_generation(&store);
+    store
+        .accept_generation(&completion, &graph, Fault::None)
+        .unwrap();
+    let generation = store.generations("p", true).unwrap()[0].clone();
+    assert_eq!(generation["current"], true);
+    let returned = tmp.path().join("return");
+    store.export("p", base.id, &returned).unwrap();
+    let mut c = Case {
+        _tmp: tmp,
+        store,
+        returned,
+    };
+    c.replace("nform='base'", "nform='external'");
+    c.local(BTreeMap::from([(
+        "note".into(),
+        "local note remains".into(),
+    )]));
+    assert_eq!(c.store.generations("p", true).unwrap()[0]["current"], false);
+    let r = c.request();
+    let p = c.preview(&r);
+    assert_eq!(p["preview"]["ready"], true, "{p}");
+    c.apply("historical-compiler-return", &r, &p, Fault::None)
+        .unwrap();
+    let historical = c
+        .store
+        .generation("p", generation["generation_id"].as_str().unwrap(), true)
+        .unwrap();
+    assert_eq!(
+        historical["generation"]["graph_hash"],
+        generation["graph_hash"]
+    );
+    assert!(c.store.generations("p", false).unwrap().is_empty());
+    let view = c.store.view("p", None).unwrap();
+    let token = &view.documents[0].tokens[0];
+    assert_eq!(token.corrected.as_deref(), Some("external"));
+    assert_eq!(
+        token.attrs.get("note").map(String::as_str),
+        Some("local note remains")
+    );
+    assert!(!view.approved);
+}
+
+#[test]
+fn existing_dotted_unicode_token_identifier_is_preserved_through_return() {
+    let xml = XML.replace("id='w-1'", "id='w.part-é🙂'");
+    let mut c = Case::new(&xml);
+    c.replace("nform='base'", "nform='external'");
+    let r = c.request();
+    let p = c.preview(&r);
+    assert_eq!(p["preview"]["ready"], true, "{p}");
+    c.apply("unicode-existing-id", &r, &p, Fault::None).unwrap();
+    assert_eq!(c.text(), xml.replace("nform='base'", "nform='external'"));
+    assert_eq!(
+        c.store.view("p", None).unwrap().documents[0].tokens[0].id,
+        "w.part-é🙂"
+    );
+}
+
+#[test]
+fn qualified_status_and_relation_attributes_remain_inert_after_correction() {
+    for mode in ["token_status", "span_status", "relation"] {
+        let xml = match mode {
+            "token_status" => XML.replace("nform='base'", "nform='base' wb_normalized='normalized' wb_normalized_status='resolved' x:wb_normalized_status='resolved'"),
+            "relation" => XML.replace("nform='base'", "nform='base' x:relation_target='#not-a-native-target'"),
+            _ => XML.into(),
+        };
+        let mut c = Case::new(&xml);
+        if mode == "span_status" {
+            let input = c._tmp.path().join("input");
+            fs::create_dir_all(input.join("Annotations")).unwrap();
+            fs::write(input.join("Annotations/review_demo.xml"), "<spanGrp xmlns:x='urn:opaque'><span id='s1' corresp='#w-1' wb_start='0' wb_end='4' wb_coordinate='unicode-codepoint' wb_layer='corrected' wb_quote='base' wb_status='resolved' x:wb_status='resolved'/></spanGrp>").unwrap();
+            let mut store = Store::open(&c._tmp.path().join("authority-with-span")).unwrap();
+            store.import(&input, "p").unwrap();
+            c.store = store;
+            c.returned = c._tmp.path().join("return-with-span");
+            c.store
+                .export("p", c.store.head("p").unwrap().id, &c.returned)
+                .unwrap();
+        }
+        c.replace("nform='base'", "nform='next'");
+        let r = c.request();
+        let p = c.preview(&r);
+        assert_eq!(p["preview"]["ready"], true, "{mode}: {p}");
+        c.apply("qualified-derived-fields", &r, &p, Fault::None)
+            .unwrap();
+        let view = c.store.view("p", None).unwrap();
+        let token = &view.documents[0].tokens[0];
+        match mode {
+            "token_status" => {
+                assert_eq!(
+                    token.attrs.get("wb_normalized_status").map(String::as_str),
+                    Some("unresolved")
+                );
+                assert_eq!(
+                    token
+                        .attrs
+                        .get("{urn:opaque}wb_normalized_status")
+                        .map(String::as_str),
+                    Some("resolved")
+                );
+                assert!(view.issues.iter().any(|issue| issue.blocking));
+            }
+            "span_status" => {
+                let span = &view.documents[0].spans[0];
+                assert_eq!(
+                    span.fields.get("wb_status").map(String::as_str),
+                    Some("unresolved")
+                );
+                assert_eq!(
+                    span.fields.get("{urn:opaque}wb_status").map(String::as_str),
+                    Some("resolved")
+                );
+                assert!(view.issues.iter().any(|issue| issue.blocking));
+            }
+            "relation" => {
+                assert!(!token.attrs.contains_key("relation_target"));
+                assert_eq!(
+                    token
+                        .attrs
+                        .get("{urn:opaque}relation_target")
+                        .map(String::as_str),
+                    Some("#not-a-native-target")
+                );
+            }
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn legacy_collapsed_namespace_generation_is_historical_without_rewriting_bytes() {
+    use corpus_workbench::handoff::digest;
+    let tmp = TempDir::new().unwrap();
+    let input = tmp.path().join("input");
+    fs::create_dir_all(input.join("Resources")).unwrap();
+    fs::create_dir_all(input.join("xmlfiles")).unwrap();
+    fs::write(input.join("Resources/settings.xml"), "<ttsettings/>").unwrap();
+    fs::write(input.join(DOC), "<TEI xmlns:x='urn:opaque'><text><tok id='w-1' form='one' nform='base' note='native' x:note='foreign'>one</tok></text></TEI>").unwrap();
+    let mut store = Store::open(&tmp.path().join("authority")).unwrap();
+    let base = store.import(&input, "p").unwrap();
+    store
+        .review(
+            "local-owner",
+            "p",
+            base.id,
+            &base.snapshot_hash,
+            "approved",
+            "synthetic namespace fixture",
+        )
+        .unwrap();
+    let (mut completion, graph) = synthetic_generation(&store);
+    let valid = store
+        .accept_generation(&completion, &graph, Fault::None)
+        .unwrap();
+    let mut contract = store.approved_contract("p", base.id).unwrap();
+    let attrs = contract["documents"][0]["tokens"][0]["attrs"]
+        .as_object_mut()
+        .unwrap();
+    let foreign = attrs.remove("{urn:opaque}note").unwrap();
+    attrs.insert("note".into(), foreign);
+    let contract_bytes = serde_json::to_vec(&contract).unwrap();
+    completion.binding.contract_hash = package::hash(&contract_bytes);
+    let mut legacy_graph: Value = serde_json::from_slice(&graph).unwrap();
+    for node in legacy_graph["nodes"].as_array_mut().unwrap() {
+        node["properties"]["contract_hash"] =
+            Value::String(completion.binding.contract_hash.clone());
+        if node["id"] == "t" {
+            node["properties"]["source"] = contract["documents"][0]["tokens"][0].clone();
+        }
+    }
+    for edge in legacy_graph["edges"].as_array_mut().unwrap() {
+        edge["properties"]["contract_hash"] =
+            Value::String(completion.binding.contract_hash.clone());
+    }
+    let legacy_graph_bytes = serde_json::to_vec(&legacy_graph).unwrap();
+    completion.graph_hash = package::hash(&legacy_graph_bytes);
+    let receipt_bytes = serde_json::to_vec(&completion).unwrap();
+    let id = digest(&completion.binding).unwrap();
+    store
+        .objects
+        .put(&contract_bytes, "approved-compiler-contract")
+        .unwrap();
+    let receipt = store
+        .objects
+        .put(&receipt_bytes, "compiler-completion")
+        .unwrap();
+    store
+        .objects
+        .put(&legacy_graph_bytes, "derived-semantic-graph")
+        .unwrap();
+    // Simulate a previously accepted row from the prior projection, with its
+    // corresponding immutable source contract, receipt and graph still intact.
+    store.conn.execute("INSERT INTO derived_generations(id,project,revision,snapshot_hash,recipe_hash,receipt_hash,graph_hash) VALUES(?,'p',?,?,?,?,?)",rusqlite::params![id,base.id,base.snapshot_hash,digest(&completion.binding.recipe).unwrap(),receipt.sha256,completion.graph_hash]).unwrap();
+    let current = store.generations("p", false).unwrap();
+    assert_eq!(current.len(), 1);
+    assert_eq!(current[0]["generation_id"], valid["generation_id"]);
+    assert!(store.generation("p", &id, false).is_err());
+    let historical = store.generation("p", &id, true).unwrap();
+    assert_eq!(historical["generation"]["current"], false);
+    assert_eq!(historical["contract"], contract);
+    assert_eq!(historical["graph"], legacy_graph);
+    assert_eq!(
+        store.objects.read_hash(&receipt.sha256).unwrap(),
+        receipt_bytes
+    );
+    assert_eq!(
+        store.objects.read_hash(&completion.graph_hash).unwrap(),
+        legacy_graph_bytes
+    );
+    assert!(store.view("p", None).unwrap().approved);
+    assert_eq!(store.history("p").unwrap().len(), 1);
 }

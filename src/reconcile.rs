@@ -121,6 +121,18 @@ fn is_hash(value: &str) -> bool {
             .bytes()
             .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase())
 }
+fn immutable_generation(value: &Value) -> Result<Value> {
+    ensure!(
+        value["current"].is_boolean(),
+        "invalid historical generation current flag"
+    );
+    let mut result = value.clone();
+    result
+        .as_object_mut()
+        .context("generation object")?
+        .remove("current");
+    Ok(result)
+}
 
 fn unqualified_fields(
     tree: &roxmltree::Document<'_>,
@@ -193,6 +205,10 @@ pub(crate) fn known_lineage(path: &str, bytes: &[u8]) -> Result<()> {
     );
     let value: Lineage = serde_json::from_slice(bytes)?;
     ensure!(
+        serde_json::from_slice::<Value>(bytes)? == serde_json::to_value(&value)?,
+        "return lineage has unrecognized nested fields"
+    );
+    ensure!(
         value.schema == 1
             && value.grammar == GRAMMAR
             && value.request.schema == 1
@@ -206,6 +222,57 @@ pub(crate) fn known_lineage(path: &str, bytes: &[u8]) -> Result<()> {
     ensure!(
         path == format!("{LINEAGE_PREFIX}{}.json", package::hash(bytes)),
         "return lineage path/hash mismatch"
+    );
+    ensure!(
+        value.files.len() <= package::MAX_ENTRIES
+            && package::hash(&serde_json::to_vec(&Stage {
+                schema: 1,
+                project: value.request.project.clone(),
+                files: value.files.clone()
+            })?) == value.request.stage,
+        "return manifest/stage binding mismatch"
+    );
+    let mut total = 0u64;
+    let mut folded = std::collections::BTreeSet::new();
+    for (path, artifact) in &value.files {
+        package::safe_package_path(path)?;
+        total = total
+            .checked_add(artifact.bytes)
+            .context("return manifest overflow")?;
+        ensure!(
+            folded.insert(path.to_lowercase())
+                && is_hash(&artifact.sha256)
+                && artifact.bytes <= package::MAX_FILE_BYTES
+                && total <= package::MAX_PACKAGE_BYTES
+                && artifact.role == package::role(path),
+            "invalid return manifest artifact"
+        );
+    }
+    for change in &value.changes {
+        package::safe_relative(&change.document)?;
+        ensure!(
+            !change.token.is_empty()
+                && change.token.len() <= 65536
+                && FIELDS.contains(&change.field.as_str())
+                && ["external_change", "already_current", "conflict"]
+                    .contains(&change.state.as_str())
+                && change.key
+                    == package::hash(
+                        format!("{}\0{}\0{}", change.document, change.token, change.field)
+                            .as_bytes()
+                    ),
+            "invalid return field lineage"
+        );
+    }
+    ensure!(
+        value
+            .files
+            .iter()
+            .any(|(path, a)| path.starts_with("Workbench/exports/")
+                && path.ends_with("/export-receipt.json")
+                && a.sha256 == package::hash(value.export_receipt.as_bytes())
+                && a.bytes == value.export_receipt.len() as u64),
+        "return receipt source missing"
     );
     for (name, text) in &value.frozen_xml {
         package::safe_relative(name)?;
@@ -236,6 +303,70 @@ pub(crate) fn known_lineage(path: &str, bytes: &[u8]) -> Result<()> {
 }
 
 impl Store {
+    fn verify_return_receipt(&self, project: &str, row: &Revision, receipt: &Value) -> Result<()> {
+        let mut expected = self.receipt(project, row.id)?;
+        let supplied_reviews = receipt["reviews"].as_array().context("return reviews")?;
+        let canonical_reviews = expected["reviews"]
+            .as_array()
+            .context("canonical reviews")?;
+        ensure!(
+            supplied_reviews.len() <= canonical_reviews.len()
+                && supplied_reviews == &canonical_reviews[..supplied_reviews.len()],
+            "returned review metadata changed"
+        );
+        let approved = supplied_reviews
+            .iter()
+            .rev()
+            .find(|review| {
+                review["revision"] == row.id
+                    && review["snapshot_hash"] == row.snapshot_hash
+                    && review["scope"] == "full"
+            })
+            .is_some_and(|review| review["decision"] == "approved");
+        ensure!(
+            receipt["approved"] == approved,
+            "returned approval metadata changed"
+        );
+        let version = receipt["exporter"]
+            .as_str()
+            .and_then(|s| s.strip_prefix("corpus-workbench/"))
+            .context("return exporter")?;
+        ensure!(
+            !version.is_empty()
+                && version.len() <= 64
+                && version
+                    .bytes()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, b'.' | b'-')),
+            "unsupported return exporter"
+        );
+        let mut supplied = receipt.clone();
+        if supplied.get("derived_generations").is_none() {
+            supplied["derived_generations"] = json!([]);
+        }
+        for value in [&mut supplied, &mut expected] {
+            for generation in value["derived_generations"]
+                .as_array_mut()
+                .context("generation manifest")?
+            {
+                *generation = immutable_generation(generation)?;
+            }
+        }
+        for key in ["exporter", "approved", "reviews"] {
+            supplied
+                .as_object_mut()
+                .context("return receipt object")?
+                .remove(key);
+            expected
+                .as_object_mut()
+                .context("canonical receipt object")?
+                .remove(key);
+        }
+        ensure!(
+            supplied == expected,
+            "returned export metadata changed or unrecognized"
+        );
+        Ok(())
+    }
     /// Copies source into isolated immutable staging; never writes authority objects.
     pub fn stage_return(&self, directory: &Path, project: &str) -> Result<String> {
         ensure!(self.project_exists(project)?, "project not found");
@@ -343,6 +474,7 @@ impl Store {
             "ambiguous returned export baseline"
         );
         let prefix = receipt_path.strip_suffix("export-receipt.json").unwrap();
+        self.verify_return_receipt(&r.project, &base_revision, &receipt)?;
         let id = prefix.trim_end_matches('/').rsplit('/').next().unwrap();
         uuid::Uuid::parse_str(id)?;
         // Verify the entire original export namespace through the strict importer.
@@ -390,8 +522,11 @@ impl Store {
             .map(Vec::as_slice)
             .unwrap_or(&[])
         {
+            let immutable = immutable_generation(generation)?;
             ensure!(
-                known_generations.contains(generation),
+                known_generations
+                    .iter()
+                    .any(|known| immutable_generation(known).is_ok_and(|known| known == immutable)),
                 "returned generation is not local canonical history"
             );
             for field in ["receipt_hash", "graph_hash"] {
@@ -714,10 +849,9 @@ impl Store {
             !candidate.files.contains_key(&path),
             "return lineage collision"
         );
-        candidate.files.insert(
-            path.clone(),
-            temporary.put(&bytes, "immutable-reconciliation-lineage")?,
-        );
+        candidate
+            .files
+            .insert(path.clone(), temporary.put(&bytes, &package::role(&path))?);
         p.issues = package::validate(&temporary, &candidate)?;
         p.lineage_path = Some(path);
         p.candidate_snapshot_hash = Some(package::hash(&serde_json::to_vec(&candidate)?));

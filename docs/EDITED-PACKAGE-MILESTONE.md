@@ -1,41 +1,86 @@
-# Edited package reconciliation checkpoint
+# Edited-package authoring milestone — dev.9
 
-This implements the next B16/B08/B21 product slice: a TEITOK export edited in a
-separate copy can return as a proposal to the existing native revision authority.
-The ordinary import receipt checks remain strict.
+A complete workbench export edited in a separate TEITOK copy can return through
+**Return copy** as a reviewed proposal to the existing native revision authority.
+This completes a bounded B16/B08/B21 slice of the approved migration plan.
 
-The native core freezes the complete directory in content-addressed private
-staging. `return-stage --package DIRECTORY` returns a stage hash;
-`return-preview --request FILE` binds it to the project, current revision and
-snapshot hash. A `reconcile_package` command carries that request and the preview
-hash through the existing atomic commit and idempotency path.
+- [x] Complete directory freezing and exact exported-baseline proof.
+- [x] Three-way token-field preview and explicit saved/external conflict choices.
+- [x] One atomic, named revision with existing diff, undo, review and retry behavior.
+- [x] Exact returned XML and TEITOK daily backups retained as immutable lineage.
+- [x] Browser directory upload and supported return/edit/export/reopen journey.
+- [x] Independent falsifications and real TEITOK Save/reopen with synthetic evidence.
+- [ ] Full CWB/CQP query parity, arbitrary-schema return adapters and production operations.
+
+The ordinary importer remains strict. `return-stage --package DIRECTORY` freezes
+an explicit local copy; `return-preview --request FILE` binds it to the project,
+current revision and snapshot hash. The browser uploads declared safe files into
+a session-owned quarantine, then freezes them through the same native adapter.
+JSON control requests keep their existing 1 MiB limit. Binary file uploads allow
+64 MiB per file and 256 MiB total, at most four unfinished sessions. Quarantine is
+under private `.runtime/return-uploads`, outside authority objects; completed or
+explicitly cancelled uploads are removed. Aborted-process quarantine and frozen
+proposal stages remain private evidence; managed retention is a later operations
+feature. Existing volumes and active sessions are preserved.
 
 Supported deltas are the existing editable, unqualified leaf-token attributes:
 `nform`, `wb_normalized`, `variety`, `annotation`, `review`, `note`, `lemma`, `pos`,
-`msd`, `relation_target`, `relation_type`. The three-way preview distinguishes
-external changes, already-current values and conflicts requiring explicit
-current/external choices. Batches are limited to 100 changed fields.
+`msd`, `relation_target`, `relation_type`. Batches have at most 100 changed fields.
+Each field is compared with the exported baseline and current saved revision.
+Conflicts require an explicit choice. Normalization made against a different
+chosen correction blocks; correction changes invalidate retained normalization
+and character anchors. Absent and explicitly empty attributes remain distinct.
 
 An ordered XML signature preserves original text, IDs, timing, namespaced
 attributes, unknown elements, comments and processing instructions. XML
-declaration, quote/entity spelling and attribute order may differ after TEITOK's
-serializer. Accepted changes patch the native original XML. Exact changed source
-XML and new `backups/*.xml` files are retained in an immutable hash-named lineage
-artifact; new active structures and changed settings, media or raw drafts block.
-No returned approvals or compiler generations become current approvals.
+namespace/local-name collisions cannot invent editable deltas. XML declaration,
+quote/entity spelling and attribute order may differ after TEITOK serialization.
+Accepted changes patch the native original XML. Exact changed source XML and new
+`backups/*.xml` files are retained in hash-named `Resources/reconciliation` JSON;
+its entire source manifest and export receipt remain inspectable evidence.
+Historical references stay historical in subsequent proved split/merge. Lineage
+uses the established path-role classifier for complete export/reimport.
 
-Incremental publication: the native core passes the existing 134 Rust tests and
-`cargo check --locked`. Independent review added 13 passing reconciliation
-contracts and exposed defects repaired in the next incremental commit: complete
-namespace accounting, unqualified field extraction, exportable lineage roles,
-normalized-reading context and empty-versus-absent correction dependencies.
-Browser directory upload/review, actual TEITOK save/reopen and abrupt-process
-recovery checks are pending. This
-checkpoint is not the completed usable UI milestone or the whole migration plan.
+Every incoming artifact is accounted for. Missing originals, modified media/raw
+ASR/settings, unknown additions, active structures, IDs or timing block. The new
+export namespace must contain exactly declared, locally canonical history and
+source objects. Returned approvals/generations are never adopted as current
+approval. New revisions require fresh review; no word timings are inferred.
+Existing CWB byte-offset indexes become stale after edits; compatibility export
+remains blocked until an adapter rebuild.
+Frozen source bytes and commit preview/choices are rechecked inside the existing
+native command and atomic revision path. A stale head requires a fresh preview;
+the browser keeps the proposal until explicit discard/reload.
 
-The published source before this checkpoint is `3be85c7`, with passing native
-amd64/ARM64 container contract runs. Version `0.2.0-dev.8` manifests were published
-at `sha256:b636f47d7ec273378e502e2e91ea7eb4a3cf1a72e7cfe19ffcd2791a0149ee95`.
-The publication workflow's final anonymous inspection failed with HTTP 401;
-authenticated pulls are an accepted deployment choice. No physical Pi validation
-is claimed, and device qualification does not block application development.
+Validation for the working implementation:
+
+- `cargo fmt --all --check`; `cargo clippy --locked --all-targets -- -D warnings`.
+- 155 locked native tests: 134 existing contracts plus 21 independent return
+  contracts. Coverage includes full source preservation, hidden original-body
+  mutations, qualified attributes, unsupported artifacts, explicit conflicts,
+  normalized/Unicode character dependencies, stale proof and stage tampering,
+  approval invalidation, strict receipt metadata, historical compiler currentness,
+  namespace-safe status projection, prior-projection graph eligibility,
+  payload-bound retries, abrupt process exit at all three
+  commit boundaries, complete reimport and subsequent proved retokenization.
+- TypeScript/Vite build and five new isolated Chrome journeys: a complete folder
+  including audio over 1 MiB; conflict/commit/diff/undo/export/reopen; blocked
+  media/body mutations without authority writes; concurrent-head rejection;
+  upload limits/path/secret checks; delayed inspector response and draft guards.
+- Independent TEITOK `57d864b57fa3ed9f0a660a7781533ce7fa09ae2b` native Save
+  rewrote synthetic XML and created a daily backup. Return reconciliation retained
+  both exact files, invalidated approval and patched only the correction in the
+  native source. Its complete export reopened in native TEITOK with Unicode
+  readings and span listing, byte-equal XML download, and fresh native reimport.
+- Read-only verification confirms all 28 authorized original/protected-copy
+  baseline hashes match. No real corpus/media enters public source or builds.
+
+Hosted/container exact-source results are reported with their commit and run IDs
+when available. The dev.8 source baseline `3be85c7` already passed native
+amd64/ARM64 container contracts; its multi-architecture version manifests were
+published at `sha256:b636f47d7ec273378e502e2e91ea7eb4a3cf1a72e7cfe19ffcd2791a0149ee95`.
+The final anonymous inspection failed with HTTP 401; authenticated GHCR pulls
+are an accepted deployment choice. No registry visibility or credential change
+was made. Physical Pi/resource/power-loss qualification remains a deployment
+step and does not block application development. No physical-device result is
+claimed, and this milestone does not complete the full approved migration.
