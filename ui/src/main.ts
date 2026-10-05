@@ -7,12 +7,14 @@ import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
 import {reconciliationInspector} from './reconciliation';
+import {corpusSearch,type SearchPanel} from './search';
 import {documentNavigation,sourceNavigation,inspectorViews,isInspectorView,reading,visibleToken,type InspectorView,type ReadingPreferences} from './workspace';
 import {sourceInspector} from './source';
 import './style.css';
 let view:View;let docPath='';let selected:string[]=[];let tab:InspectorView|'source'='token';let sourcePath='';let navigationMode:'documents'|'sources'='documents';let navigationQuery='';const readingPreferences:ReadingPreferences={query:'',layer:'corrected',filter:'all'};let saving=false;let loop=false;let redoRevision:number|null=null;let conflict:{operations:Operation[];label:string;latest:View;source?:HTMLFormElement;sourceValues:string|null}|null=null;
 const tokenDrafts=new Map<string,HTMLElement>();const annotationDrafts=new Map<string,HTMLElement>();const structuralDrafts=new Map<string,HTMLElement>();
 const returnDrafts=new Map<number,HTMLElement>();
+let searchPanel:SearchPanel|null=null;
 const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values()];let annotationRevision=0;let inspectorEpoch=0;
 const app=el('app');
 window.addEventListener('beforeunload',event=>{if(draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')!==null)){event.preventDefault();event.returnValue=''}});
@@ -52,7 +54,7 @@ function shell(){app.innerHTML=`<a class="skip-link" href="#tokens">Skip to tran
     if(event.key==='Escape'){selected=[];renderTokens();void renderInspector()}
   });
 }
-function render(){const doc=currentDoc();docPath=doc.path;selected=selected.filter(id=>doc.tokens.some(t=>t.id===id));
+function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.path;selected=selected.filter(id=>doc.tokens.some(t=>t.id===id));
   el('save-state').textContent=`Saved R${view.revision.id} · ${view.approved?'Approved exact revision':'Unreviewed'}`;
   el('document-title').textContent=doc.title;
   el('project-title').textContent=view.snapshot.project;
@@ -94,6 +96,23 @@ async function save(operations:Operation[],label:string,source?:HTMLFormElement,
 async function renderInspector(){const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));const content=el('inspector-content');const doc=currentDoc();content.replaceChildren();
   if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.innerHTML='<h2>Listen and correct</h2><p>Select a token to inspect its original reading, corrections and annotations.</p><p class="muted">Find tokens: Ctrl / Command + K. Next match: F3. Inspector views: Alt + 1 through 9.</p>';}
   if(tab==='source'){try{const panel=await sourceInspector(view,sourcePath);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
+  if(tab!=='search')searchPanel?.pause();
+  if(tab==='search'){
+    searchPanel?.pause();
+    if(!searchPanel)searchPanel=corpusSearch(view,(binding,hit,reading)=>{
+      if(binding.revision!==view.revision.id||binding.snapshot_hash!==view.revision.snapshot_hash){message('Search result is stale against this authoring view. Search again.',true);return;}
+      docPath=hit.document;selected=hit.token_ids;readingPreferences.query='';readingPreferences.filter='all';readingPreferences.layer=reading;el<HTMLInputElement>('token-query').value='';el<HTMLSelectElement>('token-filter').value='all';el<HTMLSelectElement>('reading-layer').value=reading;tab='token';render();
+      document.querySelector<HTMLButtonElement>(`[data-token="${CSS.escape(selected[0])}"]`)?.scrollIntoView({block:'nearest'});
+    },async()=>{
+      const expectedEpoch=inspectorEpoch;
+      const dirty=()=>draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));
+      if(saving||dirty())throw new Error('Save or discard authoring drafts before reloading saved search evidence.');
+      const latest=await loadView();
+      if(saving||dirty()||expectedEpoch!==inspectorEpoch||tab!=='search')throw new Error('Reload is out of date; authoring state was preserved.');
+      view=latest;render();return view;
+    });
+    searchPanel.update(view);content.append(searchPanel.element);
+  }
   if(tab==='annotations'){
     const key=JSON.stringify([doc.path,selected]);let draft=annotationDrafts.get(key);
     if(!draft){draft=annotationInspector(view,doc,selected,save,()=>{el<HTMLButtonElement>('discard-annotation-drafts').disabled=false;el('save-state').textContent='Unsaved annotation draft - saved head R'+view.revision.id});annotationDrafts.set(key,draft)}

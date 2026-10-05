@@ -425,7 +425,13 @@ fn namespaced_status_is_inert_and_unresolved_normalization_is_not_searchable() {
     q.reading = Reading::Normalized;
     assert_eq!(case.store.search(&q).unwrap().result.total, 0);
     q.terms[0].text = "corrected".into();
-    assert_eq!(case.store.search(&q).unwrap().result.total, 1);
+    let page = case.store.search(&q).unwrap();
+    assert_eq!(page.result.total, 1);
+    let word = &page.result.hits[0].matched[0];
+    assert_eq!(word.normalized.as_deref(), Some("obsolete"));
+    assert_eq!(word.normalized_status.as_deref(), Some("unresolved"));
+    assert_eq!(word.language_source, "unknown");
+    assert_eq!(page.result.hits[0].readings, vec!["corrected"]);
     assert_eq!(
         package::hash(xml.as_bytes()),
         case.store.view("p", None).unwrap().snapshot.files[DOC].sha256

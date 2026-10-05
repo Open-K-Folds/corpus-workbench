@@ -64,7 +64,9 @@ pub struct Word {
     pub original: String,
     pub corrected: Option<String>,
     pub normalized: Option<String>,
+    pub normalized_status: Option<String>,
     pub language: Option<String>,
+    pub language_source: String,
 }
 impl From<&Token> for Word {
     fn from(t: &Token) -> Self {
@@ -74,7 +76,9 @@ impl From<&Token> for Word {
             original: t.original.clone(),
             corrected: t.corrected.clone(),
             normalized: t.normalized.clone(),
+            normalized_status: t.attrs.get("wb_normalized_status").cloned(),
             language: t.language_effective.clone(),
+            language_source: t.language_source.clone(),
         }
     }
 }
