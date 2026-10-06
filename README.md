@@ -47,7 +47,7 @@ python -m unittest discover -s tests -p 'test_cqp_literal_adapter.py' -v
 npm audit --prefix ui --audit-level=low
 ```
 
-The suite contains 185 Rust contract/recovery tests, 48 actual host browser flows and an additional container browser/persistence journey. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI is configured for Windows x86-64, Linux x86-64 and Linux ARM64 plus browser/container QA; configuring it does not prove the new hosted checks ran. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
+The suite contains native contract/recovery tests, 75 actual host browser flows and an additional container browser/persistence journey. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI is configured for Windows x86-64, Linux x86-64 and Linux ARM64 plus browser/container QA; configuring it does not prove the new hosted checks ran. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md), [control/player qualification](docs/CONTROLS-MILESTONE.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
 
 ## Scope and data rights
 

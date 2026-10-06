@@ -114,6 +114,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   .media-player{display:flex;width:100%;max-width:760px}.audio .actions{display:flex;margin:4px 0 0}
   #recording-pane[data-detail=compact]{min-height:158px}
   #recording-pane[data-detail=compact]:has(.player-status:not(:empty)){min-height:184px}
+  #recording-pane[data-detail=expanded]:has(.player-status:not(:empty)){min-height:260px}
 }
 @media(max-width:700px){
   header{gap:6px 10px;padding:8px 12px}header .brand{flex:1}header #save-state{margin-left:0;font-size:11px;max-width:none;order:1;width:100%}header #export-package{order:2}header #toggle-navigation,header #toggle-properties,header #toggle-theme{order:2}header button{font-size:12px}
@@ -135,6 +136,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   #recording-pane[data-detail=compact]{min-height:194px}
   #recording-pane[data-detail=compact]:has(.player-status:not(:empty)){min-height:232px}
   #recording-pane[data-detail=expanded]{min-height:300px}
+  #recording-pane[data-detail=expanded]:has(.player-status:not(:empty)){min-height:300px}
   #recording-layers{max-height:calc(var(--recording-height) - 215px)}
   .search-panel .player-speed{margin-left:0!important}
   button:not(.token){min-height:34px}input[type=range]{height:32px;min-height:32px}
@@ -145,4 +147,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   .switch-field input[type=checkbox]{appearance:auto;forced-color-adjust:auto;width:20px;height:20px}.switch-field input::before{display:none}
   .segmented-radio input:checked+span,.navigation-modes [aria-pressed=true],.inspector nav button.active{outline:2px solid Highlight;outline-offset:-2px}
   input[type=range]{appearance:auto;forced-color-adjust:auto}.player-play{border:1px solid ButtonText}
+}
+@media(prefers-contrast:more){
+  :is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre){scrollbar-width:auto;scrollbar-color:auto!important}
 }

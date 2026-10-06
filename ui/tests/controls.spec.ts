@@ -93,6 +93,7 @@ test('forced colors restores system scrollbars and controls, and reduced motion 
   expect(await page.locator('#show-interlinear').evaluate(e=>getComputedStyle(e).appearance)).toBe('auto');
   expect(await page.locator('#show-interlinear').evaluate(e=>getComputedStyle(e,'::before').transitionDuration)).toBe('0s');
   await page.getByRole('switch',{name:'Interlinear',exact:true}).check();await expect(page.locator('#tokens')).toHaveAttribute('data-interlinear','true');
+  await page.emulateMedia({forcedColors:'none',contrast:'more'});expect(await page.locator('.transcript').evaluate(e=>getComputedStyle(e).scrollbarWidth)).toBe('auto');
 });
 
 test('a new search cannot replay the prior hit through retained custom controls',async({page})=>{
@@ -111,6 +112,9 @@ test('collapsed recording pane keeps loading, error and ended explanations fully
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
   await page.route('**/api/media?**',route=>route.abort());await page.reload();await expect(page.locator('#audio-status')).toContainText('Recording unavailable');
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
+  await page.locator('#timeline-resizer').focus();for(let i=0;i<13;i++)await page.keyboard.press('ArrowUp');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','expanded');
+  for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(()=>page.locator('#recording-layers').evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('#recording-pane')!.getBoundingClientRect();return r.height>0&&r.top>=p.top&&r.bottom<=p.bottom})).toBe(true)}
+  await page.locator('#timeline-resizer').focus();await page.keyboard.press('Home');
   await page.unroute('**/api/media?**');let release!:()=>void;const held=new Promise<void>(resolve=>release=resolve);await page.route('**/api/media?**',async route=>{await held;await route.continue()});await page.reload();await expect(page.locator('#audio-status')).toContainText('Loading recording');
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
   release();await expect(page.locator('#audio-play')).toBeEnabled();
