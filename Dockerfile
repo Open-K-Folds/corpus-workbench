@@ -39,14 +39,14 @@ RUN cargo fmt --all --check && cargo clippy --locked --all-targets -- -D warning
     cargo test --locked --no-run --message-format=json > /native-tests.jsonl && \
     python3 scripts/runtime-contracts.py --manifest /native-tests.jsonl --out /runtime-contracts
 ARG SOURCE_COMMIT=working-tree
-ARG VERSION=0.2.0-dev.9
+ARG VERSION=0.2.0-dev.10
 LABEL org.opencontainers.image.revision="$SOURCE_COMMIT" org.opencontainers.image.version="$VERSION"
 
 # Execute the existing compiled contracts with the actual production OS/loader.
 # This separate test image is never copied into the production image.
 FROM runtime-base AS runtime-contracts
 ARG SOURCE_COMMIT=working-tree
-ARG VERSION=0.2.0-dev.9
+ARG VERSION=0.2.0-dev.10
 LABEL org.opencontainers.image.revision="$SOURCE_COMMIT" org.opencontainers.image.version="$VERSION" \
       org.opencontainers.image.description="Existing compiled native contracts under the production OS and loader"
 COPY --from=native-test /runtime-contracts/ /
@@ -66,7 +66,7 @@ RUN mkdir -p /package && python3 scripts/prepare-synthetic.py --out /package/syn
 
 FROM runtime-base AS runtime
 ARG SOURCE_COMMIT=working-tree
-ARG VERSION=0.2.0-dev.9
+ARG VERSION=0.2.0-dev.10
 ARG TARGETPLATFORM
 LABEL org.opencontainers.image.title="Corpus Workbench" \
       org.opencontainers.image.description="Native corpus authoring; synthetic demonstration only" \

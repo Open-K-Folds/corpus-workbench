@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0-dev.10 - Bounded corpus concordance
+
+- Add exact, revision-bound corpus token search with KWIC, reading/language/document
+  filters, qualified stable IDs, bounded pages and provenance-carrying JSON export.
+- Add observed audio playback, current hit navigation, historical inspection and
+  draft-safe reload with stale-head and delayed-response protection.
+- Add an optional independently tested derived CWB/CQP adapter for one finite
+  literal grammar; preserve existing imported-index status and canonical data.
+- Qualify Unicode, overlap, missing word times, forged proofs, concurrent revisions
+  and external-tool/output faults with synthetic fixtures and actual browser flows.
+- Keep original TEITOK/CWB/CQP parity, arbitrary regex/joins, bulk authoring,
+  durable jobs and production/Pi qualification as remaining gates.
+
 ## 0.2.0-dev.9 - Edited-package authoring slice
 
 - Freeze complete returned TEITOK exports and prove their exact local baseline,

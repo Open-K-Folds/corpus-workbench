@@ -30,6 +30,7 @@ jobs:
       - name: Install pinned Rust
         run: rustup toolchain install 1.90.0 --profile minimal
       - run: cargo build --locked
+      - run: python3 -m unittest discover -s tests -p 'test_cqp_literal_adapter.py' -v
       - run: npm ci --prefix ui
       - run: npm run build --prefix ui
       - run: npm audit --prefix ui --audit-level=low

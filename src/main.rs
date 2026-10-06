@@ -82,6 +82,15 @@ fn main() -> Result<()> {
     let root = PathBuf::from(option(&args, "--store", ".private/authority"));
     let project = option(&args, "--project", "pilot");
     match mode {
+        "search" | "search-projection" => {
+            let s=verification_store(&root,&args)?;
+            let bytes=fs::read(option(&args,"--request",""))?;
+            ensure!(bytes.len()<=1_048_576,"request size limit");
+            let q:corpus_workbench::search::Query=serde_json::from_slice(&bytes)?;
+            ensure!(q.project==project,"project scope denied");
+            let result=if mode=="search" {serde_json::to_value(s.search(&q)?)?} else {s.search_projection(&q)?};
+            println!("{}",result);
+        }
         "import" => { let mut s=Store::open(&root)?; let r=s.import(Path::new(&option(&args,"--package","")),&project)?; println!("{}",serde_json::to_string(&r)?); }
         "view" => println!("{}",serde_json::to_string(&verification_store(&root,&args)?.view(&project,None)?)?),
         "export" => { let s=Store::open(&root)?; let revision=option(&args,"--revision",&s.head(&project)?.id.to_string()).parse()?; s.export(&project,revision,Path::new(&option(&args,"--out","")))?; println!("Exported exact revision {revision}"); }
@@ -101,7 +110,7 @@ fn main() -> Result<()> {
         "generation" => println!("{}",Store::open(&root)?.generation(&project,&option(&args,"--id",""),option(&args,"--historical","no")=="yes")?),
         "apply" => { let mut s=Store::open(&root)?; let c:Command=serde_json::from_slice(&fs::read(option(&args,"--command",""))?)?; let fault=match option(&args,"--fault","none").as_str() { "after-stage"=>Fault::AfterStage,"before-commit"=>Fault::BeforeCommit,"after-commit"=>Fault::AfterCommit,_=>Fault::None }; let r=s.apply("local-owner",&c,fault)?; println!("{}",serde_json::to_string(&r)?); }
         "serve" => serve(Store::open(&root)?,&project,&PathBuf::from(option(&args,"--ui","ui/dist")),option(&args,"--port","18910").parse()?, option(&args,"--container-network","no")=="yes")?,
-        _ => println!("corpus-workbench import|serve|view|export|backup|check|health|apply|review|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
+        _ => println!("corpus-workbench import|serve|view|export|backup|check|health|apply|review|search|search-projection|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Search/search-projection require --request FILE with exact revision and snapshot hash. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
     }
     Ok(())
 }
@@ -313,7 +322,11 @@ fn serve(
             let result = (|| -> Result<(PathBuf, u64, String)> {
                 let path = query(&request, "path").context("media path")?;
                 package::safe_relative(&path)?;
-                let snapshot = store.snapshot(&store.head(project)?)?;
+                let revision = query(&request, "revision")
+                    .map(|r| r.parse())
+                    .transpose()?
+                    .unwrap_or(store.head(project)?.id);
+                let snapshot = store.snapshot(&store.revision(project, revision)?)?;
                 let artifact = snapshot.files.get(&path).context("media not in project")?;
                 ensure!(
                     artifact.role == "source-media",
@@ -443,6 +456,18 @@ fn serve(
                         Ok(
                             json!({"preview_hash":corpus_workbench::handoff::digest(&preview)?,"preview":preview}),
                         )
+                    }
+                    (Method::Post, "/api/search") => {
+                        let q: corpus_workbench::search::Query =
+                            serde_json::from_value(body(&mut request)?)?;
+                        ensure!(q.project == project, "project scope denied");
+                        Ok(serde_json::to_value(store.search(&q)?)?)
+                    }
+                    (Method::Post, "/api/search/resolve") => {
+                        let q: corpus_workbench::search::Resolve =
+                            serde_json::from_value(body(&mut request)?)?;
+                        ensure!(q.query.project == project, "project scope denied");
+                        store.resolve_search_hit(&q)
                     }
                     (Method::Get, "/api/view") => store
                         .view(

@@ -8,6 +8,7 @@ export const inspectorViews = [
   {id:'review',label:'Review'}, {id:'references',label:'References'},
   {id:'structure',label:'Split / merge'}, {id:'xml',label:'XML'},
   {id:'return',label:'Return copy'},
+  {id:'search',label:'Corpus search'},
 ] as const;
 export type InspectorView = typeof inspectorViews[number]['id'];
 export type ReadingLayer = 'corrected'|'original'|'normalized';
@@ -16,7 +17,7 @@ export interface ReadingPreferences {query:string;layer:ReadingLayer;filter:Toke
 export const isInspectorView=(id:string):id is InspectorView=>inspectorViews.some(v=>v.id===id);
 export function reading(token:Token,layer:ReadingLayer):string {
   if(layer==='original')return token.original;
-  if(layer==='normalized')return token.normalized??token.corrected??token.original;
+  if(layer==='normalized')return (token.attrs.wb_normalized_status==='unresolved'?null:token.normalized)??token.corrected??token.original;
   return token.corrected??token.original;
 }
 export function visibleToken(token:Token,preferences:ReadingPreferences):boolean {
