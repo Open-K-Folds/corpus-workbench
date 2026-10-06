@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.2.0-dev.9 - Edited-package authoring slice
+
+- Freeze complete returned TEITOK exports and prove their exact local baseline,
+  complete file set, canonical history and supported unqualified token deltas.
+- Add three-way field review with explicit conflict choices, corrected-reading
+  context checks, atomic revision commits and immutable returned XML/backup evidence.
+- Add browser folder upload, preview, named save, stale-head/draft protection and
+  compact neutral authoring surfaces; retain the one native revision authority.
+- Verify native TEITOK Save and backup creation, reconciliation, complete export,
+  native browser reopen and fresh workbench reimport using synthetic packages.
+- Include the documented Trixie package inventory in container corresponding source.
+- Keep CWB/CQP parity, arbitrary structural adapters, durable worker operations,
+  shared roles and physical Pi deployment qualification as remaining gates.
+
 ## 0.2.0-dev.8 - Unreleased candidate
 
 - Select one digest-pinned official Trixie runtime with signed date-pinned package refresh; retain Bookworm Rust/Node builders and application contracts.

@@ -48,6 +48,7 @@ scripts/**
 !evidence/
 evidence/**
 !evidence/dependency-inventory.json
+!evidence/trixie-runtime-packages.tsv
 !Dockerfile
 !compose.yaml
 **/node_modules/**

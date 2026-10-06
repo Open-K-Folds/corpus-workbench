@@ -689,6 +689,8 @@ impl Store {
                 Ok(())
             } else if a.path.starts_with("Resources/retokenization/") {
                 known_lineage(&a.path, &bytes)
+            } else if a.path.starts_with("Resources/reconciliation/") {
+                crate::reconcile::known_lineage(&a.path, &bytes)
             } else {
                 let kind = if a.artifact.role == "transcript" {
                     Some("transcript")
@@ -723,7 +725,7 @@ impl Store {
             if let Err(e) = checked {
                 p.blockers.push(format!("{}: {e}", a.path));
             } else {
-                p.artifact_rules.insert(a.path.clone(), if crate::teitok_reader::known(&a.path, &bytes) {"byte-exact immutable reader profile; fixed schema keys/labels and installation asset paths are literal, never document token endpoints"} else if history.paths.contains(&a.path) {"hash/schema-verified immutable export history; references remain historical"} else if a.path.starts_with("Resources/retokenization/") {"strictly typed hash-bound immutable successor lineage"} else {"closed XML carrier grammar; literal fields remain literal; declared current endpoints remapped"}.into());
+                p.artifact_rules.insert(a.path.clone(), if crate::teitok_reader::known(&a.path, &bytes) {"byte-exact immutable reader profile; fixed schema keys/labels and installation asset paths are literal, never document token endpoints"} else if history.paths.contains(&a.path) {"hash/schema-verified immutable export history; references remain historical"} else if a.path.starts_with("Resources/retokenization/") {"strictly typed hash-bound immutable successor lineage"} else if a.path.starts_with("Resources/reconciliation/") {"strictly typed hash-bound external return evidence; all endpoints remain historical"} else {"closed XML carrier grammar; literal fields remain literal; declared current endpoints remapped"}.into());
             }
         }
         if !p.blockers.is_empty() {
