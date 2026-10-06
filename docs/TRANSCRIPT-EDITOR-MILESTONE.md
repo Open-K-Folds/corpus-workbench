@@ -128,8 +128,10 @@ and reference repair are proven. Existing finite split/merge proofs remain in
 Tokenize. Discontinuous selections support annotation/structural tools; correction
 preview needs a native range or one complete token. Nested tokens stay read-only.
 
-Unsaved drafts are in memory with a before-unload guard; refresh/crash draft
-persistence is not implemented. OS-level IME, assistive technology, large
+Inline correction drafts now have bounded, explicit same-browser recovery;
+see [scope, retention and qualification](DRAFT-RECOVERY-MILESTONE.md). Other
+authoring forms remain in memory with a before-unload guard. OS-level IME,
+assistive technology, large
 recording/corpus performance, arbitrary XML/media dialects, physical Pi and
 physical power loss remain unverified. Configured Windows/Linux x86-64/Linux
 ARM64 CI must run against the published commit before hosted validation claims.

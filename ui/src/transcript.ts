@@ -1,20 +1,27 @@
-import {api,ApiError,commit,loadView,makeCommand} from './api';
+import {api,ApiError,commit,draftContext,loadView,makeCommand} from './api';
 import type {Command,Diff,Document,Revision,Token,View} from './contracts';
 import {esc} from './dom';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
+import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
 
 interface Block {source_id:string|null;source_kind:string;anchor_token:string|null;sections:{id:string;kind:string;number:string|null}[];runs:{token:string|null;text:string}[]}
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
 interface SelectionBasis {view:View;document:string;ids:string[];start:number;end:number;quote:string;layer:string;range:Range|null;backward?:boolean}
-interface Draft {basis:SelectionBasis;before:string;prefix:string;suffix:string;replacement:string;command:Command|null;phase:'editing'|'saving'|'unknown'|'conflict';latest:View|null;compared:boolean;epoch?:number;unlock?:()=>void}
-interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listen:()=>void;projection:(unsupportedBase:boolean)=>void}
+interface Draft {id:string;basis:SelectionBasis;before:string;prefix:string;suffix:string;replacement:string;command:Command|null;phase:'editing'|'saving'|'unknown'|'conflict';latest:View|null;compared:boolean;epoch?:number;unlock?:()=>void}
+interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listen:()=>void;projection:(unsupportedBase:boolean)=>void}
 export class Transcript {
   private projection:Projection|null=null;private epoch=0;private selection:SelectionBasis|null=null;
   private draft:Draft|null=null;private composing=false;private settling=false;
+  private recovery=document.createElement('div');private records:LocalDraft[]=[];private resolving=false;private recoveryUnlock:(()=>void)|null=null;private storageWarning='';
+  private stored:LocalDraft|null=null;
+  private persistence:Promise<void>=Promise.resolve();private finalizing=false;
+  private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
     this.surface.classList.add('prose');this.surface.tabIndex=0;
+    this.recovery.className='local-draft-recovery';this.recovery.setAttribute('aria-live','polite');this.surface.before(this.recovery);
+    window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
     this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
     this.menu.addEventListener('mousedown',e=>{if((e.target as HTMLElement).closest('button'))e.preventDefault()});
@@ -28,13 +35,50 @@ export class Transcript {
     document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(()=>this.capture(),0)});
     document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!this.composing&&!e.isComposing){this.menu.hidden=true;this.details.hidden=true}});
   }
-  dirty(){return this.draft!==null}
-  busy(){return this.draft!==null&&this.draft.phase!=='editing'&&this.draft.phase!=='conflict'}
+  dirty(){return this.draft!==null||this.records.some(r=>r.document===this.host.doc().path||r.command!==null)}
+  activeDraft(){return this.draft!==null}
+  busy(){return this.finalizing||this.resolving||this.records.some(r=>r.command!==null)||(this.draft!==null&&this.draft.phase!=='editing'&&this.draft.phase!=='conflict')}
+  private lock(){const controls=[...document.querySelectorAll<HTMLInputElement>('button,input,select,textarea')].filter(e=>!this.surface.contains(e)&&!this.recovery.contains(e)).map(e=>[e,e.disabled] as const);controls.forEach(([e])=>e.disabled=true);return ()=>controls.forEach(([e,disabled])=>e.disabled=disabled)}
+  private localRecord():LocalDraft|null {
+    const d=this.draft,context=draftContext();if(!d||!context)return null;const v=d.basis.view,doc=v.documents.find(doc=>doc.path===d.basis.document)!;
+    return {schema:1,id:d.id,...context,document:d.basis.document,revision:v.revision.id,snapshot:v.revision.snapshot_hash,artifact:v.snapshot.files[d.basis.document].sha256,config:v.snapshot.config.version,layer:'corrected',ids:[...d.basis.ids],internalIds:d.basis.ids.map(id=>doc.tokens.find(t=>t.id===id)!.internal_id),readings:d.basis.ids.map(id=>{const t=doc.tokens.find(t=>t.id===id)!;return t.corrected??t.original}),start:d.basis.start,end:d.basis.end,backward:d.basis.backward===true,quote:d.basis.quote,before:d.before,prefix:d.prefix,suffix:d.suffix,replacement:d.replacement,command:d.command,updated:Date.now()};
+  }
+  private async persist(replace?:LocalDraft){const record=this.localRecord();let success=false;this.writesPending++;this.persistence=this.persistence.then(async()=>{try{if(record&&this.draft?.id!==record.id)return;this.storageWarning=record?await writeDraft(record,this.stored?.id===record.id?this.stored:undefined,replace):'Local draft recovery identity is unavailable; this correction is only in memory.';if(record&&!this.storageWarning){this.stored=record;success=true}}finally{this.writesPending--;if(this.draft)this.updateDraft()}});await this.persistence;return success}
+  private async forget(record:LocalDraft){const warning=await removeDraft(record);if(warning)this.host.message(warning,true)}
+  private offerRecovery(){
+    if(this.draft||this.resolving)return;const result=scopedDrafts();this.records=result.records;this.recovery.replaceChildren();
+    if(result.warning){const warning=document.createElement('p');warning.textContent=result.warning;this.recovery.append(warning)}
+    if(this.records.some(r=>r.command!==null)){if(!this.recoveryUnlock)this.recoveryUnlock=this.lock()}else{this.recoveryUnlock?.();this.recoveryUnlock=null}
+    for(const record of this.records){
+      const row=document.createElement('section');row.dataset.localDraft=record.id;const pending=record.command!==null,exact=matchesDraft(record,this.host.view()),here=record.document===this.host.doc().path;
+      const text=document.createElement('p');text.textContent=`${pending?'Save outcome unresolved':'Unsaved local correction'} · ${record.document} · saved basis R${record.revision} · ${record.snapshot.slice(0,12)}. ${!exact&&!pending?'Saved source changed; recovery is unavailable. ':''}Local browser copy, not a saved corpus revision.`;row.append(text);
+      const detail=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent='Inspect proposal';pre.textContent=`${record.quote} → ${record.replacement}\n${record.ids.join(', ')} · corrected · ${record.start}–${record.end} code points${record.backward?' · backward selection':''}`;detail.append(summary,pre);row.append(detail);
+      const action=document.createElement('button');action.type='button';action.textContent=pending?'Resolve original save':here?'Recover correction':'Open draft document';action.disabled=!pending&&(!exact||!this.currentProjection()&&here);action.onclick=()=>{if(this.draft||this.finalizing||this.resolving){this.host.message('Finish or undo the active correction before recovering another draft.',true);return}if(this.host.busy()||this.host.otherDraft()){this.host.message('Finish the other active save or properties draft before recovering.',true);return}if(pending)void this.resolveLocal(record);else if(!here)this.host.openDocument(record.document);else void this.recover(record)};row.append(action);
+      if(!pending){const discard=document.createElement('button');discard.type='button';discard.textContent='Discard local correction';discard.onclick=async()=>{discard.disabled=true;await this.forget(record);this.offerRecovery()};row.append(discard)}
+      this.recovery.append(row);
+    }
+  }
+  private async recover(record:LocalDraft){
+    if(this.draft||this.busy()||!matchesDraft(record,this.host.view())||!this.currentProjection())return;
+    if(this.host.preferences.layer!=='corrected'||this.host.preferences.query||this.host.preferences.filter!=='all'){this.host.message('Select the corrected reading layer and clear token filters before recovering.',true);return}
+    const first=this.surface.querySelector(`[data-token="${CSS.escape(record.ids[0])}"] .reading-text`)?.firstChild,last=this.surface.querySelector(`[data-token="${CSS.escape(record.ids.at(-1)!)}"] .reading-text`)?.firstChild;
+    if(!first||!last)return;const a=Array.from(first.textContent??'').slice(0,record.start).join('').length,b=Array.from(last.textContent??'').slice(0,record.end).join('').length;
+    const boundaries=(text:string,offset:number)=>offset===text.length||[...new Intl.Segmenter(undefined,{granularity:'grapheme'}).segment(text)].some(part=>part.index===offset);
+    if(!boundaries(first.textContent??'',a)||!boundaries(last.textContent??'',b)){this.host.message('Stored selection splits a grapheme; the draft was preserved without recovery.',true);return}
+    const range=document.createRange();range.setStart(first,a);range.setEnd(last,b);if(this.primaryRangeText(range)!==record.quote){this.host.message('Stored selection does not match the saved projection; the draft was preserved.',true);return}
+    this.host.select(record.ids);this.draft={id:`draft-${crypto.randomUUID()}`,basis:{view:this.host.view(),document:record.document,ids:record.ids,start:record.start,end:record.end,quote:record.quote,layer:record.layer,backward:record.backward,range},before:record.before,prefix:record.prefix,suffix:record.suffix,replacement:record.replacement,command:null,phase:'editing',latest:null,compared:false};this.records=[];this.recovery.replaceChildren();this.drawDraft();await this.persist(record);
+  }
+  private async reconcileReading(view:View,path:string){const p=await api<Projection>(`/api/reading?path=${encodeURIComponent(path)}&revision=${view.revision.id}`);if(p.schema!==1||p.project!==view.snapshot.project||p.revision!==view.revision.id||p.snapshot_hash!==view.revision.snapshot_hash||p.document!==path||p.artifact_hash!==view.snapshot.files[path]?.sha256)throw new Error('Saved reading refresh has not reconciled');}
+  private async resolveLocal(record:LocalDraft){
+    if(this.resolving||!record.command)return;this.resolving=true;this.recovery.querySelectorAll<HTMLButtonElement>('button').forEach(b=>b.disabled=true);let confirmed:Revision|null=null;
+    try{confirmed=await commit(record.command);const latest=await loadView();if(latest.revision.id<confirmed.id)throw new Error('Saved head has not reconciled');await this.reconcileReading(latest,record.document);await this.forget(record);this.records=[];this.recoveryUnlock?.();this.recoveryUnlock=null;this.host.accepted(latest);this.host.message(`Original correction confirmed in R${confirmed.id}; current saved head R${latest.revision.id}.`)}
+    catch(e){if(!confirmed&&e instanceof ApiError&&(e.status===409||e.status===400||e.status===422)){const warning=await writeDraft({...record,command:null,updated:Date.now()},record);this.host.message((e.status===409?'Original save was rejected as stale. ':'Original save was rejected. ')+'The local proposal remains available for inspection, recovery when its saved basis matches, and discard. '+warning,true)}else this.host.message('Original save remains unresolved. '+String(e),true)}finally{this.resolving=false;this.offerRecovery()}
+  }
   setLayout(layout:'lines'|'paragraphs'){this.layout=layout;this.surface.dataset.layout=layout;this.storePreferences()}
   setInterlinear(value:boolean){if(this.draft){(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;this.host.message('Finish or undo the correction draft before changing reading layers.',true);return}this.interlinear=value;void this.render();this.storePreferences()}
   private storePreferences(){try{localStorage.setItem('wb-reading:'+this.host.view().snapshot.project,JSON.stringify({layout:this.layout,interlinear:this.interlinear}))}catch{/* Preferences are optional. */}}
   async render(){
-    if(this.draft)return;this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
+    if(this.draft)return;this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
       const p=await api<Projection>(`/api/reading?path=${encodeURIComponent(doc.path)}&revision=${view.revision.id}`);
@@ -57,8 +101,8 @@ export class Transcript {
       const shown=doc.tokens.filter(t=>visibleToken(t,this.host.preferences));document.getElementById('token-count')!.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${this.host.selected().length} selected`;
       (document.getElementById('next-match') as HTMLButtonElement).disabled=!shown.length;
       if(!shown.length)this.surface.insertAdjacentHTML('afterbegin','<p class="empty-state">No matching tokens. Clear the filter to return to the transcript.</p>');
-      try{await this.markHistory(view,doc,epoch)}catch{if(epoch===this.epoch)this.host.message('Transcript loaded. Correction history decoration is unavailable; inspect History to retry.')}
-    }catch(e){if(epoch===this.epoch&&!this.draft&&this.host.doc().path===doc.path&&this.host.view().revision.id===view.revision.id){this.surface.textContent='Could not load faithful transcript. Preserved XML remains available in Tools.';this.host.message(String(e),true)}}
+      this.offerRecovery();try{await this.markHistory(view,doc,epoch)}catch{if(epoch===this.epoch)this.host.message('Transcript loaded. Correction history decoration is unavailable; inspect History to retry.')}
+    }catch(e){if(epoch===this.epoch&&!this.draft&&this.host.doc().path===doc.path&&this.host.view().revision.id===view.revision.id){this.surface.textContent='Could not load faithful transcript. Preserved XML remains available in Tools.';this.host.message(String(e),true);this.offerRecovery()}}
   }
   private async markHistory(view:View,doc:Document,epoch:number){
     if(!view.revision.parent)return;
@@ -138,47 +182,48 @@ export class Transcript {
     if(this.selection&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.key==='Backspace'||event.key==='Delete'||Array.from(event.key).length===1)){event.preventDefault();this.begin(event.key==='Backspace'||event.key==='Delete'?'':event.key)}
   }
   private begin(replacement:string){
-    if(this.draft||!this.currentProjection()||!this.selection||this.host.busy())return;
+    if(this.dirty()||!this.currentProjection()||!this.selection||this.host.busy())return;
     if(this.host.otherDraft()){this.host.message('Save or discard the existing properties draft before correcting in place.',true);return}
     if(this.selection.ids.length>1&&!this.selection.range){this.host.message('Select a native text range for a correction preview; separate token selections remain available to annotation and structural tools.',true);return}
     const basis=this.selection;if(basis.layer!=='corrected'||this.host.preferences.layer!=='corrected'||basis.document!==this.host.doc().path||basis.view.revision.snapshot_hash!==this.host.view().revision.snapshot_hash||(basis.range&&!basis.range.startContainer.isConnected)){this.host.message('Select corrected text in the current saved revision.',true);return}
     const token=this.host.doc().tokens.find(t=>t.id===basis.ids[0])!;if(!token.editable){this.host.message('Nested token is preserved read-only.',true);return}
     const before=token.corrected??token.original,chars=Array.from(before);
-    this.draft={basis,before,prefix:chars.slice(0,basis.start).join(''),suffix:basis.ids.length===1?chars.slice(basis.end).join(''):'',replacement,command:null,phase:'editing',latest:null,compared:false};
-    this.menu.hidden=true;this.details.hidden=true;this.drawDraft();
+    this.draft={id:`draft-${crypto.randomUUID()}`,basis,before,prefix:chars.slice(0,basis.start).join(''),suffix:basis.ids.length===1?chars.slice(basis.end).join(''):'',replacement,command:null,phase:'editing',latest:null,compared:false};
+    this.menu.hidden=true;this.details.hidden=true;this.persist();this.drawDraft();
   }
   private drawDraft(){
     const d=this.draft!;const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(d.basis.ids[0])}"]`)!;
     span.innerHTML=`<span class="draft-prefix reading-text">${esc(d.prefix)}</span><s class="draft-ghost" aria-hidden="true">${esc(d.basis.quote)}</s><input id="inline-replacement" aria-label="Proposed correction" autocomplete="off" spellcheck="false" value="${esc(d.replacement)}"><span class="draft-suffix reading-text">${esc(d.suffix)}</span><span class="draft-actions"><button id="undo-draft" type="button">Undo draft</button><button id="accept-draft" type="button">Accept ↵</button><button id="retry-draft" type="button" hidden>Resolve save outcome</button><button id="compare-draft" type="button" hidden>Compare current revision</button><button id="reapply-draft" type="button" hidden>Reapply after comparison</button><small id="draft-explanation" role="status"></small><pre id="draft-comparison" hidden></pre></span>`;
     const input=span.querySelector<HTMLInputElement>('input')!;
-    input.oninput=()=>{if(d.phase!=='editing'&&d.phase!=='conflict')return;d.replacement=input.value;d.compared=false;d.epoch=(d.epoch??0)+1;this.updateDraft()};
+    input.oninput=()=>{if(this.finalizing||d.phase!=='editing'&&d.phase!=='conflict')return;d.replacement=input.value;d.compared=false;d.epoch=(d.epoch??0)+1;this.persist();this.updateDraft()};
     input.addEventListener('compositionstart',()=>{this.composing=true;this.updateDraft()});input.addEventListener('compositionend',()=>{this.composing=false;this.settling=true;this.updateDraft();setTimeout(()=>{this.settling=false;this.updateDraft()},0)});
     input.onkeydown=e=>{if(e.key==='Enter'){if(e.isComposing||this.composing||e.keyCode===229)return;e.preventDefault();e.stopPropagation();if(!this.settling&&!e.shiftKey)void this.accept()}else if(e.key==='Escape'&&!e.isComposing&&!this.composing){e.stopPropagation();this.menu.hidden=true}};
-    span.querySelector<HTMLButtonElement>('#undo-draft')!.onclick=async()=>{if(this.busy())return;this.draft=null;this.selection=null;await this.render();const first=this.surface.querySelector(`[data-token="${CSS.escape(d.basis.ids[0])}"] .reading-text`)?.firstChild,last=this.surface.querySelector(`[data-token="${CSS.escape(d.basis.ids.at(-1)!)}"] .reading-text`)?.firstChild;if(first&&last){const a=Array.from(first.textContent??'').slice(0,d.basis.start).join('').length,b=Array.from(last.textContent??'').slice(0,d.basis.end).join('').length;this.surface.focus();window.getSelection()?.setBaseAndExtent(d.basis.backward?last:first,d.basis.backward?b:a,d.basis.backward?first:last,d.basis.backward?a:b)}this.host.status(`Saved R${this.host.view().revision.id} · ${this.host.view().approved?'Approved exact revision':'Unreviewed'}`)};
+    span.querySelector<HTMLButtonElement>('#undo-draft')!.onclick=async()=>{if(this.busy())return;this.finalizing=true;this.updateDraft();await this.persistence;const record=this.stored;if(record)await this.forget(record);this.stored=null;this.draft=null;this.finalizing=false;this.selection=null;await this.render();const first=this.surface.querySelector(`[data-token="${CSS.escape(d.basis.ids[0])}"] .reading-text`)?.firstChild,last=this.surface.querySelector(`[data-token="${CSS.escape(d.basis.ids.at(-1)!)}"] .reading-text`)?.firstChild;if(first&&last){const a=Array.from(first.textContent??'').slice(0,d.basis.start).join('').length,b=Array.from(last.textContent??'').slice(0,d.basis.end).join('').length;this.surface.focus();window.getSelection()?.setBaseAndExtent(d.basis.backward?last:first,d.basis.backward?b:a,d.basis.backward?first:last,d.basis.backward?a:b)}this.host.status(`Saved R${this.host.view().revision.id} · ${this.host.view().approved?'Approved exact revision':'Unreviewed'}`)};
     span.querySelector<HTMLButtonElement>('#accept-draft')!.onclick=()=>void this.accept();span.querySelector<HTMLButtonElement>('#retry-draft')!.onclick=()=>void this.accept(true);
-    span.querySelector<HTMLButtonElement>('#compare-draft')!.onclick=async()=>{const proposed=d.replacement,epoch=d.epoch;try{const latest=await loadView(),diff=await api<Diff>(`/api/diff?from=${d.basis.view.revision.id}&to=${latest.revision.id}`);if(this.draft!==d||d.replacement!==proposed||epoch!==d.epoch||this.composing)return;d.latest=latest;d.compared=true;const pre=span.querySelector<HTMLElement>('#draft-comparison')!;pre.hidden=false;pre.textContent=JSON.stringify(diff,null,2);this.updateDraft()}catch(e){this.host.message(String(e),true)}};
-    span.querySelector<HTMLButtonElement>('#reapply-draft')!.onclick=()=>{if(!d.compared||!d.latest)return;const latestToken=d.latest.documents.find(doc=>doc.path===d.basis.document)?.tokens.find(t=>t.id===d.basis.ids[0]);if(!latestToken?.editable){this.host.message('Target no longer supports correction. Undo the draft and inspect the new structure.',true);return}d.basis={...d.basis,view:d.latest};d.phase='editing';d.command=null;void this.accept()};
+    span.querySelector<HTMLButtonElement>('#compare-draft')!.onclick=async()=>{if(this.finalizing||d.phase!=='conflict')return;const proposed=d.replacement,epoch=d.epoch;try{const latest=await loadView(),diff=await api<Diff>(`/api/diff?from=${d.basis.view.revision.id}&to=${latest.revision.id}`);if(this.draft!==d||d.replacement!==proposed||epoch!==d.epoch||this.composing)return;d.latest=latest;d.compared=true;const pre=span.querySelector<HTMLElement>('#draft-comparison')!;pre.hidden=false;pre.textContent=JSON.stringify(diff,null,2);this.updateDraft()}catch(e){this.host.message(String(e),true)}};
+    span.querySelector<HTMLButtonElement>('#reapply-draft')!.onclick=()=>{if(this.finalizing||!d.compared||!d.latest)return;const latestToken=d.latest.documents.find(doc=>doc.path===d.basis.document)?.tokens.find(t=>t.id===d.basis.ids[0]);if(!latestToken?.editable){this.host.message('Target no longer supports correction. Undo the draft and inspect the new structure.',true);return}const proposed=d.prefix+d.replacement+d.suffix;d.before=latestToken.corrected??latestToken.original;d.basis={...d.basis,view:d.latest,start:0,end:Array.from(d.before).length,quote:d.before,range:null};d.prefix='';d.suffix='';d.replacement=proposed;d.phase='editing';d.command=null;this.persist();void this.accept()};
     this.updateDraft();input.focus();input.select();
   }
   private reason(){const d=this.draft!;const proposed=d.prefix+d.replacement+d.suffix;if(d.basis.ids.length!==1)return 'Range replacement needs an explicit token mapping. Use Tokenize after undoing this draft.';if(!proposed)return 'Token deletion needs a supported mapping; this remains a draft.';if(/\s/u.test(proposed))return 'Multiple replacement tokens need a supported mapping; Accept is unavailable.';if(proposed===d.before)return 'No corrected reading change.';return ''}
   private updateDraft(){
     if(!this.draft)return;const d=this.draft,input=this.surface.querySelector<HTMLInputElement>('#inline-replacement')!;input.style.width=Math.max(2,Math.min(24,Array.from(input.value).length+1))+'ch';
-    const busy=d.phase==='saving'||d.phase==='unknown';input.disabled=busy;
+    const busy=this.finalizing||d.phase==='saving'||d.phase==='unknown';input.disabled=busy;for(const id of ['compare-draft','reapply-draft'])this.surface.querySelector<HTMLButtonElement>('#'+id)!.disabled=busy;
     const accept=this.surface.querySelector<HTMLButtonElement>('#accept-draft')!;accept.disabled=busy||d.phase==='conflict'||this.composing||this.settling||!!this.reason();
     this.surface.querySelector<HTMLButtonElement>('#undo-draft')!.disabled=busy;
     this.surface.querySelector<HTMLButtonElement>('#retry-draft')!.hidden=d.phase!=='unknown';this.surface.querySelector<HTMLButtonElement>('#compare-draft')!.hidden=d.phase!=='conflict';this.surface.querySelector<HTMLButtonElement>('#reapply-draft')!.hidden=d.phase!=='conflict'||!d.compared;
-    this.surface.querySelector<HTMLElement>('#draft-explanation')!.textContent=d.phase==='unknown'?'Save outcome unknown. Resolve the original command before editing.':d.phase==='conflict'?'Saved head changed. Compare before explicitly reapplying.':this.reason()||'Not saved · one token correction';
+    this.surface.querySelector<HTMLElement>('#draft-explanation')!.textContent=(d.phase==='unknown'?'Save outcome unknown. Resolve the original command before editing.':d.phase==='conflict'?'Saved head changed. Compare before explicitly reapplying.':this.reason()||'Not saved · local browser draft')+(this.writesPending?' Updating local draft…':this.storageWarning?' '+this.storageWarning:'');
     this.host.status(`${d.phase==='saving'?'Saving':d.phase==='unknown'?'Save outcome unknown':'Draft'} · saved R${d.basis.view.revision.id}`);
   }
   private async accept(retry=false){
-    const d=this.draft;if(!d||this.composing||this.settling||this.host.busy()||d.phase==='saving')return;
+    const d=this.draft;if(!d||this.finalizing||this.composing||this.settling||this.host.busy()||d.phase==='saving')return;
     if(this.host.otherDraft()){this.host.message('Save or discard the properties draft before accepting this correction. Both drafts remain here.',true);return}
     if(!retry&&(this.reason()||d.phase==='conflict'||d.phase==='unknown'))return;
     if(!d.command)d.command=makeCommand(d.basis.view,[{kind:'set_token',document:d.basis.document,token:d.basis.ids[0],fields:{nform:d.prefix+d.replacement+d.suffix}}],`Correct ${d.basis.ids[0]} in place`);
-    if(!d.unlock){const controls=[...document.querySelectorAll<HTMLInputElement>('button,input,select,textarea')].filter(e=>!this.surface.contains(e)).map(e=>[e,e.disabled] as const);controls.forEach(([e])=>e.disabled=true);d.unlock=()=>controls.forEach(([e,disabled])=>e.disabled=disabled)}
+    d.phase='saving';this.updateDraft();await this.persist();if(this.storageWarning)this.host.message(this.storageWarning+' The save can proceed, but reload recovery of its outcome is unavailable.',true);
+    if(!d.unlock)d.unlock=this.lock();
     d.phase='saving';this.updateDraft();let confirmed:Revision|null=null;
-    try{confirmed=await commit(d.command);const latest=await loadView();if(latest.revision.id<confirmed.id)throw new Error('Committed revision has not been reconciled');d.unlock?.();this.draft=null;this.selection=null;this.host.accepted(latest);this.host.message(`Correction saved in R${confirmed.id}. Current head R${latest.revision.id} · ${latest.approved?'Reviewed':'Unreviewed'}.`)}
-    catch(e){if(!confirmed&&e instanceof ApiError&&e.status===409){d.phase='conflict';d.command=null}else if(!confirmed&&e instanceof ApiError&&e.status>=400&&e.status<500){d.phase='editing';d.command=null}else d.phase='unknown';if(d.phase!=='unknown'){d.unlock?.();d.unlock=undefined}this.host.message(confirmed?`Committed R${confirmed.id}; view refresh pending. Resolve the same command. ${String(e)}`:String(e),true);this.updateDraft()}
+    try{confirmed=await commit(d.command);const latest=await loadView();if(latest.revision.id<confirmed.id)throw new Error('Committed revision has not been reconciled');await this.reconcileReading(latest,d.basis.document);const record=this.stored;if(record)await this.forget(record);this.stored=null;d.unlock?.();this.draft=null;this.selection=null;this.host.accepted(latest);this.host.message(`Correction saved in R${confirmed.id}. Current head R${latest.revision.id} · ${latest.approved?'Reviewed':'Unreviewed'}.`)}
+    catch(e){if(!confirmed&&e instanceof ApiError&&e.status===409){d.phase='conflict';d.command=null}else if(!confirmed&&e instanceof ApiError&&e.status>=400&&e.status<500){d.phase='editing';d.command=null}else d.phase='unknown';this.persist();if(d.phase!=='unknown'){d.unlock?.();d.unlock=undefined}this.host.message(confirmed?`Committed R${confirmed.id}; view refresh pending. Resolve the same command. ${String(e)}`:String(e),true);this.updateDraft()}
   }
   location(id:string){const block=this.projection?.blocks.find(b=>b.source_id===id||b.anchor_token===id||b.sections.some(s=>s.id===id)||b.runs.some(r=>r.token===id));if(!block)return false;const target=this.surface.querySelector<HTMLElement>(`[data-location="${CSS.escape(block.source_id??block.anchor_token??'')}"]`);target?.scrollIntoView({block:'center'});if(target){target.tabIndex=-1;target.focus();document.getElementById('source-location-status')!.textContent=`${this.host.doc().title} · ${block.sections.map(s=>`${s.kind} ${s.number??s.id}`).join(' / ')} ${block.source_id??block.anchor_token??id} · R${this.host.view().revision.id} · source reference`}return !!target}
   private currentProjection(){const p=this.projection,v=this.host.view();return !!p&&!this.surface.inert&&p.document===this.host.doc().path&&p.project===v.snapshot.project&&p.revision===v.revision.id&&p.snapshot_hash===v.revision.snapshot_hash&&p.artifact_hash===v.snapshot.files[p.document]?.sha256}
