@@ -56,6 +56,22 @@ test('document and tab drafts keep distinct slots without overwriting proposals 
 test('wrong authority/user, changed artifact and malformed command records are preserved and never sent',async({page})=>{
   await open(page);await draft(page,'isolated');const [record]=await records(page);await page.reload();await page.evaluate(record=>{localStorage.clear();const journal:Record<string,unknown>={};for(const [i,changes] of [{authority:'a'.repeat(64)},{actor:'another-user'},{artifact:'b'.repeat(64)},{command:{schema:1,operations:[{kind:'restore',revision:1}]}}].entries()){const r={...record,...changes,id:'draft-'+crypto.randomUUID()};journal[r.id]=r}localStorage.setItem('wb-correction-v1:journal',JSON.stringify(journal))},record);let writes=0;await page.route('**/api/command',route=>{writes++;return route.abort()});await page.reload();await expect(page.locator('.local-draft-recovery')).toContainText('Unrecognized local draft');await expect(page.getByRole('button',{name:'Recover correction',exact:true})).toBeDisabled();await expect(page.getByRole('button',{name:'Resolve original save',exact:true})).toHaveCount(0);expect(await records(page)).toHaveLength(4);expect(writes).toBe(0);
 });
+
+test('another document recovery cannot switch an active correction or its saved target',async({page,context})=>{
+  await open(page);const other=await context.newPage();await open(other);
+  await other.locator('[data-document="xmlfiles/beta.xml"]').click();await expect(other.locator('[data-token="w2"] .reading-text')).toHaveText('Other');
+  await draft(other,'betaStored');const [stored]=await records(other);await other.close();await page.reload();
+  const recover=page.getByRole('button',{name:'Open draft document',exact:true});await expect(recover).toBeVisible();
+  const selected=await page.locator('#document-tabs [aria-selected="true"]').textContent();const before=await head(page);
+  await draft(page,'alphaActive');await recover.click();
+  await expect(page.locator('#document-tabs [aria-selected="true"]')).toHaveText(selected!);
+  await expect(page.getByLabel('Proposed correction')).toHaveValue('alphaActive');expect((await head(page)).revision.id).toBe(before.revision.id);
+  await page.locator('#accept-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);
+  const after=await head(page);expect(after.revision.id).toBe(before.revision.id+1);
+  expect(after.documents.find((d:any)=>d.path==='xmlfiles/alpha.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('alphaActive');
+  expect(after.documents.find((d:any)=>d.path==='xmlfiles/beta.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBeNull();
+  expect((await records(page)).find((r:any)=>r.id===stored.id)).toEqual(stored);
+});
 test('denied browser storage is reported honestly while normal correction saving remains possible',async({page})=>{
   await page.addInitScript(()=>{for(const store of ['localStorage','sessionStorage'])Object.defineProperty(window,store,{get(){throw new DOMException('Synthetic storage denial','SecurityError')}})});await open(page);await expect(page.locator('.local-draft-recovery')).toContainText('storage is unavailable');await draft(page,'memoryOnly');await expect(page.locator('#draft-explanation')).toContainText('only in memory');const before=(await head(page)).revision.id;await page.locator('#accept-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);expect((await head(page)).revision.id).toBe(before+1);
 });
@@ -77,7 +93,7 @@ test('delayed stale-save reconciliation preserves a newer proposal written by an
   const other=await context.newPage();await open(other);const newer={...stored,replacement:'newerProposal',command:null,updated:stored.updated+1};await other.evaluate(newer=>{const journal=JSON.parse(localStorage.getItem('wb-correction-v1:journal')!);journal[newer.id]=newer;localStorage.setItem('wb-correction-v1:journal',JSON.stringify(journal))},newer);release();await expect(page.locator('#message')).toContainText('changed in another tab');expect(await records(page)).toEqual([newer]);
 });
 test('recovering at the 20-record cap atomically replaces the source and keeps the recovered command durable',async({page})=>{
-  await open(page);await draft(page,'fullRecovery');const [seed]=await records(page);await page.reload();await page.evaluate(seed=>{const journal=JSON.parse(localStorage.getItem('wb-correction-v1:journal')!);for(let i=0;i<19;i++){const r={...seed,id:'draft-'+crypto.randomUUID(),actor:'other-'+i};journal[r.id]=r}localStorage.setItem('wb-correction-v1:journal',JSON.stringify(journal))},seed);await page.reload();await page.getByRole('button',{name:'Recover correction',exact:true}).click();await expect(page.locator('#draft-explanation')).not.toContainText('Updating local draft');await expect(page.locator('#draft-explanation')).not.toContainText('only in memory');expect(await records(page)).toHaveLength(20);expect((await records(page)).some(r=>r.id===seed.id)).toBe(false);
+  await open(page);await draft(page,'fullRecovery');const [seed]=await records(page);await page.reload();await page.evaluate(seed=>{const journal=JSON.parse(localStorage.getItem('wb-correction-v1:journal')!);for(let i=0;i<19;i++){const r={...seed,id:'draft-'+crypto.randomUUID(),actor:'other-'+i};journal[r.id]=r}localStorage.setItem('wb-correction-v1:journal',JSON.stringify(journal))},seed);await page.reload();await page.getByRole('button',{name:'Recover correction',exact:true}).click();await expect.poll(async()=>(await records(page)).some(r=>r.id===seed.id)).toBe(false);await expect(page.locator('#draft-explanation')).not.toContainText('Updating local draft');await expect(page.locator('#draft-explanation')).not.toContainText('only in memory');expect(await records(page)).toHaveLength(20);
   await page.route('**/api/command',async route=>{const saved=(await records(page)).find(r=>r.actor==='local-owner');expect(saved.command).toEqual(JSON.parse(route.request().postData()!));await route.abort('failed')});await page.locator('#accept-draft').click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');expect(await records(page)).toHaveLength(20);
 });
 test('malformed whole journal and unknown old draft records are preserved without recovery writes',async({page})=>{

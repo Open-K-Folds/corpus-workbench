@@ -42,6 +42,11 @@ multi-token, whitespace and deletion proposals remain disabled drafts. A stale
 proposal is inspectable/discardable; recovery never rebases it to another source.
 The existing open-page conflict flow still requires explicit comparison/reapply.
 
+Recovery actions refuse navigation while an inline correction is active, being
+finalized or already resolving. Another document's retained proposal cannot
+switch the surrounding document identity underneath an in-memory correction.
+The active correction and other stored proposals remain available unchanged.
+
 Accept queues and completes persistence of the complete command before sending
 it. Response loss or failed saved-reading refresh keeps that identity. Reload
 offers Resolve original save and blocks dependent authoring/review, even when
