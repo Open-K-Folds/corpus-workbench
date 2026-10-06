@@ -40,3 +40,9 @@ label{color:var(--muted)}input,select,textarea{background:var(--paper);color:var
 #recording-layers{max-height:calc(var(--recording-height) - 130px);overflow:auto}#recording-pane[data-detail=compact] .timeline-lane,#recording-pane[data-detail=compact] .text-only-tray{display:none}
 .prose[data-interlinear=true] .lexeme{display:inline-flex;flex-direction:column;vertical-align:top;line-height:1.5}.prose[data-interlinear=true] .interlinear{display:flex;margin:1px 0 8px;max-width:170px}.prose[data-interlinear=true] .filtered{display:none}
 #save-recovery{padding:8px 16px;background:var(--rail)}#save-recovery:empty{display:none}#save-recovery button{font-size:12px}
+.local-draft-recovery:empty{display:none}
+.local-draft-recovery{font-size:.85rem;margin:.4rem 0;padding:.35rem .5rem;background:var(--rail);overflow-wrap:anywhere}
+.local-draft-recovery section{padding:.35rem 0;border-bottom:1px solid var(--border)}
+.local-draft-recovery p{margin:.25rem 0}
+.local-draft-recovery button{margin:.25rem .4rem .25rem 0}
+.local-draft-recovery pre{white-space:pre-wrap;max-height:9rem;overflow:auto}

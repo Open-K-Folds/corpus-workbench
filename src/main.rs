@@ -176,6 +176,17 @@ fn serve(
     container_network: bool,
 ) -> Result<()> {
     ensure!(store.project_exists(project)?, "project not imported");
+    // Import command IDs are unique per independently imported authority. This
+    // stable, non-secret lineage identity survives serving restarts and backups.
+    let imported = store
+        .history(project)?
+        .into_iter()
+        .find(|revision| revision.parent.is_none())
+        .context("project import revision required")?;
+    let draft_authority = corpus_workbench::handoff::digest(&serde_json::json!({
+        "project": project, "import_command": imported.command_id,
+        "import_snapshot": imported.snapshot_hash
+    }))?;
     ensure!(
         ui.join("index.html").exists(),
         "build the TypeScript UI first"
@@ -388,7 +399,7 @@ fn serve(
             let result = (|| -> Result<Value> {
                 match (method, path.as_str()) {
                     (Method::Get, "/api/session") => Ok(
-                        json!({"actor":"local-owner","project":project,"roles":["reader","editor","reviewer"],"csrf":token}),
+                        json!({"actor":"local-owner","project":project,"authority":draft_authority,"roles":["reader","editor","reviewer"],"csrf":token}),
                     ),
                     (Method::Get, "/api/inventory") => {
                         let inventory = store.reference_inventory(
