@@ -734,6 +734,10 @@ fn serve(
                 "text/javascript"
             } else if rel.ends_with(".css") {
                 "text/css"
+            } else if rel.ends_with(".woff2") {
+                "font/woff2"
+            } else if rel.ends_with(".txt") || rel.ends_with(".md") {
+                "text/plain; charset=utf-8"
             } else {
                 "text/html; charset=utf-8"
             };

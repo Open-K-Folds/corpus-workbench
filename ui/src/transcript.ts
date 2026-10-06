@@ -87,7 +87,7 @@ export class Transcript {
       this.projection=p;this.surface.inert=false;this.host.projection(p.media_base_unsupported);
       try{const saved=JSON.parse(localStorage.getItem('wb-reading:'+view.snapshot.project)??'{}');if(saved.layout==='lines'||saved.layout==='paragraphs')this.layout=saved.layout;this.interlinear=saved.interlinear===true}catch{/* Ignore invalid preferences. */}
       this.surface.dataset.layout=this.layout;this.surface.dataset.interlinear=String(this.interlinear);this.surface.setAttribute('aria-label',`${doc.title}, ${this.host.preferences.layer} transcript`);
-      (document.getElementById('transcript-layout') as HTMLSelectElement).value=this.layout;(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;
+      document.querySelectorAll<HTMLInputElement>('#transcript-layout input').forEach(input=>input.checked=input.value===this.layout);(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;
       let ordinal=0;const tokens=new Map(doc.tokens.map(t=>[t.id,t]));
       this.surface.innerHTML=p.blocks.map(block=>{
         const hasToken=block.runs.some(r=>r.token!==null);if(hasToken)ordinal++;
