@@ -34,12 +34,15 @@ pub fn project(xml: &str) -> Result<Vec<Block>> {
     let root = doc.root_element();
     // Full TEI documents project only their text regions; legacy fragment roots
     // retain their own content and unknown wrappers.
-    let transcripts: Vec<_> = if root.has_tag_name("TEI") {
-        root.children().filter(|n| n.has_tag_name("text")).collect()
-    } else if root.has_tag_name("teiCorpus") {
-        root.children()
-            .filter(|n| n.has_tag_name("TEI"))
-            .flat_map(|n| n.children().filter(|n| n.has_tag_name("text")))
+    let transcripts: Vec<_> = if root.has_tag_name("TEI") || root.has_tag_name("teiCorpus") {
+        root.descendants()
+            .filter(|n| {
+                n.has_tag_name("text")
+                    && n.ancestors()
+                        .skip(1)
+                        .take_while(|n| n.is_element())
+                        .all(|n| n.has_tag_name("TEI") || n.has_tag_name("teiCorpus"))
+            })
             .collect()
     } else {
         vec![root]
@@ -211,5 +214,19 @@ mod tests {
             text("<body><p xml:id='p'><tok id='a'>Fragment</tok>.</p></body>"),
             "Fragment."
         );
+    }
+
+    #[test]
+    fn nested_corpora_keep_all_text_and_skip_metadata_subtrees() {
+        let xml = "<teiCorpus xmlns='http://www.tei-c.org/ns/1.0'><teiHeader><title>Corpus header</title></teiHeader><TEI><text><tok id='a'>A</tok>!</text></TEI><teiCorpus><teiHeader><title>Nested header</title></teiHeader><teiCorpus><TEI><facsimile><desc>Scan</desc></facsimile><text><p xml:id='paragraph'><tok id='b'>B</tok>?</p></text></TEI></teiCorpus></teiCorpus><text><tok id='c'>C</tok>.</text><facsimile><TEI><text><tok id='fake'>Metadata</tok></text></TEI></facsimile></teiCorpus>";
+        let blocks = project(xml).unwrap();
+        assert_eq!(text(xml), "A!B?C.");
+        let ids: Vec<_> = blocks
+            .iter()
+            .flat_map(|b| &b.runs)
+            .filter_map(|r| r.token.as_deref())
+            .collect();
+        assert_eq!(ids, ["a", "b", "c"]);
+        assert_eq!(blocks[1].source_id.as_deref(), Some("paragraph"));
     }
 }

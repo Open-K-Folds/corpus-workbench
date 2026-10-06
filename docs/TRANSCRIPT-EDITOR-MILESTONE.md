@@ -30,7 +30,8 @@ IDs, duplicate the revision ledger or change the frozen Semantica/export DTO.
 Settings, schemas, sidecars, media and unknown content remain package-owned.
 
 Full TEI documents project only their direct `text` regions, including multiple
-bodies/text regions; `teiCorpus` uses its child TEI documents' text regions.
+bodies/text regions; nested `teiCorpus` containers retain their text regions
+and those of contained TEI documents in source order.
 Headers, facsimile descriptions and stand-off metadata outside those regions do
 not enter displayed/copied transcript text. Legacy fragment roots still retain
 their separators and unknown wrappers. Default and prefixed namespaces retain
