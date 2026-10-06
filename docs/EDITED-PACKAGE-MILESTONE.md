@@ -19,7 +19,11 @@ a session-owned quarantine, then freezes them through the same native adapter.
 JSON control requests keep their existing 1 MiB limit. Binary file uploads allow
 64 MiB per file and 256 MiB total, at most four unfinished sessions. Quarantine is
 under private `.runtime/return-uploads`, outside authority objects; completed or
-explicitly cancelled uploads are removed. Aborted-process quarantine and frozen
+explicitly cancelled uploads are removed. Before processing an authenticated
+return request, uploads idle for 30 minutes or bound to a superseded revision
+are removed with their quarantine files, reclaiming the four-upload allowance.
+Successful file transfers renew the idle interval. Active uploads remain intact;
+cleanup is limited to the current server's own upload directories. Aborted-process quarantine and frozen
 proposal stages remain private evidence; managed retention is a later operations
 feature. Existing volumes and active sessions are preserved.
 
@@ -30,6 +34,9 @@ Each field is compared with the exported baseline and current saved revision.
 Conflicts require an explicit choice. Normalization made against a different
 chosen correction blocks; correction changes invalidate retained normalization
 and character anchors. Absent and explicitly empty attributes remain distinct.
+Deleting a normalized reading also removes its derived native status, preserving
+namespace-qualified attributes. Token identity accepts unqualified `id` or
+XML-namespace `xml:id`, with the same precedence as native projection and editing.
 
 An ordered XML signature preserves original text, IDs, timing, namespaced
 attributes, unknown elements, comments and processing instructions. XML

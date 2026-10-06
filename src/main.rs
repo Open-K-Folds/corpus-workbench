@@ -12,7 +12,7 @@ use std::{
     io::{Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
 
@@ -41,6 +41,33 @@ struct Upload {
     directory: PathBuf,
     basis: UploadStart,
     received: std::collections::BTreeSet<String>,
+    last_activity: Instant,
+}
+const UPLOAD_IDLE_LIMIT: Duration = Duration::from_secs(30 * 60);
+
+fn prune_uploads(
+    uploads: &mut std::collections::BTreeMap<String, Upload>,
+    now: Instant,
+    revision: i64,
+    snapshot_hash: &str,
+) -> Result<()> {
+    let expired: Vec<_> = uploads
+        .iter()
+        .filter(|(_, upload)| {
+            now.saturating_duration_since(upload.last_activity) >= UPLOAD_IDLE_LIMIT
+                || upload.basis.revision != revision
+                || upload.basis.snapshot_hash != snapshot_hash
+        })
+        .map(|(id, _)| id.clone())
+        .collect();
+    for id in expired {
+        let directory = &uploads[&id].directory;
+        if directory.exists() {
+            fs::remove_dir_all(directory)?;
+        }
+        uploads.remove(&id);
+    }
+    Ok(())
 }
 fn verification_store(root: &Path, args: &[String]) -> Result<Store> {
     if option(args, "--readonly-backup", "no") == "yes" {
@@ -373,6 +400,10 @@ fn serve(
         }
         if is_api {
             let result = (|| -> Result<Value> {
+                if path.starts_with("/api/return/") {
+                    let head = store.head(project)?;
+                    prune_uploads(&mut uploads, Instant::now(), head.id, &head.snapshot_hash)?;
+                }
                 match (method, path.as_str()) {
                     (Method::Get, "/api/session") => Ok(
                         json!({"actor":"local-owner","project":project,"roles":["reader","editor","reviewer"],"csrf":token}),
@@ -503,6 +534,7 @@ fn serve(
                                 directory,
                                 basis: start,
                                 received: Default::default(),
+                                last_activity: Instant::now(),
                             },
                         );
                         Ok(json!({"upload":id}))
@@ -547,6 +579,7 @@ fn serve(
                         }
                         result?;
                         upload.received.insert(path);
+                        upload.last_activity = Instant::now();
                         Ok(
                             json!({"received":upload.received.len(),"files":upload.basis.files.len()}),
                         )
@@ -715,4 +748,94 @@ fn decode(s: &str) -> Option<String> {
         }
     }
     String::from_utf8(bytes).ok()
+}
+
+#[cfg(test)]
+mod upload_tests {
+    use super::*;
+
+    fn upload(root: &Path, id: &str, activity: Instant, revision: i64, hash: &str) -> Upload {
+        let directory = root.join(id);
+        fs::create_dir(&directory).unwrap();
+        fs::write(directory.join("received.bin"), b"synthetic upload").unwrap();
+        Upload {
+            directory,
+            basis: UploadStart {
+                project: "synthetic".into(),
+                revision,
+                snapshot_hash: hash.into(),
+                files: vec![UploadFile {
+                    path: "received.bin".into(),
+                    bytes: 16,
+                }],
+            },
+            received: std::collections::BTreeSet::from(["received.bin".into()]),
+            last_activity: activity,
+        }
+    }
+
+    #[test]
+    fn idle_uploads_release_all_four_slots_and_only_their_files() {
+        let root = tempfile::TempDir::new().unwrap();
+        let now = Instant::now();
+        let sentinel = root.path().join("preserved-authority.bin");
+        fs::write(&sentinel, b"preserved").unwrap();
+        let mut uploads: std::collections::BTreeMap<_, _> = (0..4)
+            .map(|n| {
+                let id = n.to_string();
+                (id.clone(), upload(root.path(), &id, now, 7, "saved"))
+            })
+            .collect();
+        prune_uploads(
+            &mut uploads,
+            now + UPLOAD_IDLE_LIMIT - Duration::from_secs(1),
+            7,
+            "saved",
+        )
+        .unwrap();
+        assert_eq!(uploads.len(), 4);
+        prune_uploads(&mut uploads, now + UPLOAD_IDLE_LIMIT, 7, "saved").unwrap();
+        assert!(uploads.is_empty());
+        for n in 0..4 {
+            assert!(!root.path().join(n.to_string()).exists());
+        }
+        assert_eq!(fs::read(sentinel).unwrap(), b"preserved");
+    }
+
+    #[test]
+    fn recent_progress_preserves_active_uploads_and_superseded_bases_are_reaped() {
+        let root = tempfile::TempDir::new().unwrap();
+        let now = Instant::now();
+        let mut uploads = std::collections::BTreeMap::from([
+            (
+                "active".into(),
+                upload(
+                    root.path(),
+                    "active",
+                    now + UPLOAD_IDLE_LIMIT - Duration::from_secs(1),
+                    7,
+                    "saved",
+                ),
+            ),
+            (
+                "old-revision".into(),
+                upload(root.path(), "old-revision", now, 6, "saved"),
+            ),
+            (
+                "old-hash".into(),
+                upload(root.path(), "old-hash", now, 7, "other"),
+            ),
+        ]);
+        prune_uploads(&mut uploads, now + UPLOAD_IDLE_LIMIT, 7, "saved").unwrap();
+        assert_eq!(
+            uploads.keys().map(String::as_str).collect::<Vec<_>>(),
+            vec!["active"]
+        );
+        assert_eq!(
+            fs::read(root.path().join("active/received.bin")).unwrap(),
+            b"synthetic upload"
+        );
+        assert!(!root.path().join("old-revision").exists());
+        assert!(!root.path().join("old-hash").exists());
+    }
 }
