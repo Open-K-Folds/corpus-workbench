@@ -140,7 +140,12 @@ fn unqualified_fields(
 ) -> Result<BTreeMap<String, String>> {
     let nodes: Vec<_> = tree
         .descendants()
-        .filter(|n| n.has_tag_name("tok") && n.attribute("id") == Some(id))
+        .filter(|n| {
+            n.has_tag_name("tok")
+                && n.attribute("id")
+                    .or_else(|| n.attribute(("http://www.w3.org/XML/1998/namespace", "id")))
+                    == Some(id)
+        })
         .collect();
     ensure!(nodes.len() == 1, "ambiguous unqualified token identity");
     Ok(nodes[0]
@@ -168,7 +173,13 @@ fn signature(node: roxmltree::Node<'_, '_>, source: &str) -> Result<Value> {
                 let (prefix, local) = qname
                     .split_once(':')
                     .map_or((None, qname.as_str()), |(p, l)| (Some(p), l));
-                let namespace = prefix.and_then(|p| node.lookup_namespace_uri(Some(p)));
+                let namespace = prefix.and_then(|p| {
+                    if p == "xml" {
+                        Some("http://www.w3.org/XML/1998/namespace")
+                    } else {
+                        node.lookup_namespace_uri(Some(p))
+                    }
+                });
                 node.attributes()
                     .find(|a| a.name() == local && a.namespace() == namespace)
                     .context("lexical XML attribute")?
@@ -777,11 +788,14 @@ impl Store {
                 p.blockers.push(error.to_string());
                 continue;
             }
-            let remove: Vec<_> = fields
+            let mut remove: Vec<_> = fields
                 .iter()
                 .filter(|(_, v)| v.is_none())
                 .map(|(k, _)| k.as_str())
                 .collect();
+            if remove.contains(&"wb_normalized") {
+                remove.push("wb_normalized_status");
+            }
             if !remove.is_empty() {
                 let text = temporary.text(&candidate, &document)?;
                 let changed = xml::remove_attrs(&text, "tok", &token, &remove)?;

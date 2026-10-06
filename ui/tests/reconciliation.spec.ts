@@ -53,6 +53,23 @@ test('bounded upload rejects traversal, secrets, oversized and undeclared files'
   });expect(result).toEqual([422,422,422,422,422,422,422]);expect(nativeView().revision.id).toBe(2);
 });
 
+test('abandoned uploads on a superseded revision release slots and files',async({page})=>{
+  await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R2');
+  const ids=await page.evaluate(async()=>{
+    const headers={'Content-Type':'application/json','X-WB-CSRF':sessionStorage.getItem('wb-csrf')!};const v=await(await fetch('/api/view')).json();const ids:string[]=[];
+    for(let i=0;i<4;i++){
+      const start=await fetch('/api/return/start',{method:'POST',headers,body:JSON.stringify({project:v.snapshot.project,revision:v.revision.id,snapshot_hash:v.revision.snapshot_hash,files:[{path:'abandoned.bin',bytes:2}]})});if(start.status!==200)throw new Error('Synthetic upload did not start');const {upload}=await start.json();ids.push(upload);
+      const file=await fetch(`/api/return/file?upload=${upload}&path=abandoned.bin`,{method:'POST',headers:{'X-WB-CSRF':headers['X-WB-CSRF']},body:'ok'});if(file.status!==200)throw new Error('Synthetic upload file failed');
+    }return ids;
+  });
+  const uploadRoot=resolve(runtime,'.runtime/return-uploads'),session=readdirSync(uploadRoot)[0];
+  for(const id of ids)expect(readFileSync(resolve(uploadRoot,session,id,'abandoned.bin'),'utf8')).toBe('ok');
+  localEdit('w2',{note:'supersedes abandoned upload basis'});const before=nativeView();
+  const next=await page.evaluate(async()=>{const headers={'Content-Type':'application/json','X-WB-CSRF':sessionStorage.getItem('wb-csrf')!};const v=await(await fetch('/api/view')).json();const response=await fetch('/api/return/start',{method:'POST',headers,body:JSON.stringify({project:v.snapshot.project,revision:v.revision.id,snapshot_hash:v.revision.snapshot_hash,files:[{path:'fresh.bin',bytes:2}]})});return {status:response.status,data:await response.json()}});
+  expect(next.status).toBe(200);for(const id of ids)expect(existsSync(resolve(uploadRoot,session,id))).toBe(false);expect(nativeView().revision).toEqual(before.revision);
+  await page.evaluate(async id=>{const response=await fetch('/api/return/cancel',{method:'POST',headers:{'Content-Type':'application/json','X-WB-CSRF':sessionStorage.getItem('wb-csrf')!},body:JSON.stringify({upload:id})});if(response.status!==200)throw new Error('Synthetic cleanup failed')},next.data.upload);
+});
+
 test('late return preview stays in its proposal and structural reload protects it',async({page})=>{
   await page.goto('/#session='+code);await page.getByRole('button',{name:'Return copy',exact:true}).click();await page.locator('#return-directory').setInputFiles(returned);let release!:()=>void;const held=new Promise<void>(done=>release=done);let arrived!:()=>void;const fetched=new Promise<void>(done=>arrived=done);await page.route('**/api/return/preview',async route=>{const response=await route.fetch();arrived();await held;await route.fulfill({response})});await page.locator('#preview-return').click();await fetched;await page.getByRole('button',{name:'XML',exact:true}).click();release();await expect(page.locator('#xml-preview')).toContainText('raw é😀');await expect(page.locator('#inspector-content')).not.toContainText('Return an edited copy');await page.unroute('**/api/return/preview');await page.getByRole('button',{name:'Split / merge',exact:true}).click();await page.locator('#discard-structural-drafts').click();await expect(page.locator('#message')).toContainText('Save or discard');await page.getByRole('button',{name:'Return copy',exact:true}).click();await expect(page.locator('#return-result')).toContainText('Exported R1');
 });

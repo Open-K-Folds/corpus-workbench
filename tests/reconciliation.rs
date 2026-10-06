@@ -138,6 +138,76 @@ fn assert_blocked(case: &Case, request: &Request) {
 }
 
 #[test]
+fn return_review_xml_id_survives_preview_commit_and_reimport() {
+    let original = XML.replace("id='w-1'", "xml:id='w-1'");
+    let mut c = Case::new(&original);
+    c.replace("nform='base'", "nform='returned'");
+    let request = c.request();
+    let preview = c.preview(&request);
+    assert_eq!(preview["preview"]["ready"], true, "{preview}");
+    let revision = c
+        .apply("xml-id-return", &request, &preview, Fault::None)
+        .unwrap();
+    assert_eq!(
+        c.text(),
+        original.replace("nform='base'", "nform='returned'")
+    );
+    let export = c._tmp.path().join("xml-id-export");
+    c.store.export("p", revision.id, &export).unwrap();
+    let mut reopened = Store::open(&c._tmp.path().join("xml-id-reimport")).unwrap();
+    reopened.import(&export, "copy").unwrap();
+    let view = reopened.view("copy", None).unwrap();
+    assert_eq!(view.documents[0].tokens[0].id, "w-1");
+    assert_eq!(
+        view.documents[0].tokens[0].corrected.as_deref(),
+        Some("returned")
+    );
+    assert_eq!(
+        reopened.objects.text(&view.snapshot, DOC).unwrap(),
+        c.text()
+    );
+}
+
+#[test]
+fn return_review_deleted_normalization_has_no_native_status() {
+    for status in ["resolved", "unresolved"] {
+        let original = XML.replace("nform='base'", &format!("nform='base' wb_normalized='normalized' wb_normalized_status='{status}' x:wb_normalized_status='keep'"));
+        let mut c = Case::new(&original);
+        c.replace("wb_normalized='normalized'", "");
+        let request = c.request();
+        let preview = c.preview(&request);
+        assert_eq!(preview["preview"]["ready"], true, "{preview}");
+        let revision = c
+            .apply("remove-normalization", &request, &preview, Fault::None)
+            .unwrap();
+        let view = c.store.view("p", None).unwrap();
+        let token = &view.documents[0].tokens[0];
+        assert_eq!(token.normalized, None);
+        assert!(
+            !token.attrs.contains_key("wb_normalized_status"),
+            "{token:?}"
+        );
+        assert_eq!(
+            token
+                .attrs
+                .get("{urn:opaque}wb_normalized_status")
+                .map(String::as_str),
+            Some("keep")
+        );
+        assert_eq!(token.corrected.as_deref(), Some("base"));
+        let export = c._tmp.path().join("normalization-export");
+        c.store.export("p", revision.id, &export).unwrap();
+        let mut reopened = Store::open(&c._tmp.path().join("normalization-reimport")).unwrap();
+        reopened.import(&export, "copy").unwrap();
+        let copy = reopened.view("copy", None).unwrap();
+        assert_eq!(copy.documents[0].tokens[0].normalized, None);
+        assert!(!copy.documents[0].tokens[0]
+            .attrs
+            .contains_key("wb_normalized_status"));
+    }
+}
+
+#[test]
 fn serializer_trivia_correction_backups_commit_and_complete_reimport() {
     let mut c = Case::new(XML);
     let returned = XML
