@@ -47,13 +47,15 @@ basis, so empty/new results cannot replay the old hit through retained controls.
 Actual remaining recording space is measured after wrapped controls/status and
 pane resizing. Timeline lanes keep native nested scrolling in that space. Mobile
 and transient states reserve enough room for their controls and explanations.
+The collapsed pane keeps its labelled expansion action visible; mouse and touch
+expansion preserve the active source, playing state and advancing playhead.
 
 ## Qualification
 
 The implementation commit `1b7f929` passed the complete 75-scenario installed
 Chrome/Playwright suite, with no failed, skipped or flaky results. Eight focused
-contracts were added. A final timeline-space repair passed the ten relevant
-control/resize/playhead contracts. TypeScript/Vite build and pinned Rust 1.90
+contracts were added. The final timeline-space and collapsed-expansion repairs
+passed the ten relevant control/resize/playhead contracts. TypeScript/Vite build and pinned Rust 1.90
 formatting, Clippy with warnings denied, native tests and native build passed.
 The service test verifies local WOFF2/text MIME types without relaxing API auth.
 
@@ -69,7 +71,9 @@ console error/warning or horizontal overflow was observed in visual QA.
 
 Independent read-only review found prior-search audio reuse, clipped collapsed
 status and clipped expanded timelines under transient status. Each was repaired
-and independently reproduced as passing at widths 320–1440. No outstanding
+and independently reproduced as passing at widths 320-1440. The final collapsed
+expansion repair also passed independent mouse/touch and transient-state checks.
+No outstanding
 P1/P2 finding remained in that scope. See
 [review record](../evidence/controls-review.json). Hosted results belong to the
 exact PR head; terminal readback is retained with the local handoff rather than

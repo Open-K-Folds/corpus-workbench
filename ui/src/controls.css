@@ -97,9 +97,11 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 .audio .actions{display:inline-flex;vertical-align:middle;gap:12px;min-height:32px;margin:5px 0 0 14px}
 .audio .actions button{font-size:12px;min-height:30px}
 #recording-pane[data-detail=minimal] .media-player{margin-top:0}
+#recording-pane[data-detail=minimal]{min-height:104px}
+#recording-pane[data-detail=minimal] .recording-heading{display:flex}
 #recording-pane[data-detail=minimal] #timeline-toggle{display:inline-flex}
 #recording-pane:has(.player-status:not(:empty)){min-height:154px}
-#recording-pane[data-detail=minimal]:has(.player-status:not(:empty)){min-height:94px}
+#recording-pane[data-detail=minimal]:has(.player-status:not(:empty)){min-height:124px}
 #recording-layers{max-height:calc(var(--recording-height) - 174px)}
 .search-panel .media-player{display:flex;width:100%;max-width:100%;padding:10px 0;border-top:1px solid var(--border)}
 .search-panel .player-volume{margin-left:0}.search-panel .player-seek{min-width:100px}
@@ -124,8 +126,8 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   .reading-toolbar input{width:23ch}.reading-toolbar select{min-width:15ch}
   .inspector nav{position:static}.workspace[data-focus=properties] .inspector{padding-top:10px}
   #recording-pane.audio{padding-left:12px;padding-right:12px;min-height:130px}
-  #recording-pane[data-detail=minimal]{min-height:104px}
-  #recording-pane[data-detail=minimal]:has(.player-status:not(:empty)){min-height:152px}
+  #recording-pane[data-detail=minimal]{min-height:130px}
+  #recording-pane[data-detail=minimal]:has(.player-status:not(:empty)){min-height:176px}
   .recording-heading span{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .recording-heading strong{flex:none}.recording-heading #timeline-toggle{flex:none}
   .media-player{display:flex;width:100%;gap:4px 8px;margin-top:1px}.media-player .player-seek{flex:1 1 90px;max-width:none}

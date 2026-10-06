@@ -118,4 +118,5 @@ test('collapsed recording pane keeps loading, error and ended explanations fully
   await page.unroute('**/api/media?**');let release!:()=>void;const held=new Promise<void>(resolve=>release=resolve);await page.route('**/api/media?**',async route=>{await held;await route.continue()});await page.reload();await expect(page.locator('#audio-status')).toContainText('Loading recording');
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
   release();await expect(page.locator('#audio-play')).toBeEnabled();
+  await page.getByRole('button',{name:'Expand recording panel',exact:true}).click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','compact');await expect(page.getByRole('button',{name:'Show recording timeline',exact:true})).toBeVisible();
 });
