@@ -21,5 +21,10 @@ names, versions, hashes and declared licenses are in evidence/dependency-invento
 Binary preview packages must include retained dependency license files and the
 exact corresponding source commit, build instructions, platform and checksums.
 
+Google Material Symbols Outlined: Copyright Google LLC, Apache License 2.0.
+The UI bundles a local compact-control font subset. Axis choices, retrieval
+provenance, checksum and the full license are retained under
+ui/public/third-party/material-symbols/ and copied to built UI distributions.
+
 Software licenses do not grant corpus, recording, transcript or creator rights.
 Private data and private evaluation copies are excluded from public distribution.

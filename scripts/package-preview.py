@@ -49,13 +49,20 @@ for name in tracked:
         shutil.copy2(source, destination)
 ui = root / 'ui/dist'
 ui_files = [p for p in ui.rglob('*') if p.is_file()]
-if (len(ui_files) != 3 or not (ui / 'index.html').is_file() or
+if (len(ui_files) != 7 or not (ui / 'index.html').is_file() or
         sum(p.suffix == '.js' for p in ui_files) != 1 or
-        sum(p.suffix == '.css' for p in ui_files) != 1):
-    raise SystemExit('Expected exactly the index, one JS bundle and one CSS bundle.')
+        sum(p.suffix == '.css' for p in ui_files) != 1 or
+        sum(p.suffix == '.woff2' for p in ui_files) != 1):
+    raise SystemExit('Expected index, JS/CSS bundles, one local symbol subset and three retained symbol notices.')
+symbol_notices = {'third-party/material-symbols/LICENSE.txt',
+                  'third-party/material-symbols/README.md',
+                  'third-party/material-symbols/source-css.txt'}
+if not all((ui / name).is_file() for name in symbol_notices):
+    raise SystemExit('Material Symbols license/provenance notices are missing.')
 for file in ui_files:
     name = file.relative_to(ui).as_posix()
-    if file.is_symlink() or (name != 'index.html' and not re.fullmatch(r'assets/index-[A-Za-z0-9_-]+\.(js|css)', name)):
+    if file.is_symlink() or (name != 'index.html' and name not in symbol_notices and
+                            not re.fullmatch(r'assets/(index-[A-Za-z0-9_-]+\.(js|css)|material-symbols-subset-[A-Za-z0-9_-]+\.woff2)', name)):
         raise SystemExit('Unexpected compiled UI output; perform a fresh reviewed build.')
     destination = stage / 'ui/dist' / name
     destination.parent.mkdir(parents=True, exist_ok=True)

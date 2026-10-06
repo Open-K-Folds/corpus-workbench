@@ -1,0 +1,22 @@
+{
+  "scope": "Independent read-only UI/control/player review against 296b462",
+  "implementation_commit": "1b7f9291bf4998e3b4cb7b6fb346f60791eb98a9",
+  "follow_up": "Recording lane ResizeObserver fit, expanded transient-state minimums, contrast preference scrollbar fallback, and visible collapsed expansion",
+  "method": "Source/diff inspection plus isolated installed Chrome/Playwright on a synthetic preview; no repository or corpus edits by reviewer",
+  "repairs": [
+    "Clear prior search audio source, stopAt and basis when editing or running a new query",
+    "Reserve visible space for collapsed loading/error/end explanations",
+    "Fit expanded timeline lanes to the actual remaining recording space after controls and status wrap",
+    "Keep the collapsed recording heading and labelled expansion action visible with room for transient status"
+  ],
+  "independent_rechecks": {
+    "prior_hit_after_empty_search": "source null, readyState 0, paused true, player hidden, basis empty",
+    "collapsed_status_widths": [1440, 1101, 820, 700, 390, 320],
+    "expanded_error_widths": [1440, 1101, 820, 700, 390, 320],
+    "collapsed_expand_mouse_and_touch": "visible labelled action; minimal to compact; same source, playing state and advancing playhead",
+    "collapsed_loaded_status_and_expanded_timeline_widths": [1440, 1101, 820, 700, 390, 320],
+    "page_errors": 0
+  },
+  "outstanding_p1_p2_findings": [],
+  "limits": "The author separately owns final committed-head checks; this review is bounded and not a broad security or screen-reader certification."
+}

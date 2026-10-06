@@ -50,6 +50,8 @@ fn readiness_is_minimal_read_only_and_fails_on_committed_object_corruption() {
         "<!doctype html><title>synthetic</title>",
     )
     .unwrap();
+    fs::write(ui.join("symbols.woff2"), "wOF2-synthetic").unwrap();
+    fs::write(ui.join("LICENSE.txt"), "synthetic notice").unwrap();
     let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
     let port = listener.local_addr().unwrap().port();
     drop(listener);
@@ -80,6 +82,11 @@ fn readiness_is_minimal_read_only_and_fails_on_committed_object_corruption() {
     );
     assert!(request(port, "POST", "/health/ready").starts_with("HTTP/1.1 405"));
     assert!(request(port, "GET", "/api/view").starts_with("HTTP/1.1 403"));
+    let font = request(port, "GET", "/symbols.woff2");
+    assert!(font.starts_with("HTTP/1.1 200"));
+    assert!(font.contains("Content-Type: font/woff2"));
+    assert!(font.ends_with("wOF2-synthetic"));
+    assert!(request(port, "GET", "/LICENSE.txt").contains("Content-Type: text/plain"));
     assert!(Command::new(env!("CARGO_BIN_EXE_corpus-workbench"))
         .args(["health", "--port", &port.to_string()])
         .output()

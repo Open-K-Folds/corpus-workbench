@@ -1,5 +1,7 @@
 import type {Document,View} from './contracts';
 import {esc} from './dom';
+import {icon} from './icons';
+import {AudioPlayer} from './player';
 
 function preference(key:string,fallback:number,min:number,max:number){try{const n=Number(localStorage.getItem(key));return n>=min&&n<=max?n:fallback}catch{return fallback}}
 export function resizePane(handle:HTMLElement,key:string,min:number,max:number,initial:number,axis:'x'|'y',direction:number,apply:(size:number)=>void){
@@ -16,11 +18,14 @@ export function resizePane(handle:HTMLElement,key:string,min:number,max:number,i
 export class RecordingPanel {
   private canvas:HTMLCanvasElement;private lanes:HTMLElement;private summary:HTMLElement;private peaks:number[]=[];private mediaHash='';private epoch=0;private height=100;private view:View|null=null;private doc:Document|null=null;
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
-    panel.insertAdjacentHTML('afterbegin','<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span aria-hidden="true">⌃</span></div><div class="recording-heading"><strong>Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">⌃</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>');
+    panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);
+    const player=new AudioPlayer(audio);
     this.canvas=panel.querySelector('canvas')!;this.lanes=panel.querySelector('#recording-layers')!;this.summary=panel.querySelector('#recording-summary')!;panel.append(this.lanes);
-    const resize=resizePane(panel.querySelector('#timeline-resizer')!,'wb-recording-height',70,440,130,'y',-1,size=>{this.height=size;panel.style.height=size+'px';document.documentElement.style.setProperty('--recording-height',size+'px');panel.dataset.detail=size<110?'minimal':size<220?'compact':'expanded';this.draw();this.renderLanes()});
+    const resize=resizePane(panel.querySelector('#timeline-resizer')!,'wb-recording-height',70,440,130,'y',-1,size=>{this.height=size;panel.style.height=size+'px';document.documentElement.style.setProperty('--recording-height',size+'px');panel.dataset.detail=size<110?'minimal':size<220?'compact':'expanded';const toggle=panel.querySelector<HTMLButtonElement>('#timeline-toggle')!;toggle.innerHTML=icon(size<220?'expand_less':'expand_more');toggle.setAttribute('aria-label',size<110?'Expand recording panel':size<220?'Show recording timeline':'Collapse recording timeline');toggle.title=toggle.getAttribute('aria-label')!;this.draw();this.renderLanes()});
     panel.querySelector<HTMLButtonElement>('#timeline-toggle')!.onclick=()=>resize.set(this.height<110?180:this.height<220?360:70);
     audio.addEventListener('timeupdate',()=>this.draw());audio.addEventListener('loadedmetadata',()=>{this.draw();this.renderLanes()});new ResizeObserver(()=>this.draw()).observe(this.canvas);
+    const fitLanes=()=>{const bounds=panel.getBoundingClientRect();document.documentElement.style.setProperty('--recording-height',bounds.height+'px');const padding=parseFloat(getComputedStyle(panel).paddingBottom)||0;this.lanes.style.maxHeight=Math.max(0,Math.floor(bounds.bottom-this.lanes.getBoundingClientRect().top-padding))+'px'};
+    const layout=new ResizeObserver(fitLanes);for(const region of [panel,player.element,this.canvas,panel.querySelector<HTMLElement>('.actions')!])layout.observe(region);
     this.canvas.addEventListener('pointerdown',e=>{if(Number.isFinite(audio.duration)&&audio.duration>0){const r=this.canvas.getBoundingClientRect();audio.currentTime=Math.max(0,Math.min(audio.duration,(e.clientX-r.left)/r.width*audio.duration))}});
   }
   async update(view:View,doc:Document,media:string|undefined){
