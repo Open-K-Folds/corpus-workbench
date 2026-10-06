@@ -2,6 +2,7 @@ pub mod handoff;
 pub mod inventory;
 pub mod model;
 pub mod package;
+pub mod reading;
 pub mod reconcile;
 pub mod retokenize;
 pub mod search;

@@ -491,6 +491,33 @@ fn serve(
                         query(&request, "from").context("from")?.parse()?,
                         query(&request, "to").context("to")?.parse()?,
                     ),
+                    (Method::Get, "/api/reading") => {
+                        let path = query(&request, "path").context("document path")?;
+                        let revision: i64 = query(&request, "revision")
+                            .context("exact revision")?
+                            .parse()?;
+                        let rev = store.revision(project, revision)?;
+                        let view = store.view(project, Some(revision))?;
+                        ensure!(
+                            view.documents.iter().any(|d| d.path == path),
+                            "document not in exact snapshot"
+                        );
+                        let artifact = view
+                            .snapshot
+                            .files
+                            .get(&path)
+                            .context("source not in exact snapshot")?;
+                        let xml = store.objects.text(&view.snapshot, &path)?;
+                        let blocks = corpus_workbench::reading::project(&xml)?;
+                        let media_base_unsupported =
+                            roxmltree::Document::parse(&xml)?.descendants().any(|n| {
+                                n.attribute(("http://www.w3.org/XML/1998/namespace", "base"))
+                                    .is_some()
+                            });
+                        Ok(
+                            json!({"schema":1,"project":project,"revision":revision,"snapshot_hash":rev.snapshot_hash,"document":path,"artifact_hash":artifact.sha256,"media_base_unsupported":media_base_unsupported,"blocks":blocks}),
+                        )
+                    }
                     (Method::Get, "/api/xml") => {
                         let path = query(&request, "path").context("XML path")?;
                         let revision = query(&request, "revision")

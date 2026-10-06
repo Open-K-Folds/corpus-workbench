@@ -1,5 +1,8 @@
 # Migration milestones
 
+The [transcript editor milestone](docs/TRANSCRIPT-EDITOR-MILESTONE.md) records the integrated authoring slice, including native faithful layout, correction drafts
+and the remaining publication/qualification gates.
+
 The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 backlog items and 36 source references. This preview completes a first usable slice, not the whole migration.
 
 - [x] Complete-package lossless import, immutable source objects and revision-safe native SQLite authority.

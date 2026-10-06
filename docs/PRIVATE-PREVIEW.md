@@ -7,16 +7,16 @@ Windows filesystem paths do not point to this service.
 
 The service creates a protected `.runtime/Open-Workbench.html` containing its
 temporary session capability. From the checkout, the following user-invoked
-helper checks loopback readiness and opens that file:
+helper checks loopback readiness and opens the authenticated editor directly:
 
 ```powershell
-powershell -NoProfile -File scripts/open-workbench.ps1
+pwsh -NoProfile -File scripts/open-workbench.ps1
 ```
 
 For a preview running from a separate private directory:
 
 ```powershell
-powershell -NoProfile -File scripts/open-workbench.ps1 -Launcher "C:\PrivatePreview\.runtime\Open-Workbench.html"
+pwsh -NoProfile -File scripts/open-workbench.ps1 -Launcher "C:\PrivatePreview\.runtime\Open-Workbench.html"
 ```
 
 Add `-CheckOnly` to verify readiness without opening a browser. The helper prints

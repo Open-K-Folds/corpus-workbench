@@ -12,4 +12,5 @@ $Address = [Uri]$Link.Groups[1].Value
 $Ready = Invoke-WebRequest -UseBasicParsing -Uri ($Address.GetLeftPart([UriPartial]::Authority) + '/health/ready') -TimeoutSec 5
 if ($Ready.StatusCode -ne 200) { throw 'The local preview is not ready; this launcher does not restart services.' }
 if ($CheckOnly) { Write-Output 'Protected local preview is ready. Session code was not displayed.'; exit 0 }
-Start-Process -FilePath $File.ProviderPath
+# Use the same protected fragment capability directly; do not print it or put it in a query.
+Start-Process -FilePath $Address.AbsoluteUri
