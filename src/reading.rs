@@ -32,11 +32,31 @@ fn source_id(node: Node<'_, '_>) -> Option<String> {
 pub fn project(xml: &str) -> Result<Vec<Block>> {
     let doc = Document::parse(xml)?;
     let root = doc.root_element();
+    // Full TEI documents project only their text regions; legacy fragment roots
+    // retain their own content and unknown wrappers.
+    let transcripts: Vec<_> = if root.has_tag_name("TEI") || root.has_tag_name("teiCorpus") {
+        root.descendants()
+            .filter(|n| {
+                n.has_tag_name("text")
+                    && n.ancestors()
+                        .skip(1)
+                        .take_while(|n| n.is_element())
+                        .all(|n| n.has_tag_name("TEI") || n.has_tag_name("teiCorpus"))
+            })
+            .collect()
+    } else {
+        vec![root]
+    };
     let mut blocks: Vec<Block> = Vec::new();
     let mut owner = None;
     let mut seen = std::collections::BTreeSet::new();
-    for node in root.descendants() {
-        if node.ancestors().skip(1).any(|n| n.has_tag_name("tok")) {
+    for (transcript, node) in transcripts
+        .iter()
+        .flat_map(|root| root.descendants().map(move |n| (*root, n)))
+    {
+        if node.ancestors().any(|n| n.has_tag_name("teiHeader"))
+            || node.ancestors().skip(1).any(|n| n.has_tag_name("tok"))
+        {
             continue;
         }
         let run = if node.has_tag_name("tok") {
@@ -54,9 +74,6 @@ pub fn project(xml: &str) -> Result<Vec<Block>> {
                     }),
             }
         } else if node.is_text() {
-            if node.ancestors().any(|n| n.has_tag_name("teiHeader")) {
-                continue;
-            }
             Run {
                 token: None,
                 text: node.text().unwrap_or_default().to_owned(),
@@ -67,7 +84,7 @@ pub fn project(xml: &str) -> Result<Vec<Block>> {
         let container = node
             .ancestors()
             .find(|n| n.has_tag_name("u") || n.has_tag_name("p"))
-            .unwrap_or(root);
+            .unwrap_or(transcript);
         if owner != Some(container.id()) {
             blocks.push(Block {
                 source_id: source_id(container),
@@ -94,7 +111,7 @@ pub fn project(xml: &str) -> Result<Vec<Block>> {
         }
         block.runs.push(run);
     }
-    // XML indentation between structural blocks is retained in the projection as well.
+    // XML indentation within transcript regions is retained as well.
     Ok(blocks)
 }
 
@@ -166,5 +183,50 @@ mod tests {
         assert_eq!(blocks[0].sections[0].id, "chapter-a");
         assert_eq!(blocks[0].sections[0].kind, "chapter");
         assert_eq!(blocks[0].sections[0].number.as_deref(), Some("3"));
+    }
+
+    #[test]
+    fn default_and_prefixed_namespaces_keep_token_and_section_identity() {
+        for xml in [
+            "<TEI xmlns='http://www.tei-c.org/ns/1.0'><teiHeader><title>Hidden</title></teiHeader><text><div xml:id='section' type='chapter' n='2'><u xml:id='utterance'><tok xml:id='word'><hi>A</hi>B</tok>!</u></div></text></TEI>",
+            "<t:TEI xmlns:t='http://www.tei-c.org/ns/1.0'><t:teiHeader><t:title>Hidden</t:title></t:teiHeader><t:text><t:div xml:id='section' type='chapter' n='2'><t:u xml:id='utterance'><t:tok xml:id='word'><t:hi>A</t:hi>B</t:tok>!</t:u></t:div></t:text></t:TEI>",
+        ] {
+            let blocks = project(xml).unwrap();
+            assert_eq!(text(xml), "AB!");
+            assert_eq!(blocks.len(), 1);
+            assert_eq!(blocks[0].source_id.as_deref(), Some("utterance"));
+            assert_eq!(blocks[0].anchor_token.as_deref(), Some("word"));
+            assert_eq!(blocks[0].runs[0].token.as_deref(), Some("word"));
+            assert_eq!(blocks[0].sections[0].id, "section");
+            assert_eq!(blocks[0].sections[0].number.as_deref(), Some("2"));
+        }
+    }
+
+    #[test]
+    fn tei_metadata_outside_text_never_enters_the_transcript() {
+        let xml = "<TEI><teiHeader><title>Header</title></teiHeader><facsimile><desc>Scan note</desc><tok id='outside'>Outside</tok></facsimile><text><body><tok id='a'>A</tok>!</body></text><standOff><note>Annotation note</note></standOff><text><body><tok id='b'>B</tok>?</body></text></TEI>";
+        assert_eq!(text(xml), "A!B?");
+        assert_eq!(
+            text("<TEI><standOff><note>No transcript</note></standOff></TEI>"),
+            ""
+        );
+        assert_eq!(
+            text("<body><p xml:id='p'><tok id='a'>Fragment</tok>.</p></body>"),
+            "Fragment."
+        );
+    }
+
+    #[test]
+    fn nested_corpora_keep_all_text_and_skip_metadata_subtrees() {
+        let xml = "<teiCorpus xmlns='http://www.tei-c.org/ns/1.0'><teiHeader><title>Corpus header</title></teiHeader><TEI><text><tok id='a'>A</tok>!</text></TEI><teiCorpus><teiHeader><title>Nested header</title></teiHeader><teiCorpus><TEI><facsimile><desc>Scan</desc></facsimile><text><p xml:id='paragraph'><tok id='b'>B</tok>?</p></text></TEI></teiCorpus></teiCorpus><text><tok id='c'>C</tok>.</text><facsimile><TEI><text><tok id='fake'>Metadata</tok></text></TEI></facsimile></teiCorpus>";
+        let blocks = project(xml).unwrap();
+        assert_eq!(text(xml), "A!B?C.");
+        let ids: Vec<_> = blocks
+            .iter()
+            .flat_map(|b| &b.runs)
+            .filter_map(|r| r.token.as_deref())
+            .collect();
+        assert_eq!(ids, ["a", "b", "c"]);
+        assert_eq!(blocks[1].source_id.as_deref(), Some("paragraph"));
     }
 }

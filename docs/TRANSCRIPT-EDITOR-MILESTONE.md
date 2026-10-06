@@ -29,6 +29,15 @@ actual stable section metadata. It does not reserialize XML, invent canonical
 IDs, duplicate the revision ledger or change the frozen Semantica/export DTO.
 Settings, schemas, sidecars, media and unknown content remain package-owned.
 
+Full TEI documents project only their direct `text` regions, including multiple
+bodies/text regions; nested `teiCorpus` containers retain their text regions
+and those of contained TEI documents in source order.
+Headers, facsimile descriptions and stand-off metadata outside those regions do
+not enter displayed/copied transcript text. Legacy fragment roots still retain
+their separators and unknown wrappers. Default and prefixed namespaces retain
+token, utterance and section identity; the pinned XML library's string-name
+matching already implements local-name semantics.
+
 Selections use Unicode code-point coordinates and refuse split grapheme/surrogate
 boundaries. Backward ranges remain backward. Native input drafts and muted old
 text ghosts stay noncanonical until explicit Accept succeeds. IME candidate Enter
