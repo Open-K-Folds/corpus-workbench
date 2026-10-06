@@ -14,7 +14,7 @@ The visual target extends the existing teal/slate identity with a compact projec
 
 Token drafts now remain in memory across tokens, documents and inspector tabs, alongside existing annotation/structural drafts. Unsaved state survives navigation; another dirty form blocks a competing commit, review or reload. Reset explicitly removes the intended lexical delta. Beforeunload warns about dirty forms. Successful saves still create native revisions; the browser does not become a second evidence ledger.
 
-Conflict reapply binds the captured form values before controls are disabled. Editing or resetting that form invalidates the action; the current draft remains intact and requires fresh submission. Reapply can then use a freshly fetched native head while preserving a competing writer's unrelated edits. Unsaved browser memory is not durable crash storage and is never persisted as transcript text in localStorage.
+Conflict reapply binds the captured form values before controls are disabled. Editing or resetting that form invalidates the action; the current draft remains intact and requires fresh submission. Reapply can then use a freshly fetched native head while preserving a competing writer's unrelated edits. These properties forms remain in memory. Inline transcript corrections now have [bounded local recovery](DRAFT-RECOVERY-MILESTONE.md); local drafts remain distinct from saved native revisions.
 
 Source/XML reads support an explicit project-scoped revision. Responses include the artifact hash and revision, and the source inspector verifies both against its captured snapshot. Late source/history/reader responses cannot replace a newer document inspector; current errors remain visible and stale errors are discarded.
 

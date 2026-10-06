@@ -2,6 +2,9 @@
 
 ## 0.2.0-dev.11 - Integrated transcript authoring
 
+- Add bounded same-browser inline correction recovery with explicit
+  recover/discard, exact authority/user/revision binding and durable original
+  command reconciliation; preserve stale drafts and report storage failures.
 - Add faithful native lexical reading with exact revision/artifact binding,
   stable source/section identities and preserved mixed-content separators.
 - Add native selection, ghost/replacement drafts, explicit Undo/Accept,

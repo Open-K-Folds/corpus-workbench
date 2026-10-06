@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "reviewed_head": "a545d423b9c3f4755d83111ff0a936b1afa4dd4c",
+  "base": "82ade69d18e283a32d03f1cd7fcb97805c59cca4",
+  "mode": "independent read-only defect review",
+  "result": "No findings.",
+  "findings": [],
+  "repairs_verified": [
+    "Undo finalization blocks Accept, Compare and Reapply while storage is held",
+    "Conditional stale/validation rejection updates preserve newer tab records",
+    "Atomic journal replacement recovers at the 20-record cap",
+    "Definite XML validation rejection preserves an editable proposal after response loss"
+  ],
+  "reviewer_dynamic_checks": [
+    "Expected-record comparison preserves newer tab data",
+    "Atomic recovery replacement succeeds with exactly 20 records"
+  ],
+  "author_local_qualification": {
+    "host": "KhanCreate Windows x86-64",
+    "browser_scenarios": 67,
+    "browser_passed": 67,
+    "browser_failed": 0,
+    "browser_skipped": 0,
+    "new_recovery_scenarios": 19,
+    "native": "format, clippy with warnings denied, full tests and build passed",
+    "typescript": "check and build passed"
+  },
+  "limitations": [
+    "Browser-local storage can be unavailable, cleared or evicted",
+    "Physical power-loss durability is unverified",
+    "Hosted exact-head CI is reported separately from independent code review"
+  ]
+}
