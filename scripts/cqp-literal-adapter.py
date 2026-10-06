@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 import subprocess
 import tempfile
+import threading
+import time
 
 MAPPING = "literal-utf8-hex/1"
 
@@ -24,11 +26,58 @@ def sha(path):
 
 
 def run(argv, timeout=30, env=None):
-    result = subprocess.run([str(a) for a in argv], capture_output=True, timeout=timeout, env=env)
+    argv = [str(a) for a in argv]
+    process = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0, env=env)
+    output = [bytearray(), bytearray()]
+    lock = threading.Lock()
+    exceeded = threading.Event()
+    stopping = threading.Event()
+    errors = []
+    deadline = time.monotonic() + timeout
+
+    def capture(stream, index):
+        try:
+            while not stopping.is_set():
+                chunk = stream.read(65536)
+                if not chunk:
+                    break
+                with lock:
+                    if sum(map(len, output)) + len(chunk) > 8 * 1024 * 1024:
+                        exceeded.set()
+                    else:
+                        output[index].extend(chunk)
+                if exceeded.is_set():
+                    if process.poll() is None:
+                        process.kill()
+                    break
+        except OSError as error:
+            if not stopping.is_set() and not exceeded.is_set():
+                errors.append(error)
+
+    threads = [threading.Thread(target=capture, args=(stream, index), daemon=True)
+               for index, stream in enumerate((process.stdout, process.stderr))]
+    try:
+        for thread in threads:
+            thread.start()
+        process.wait(timeout=max(0, deadline - time.monotonic()))
+        for thread in threads:
+            thread.join(timeout=max(0, deadline - time.monotonic()))
+        if any(thread.is_alive() for thread in threads):
+            raise subprocess.TimeoutExpired(argv, timeout)
+        if exceeded.is_set():
+            raise RuntimeError("adapter output size limit")
+        if errors:
+            raise errors[0]
+    finally:
+        stopping.set()
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        process.stdout.close()
+        process.stderr.close()
+    result = subprocess.CompletedProcess(argv, process.returncode, bytes(output[0]), bytes(output[1]))
     if result.returncode:
         raise RuntimeError(f"{Path(argv[0]).name} failed: " + result.stderr.decode("utf-8", errors="replace")[:2000])
-    if len(result.stdout) + len(result.stderr) > 8 * 1024 * 1024:
-        raise RuntimeError("adapter output size limit")
     return result
 
 

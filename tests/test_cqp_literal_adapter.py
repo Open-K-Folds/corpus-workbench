@@ -254,5 +254,33 @@ class AdapterBoundary(unittest.TestCase):
         self.assertIn('original="v223b20657869743b"', self.external_scripts[0])
 
 
+class AdapterProcessBounds(unittest.TestCase):
+    def setUp(self):
+        specification = importlib.util.spec_from_file_location("bounded_literal_adapter", ROOT / "scripts/cqp-literal-adapter.py")
+        self.adapter = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(self.adapter)
+
+    def test_running_child_is_stopped_at_combined_output_limit(self):
+        for stdout, stderr in [(9, 0), (0, 9), (5, 4)]:
+            with self.subTest(stdout=stdout, stderr=stderr):
+                script = (
+                    "import os,time; chunk=b'x'*65536; "
+                    f"[os.write(1,chunk) for _ in range({stdout}*16)]; "
+                    f"[os.write(2,chunk) for _ in range({stderr}*16)]; time.sleep(5)"
+                )
+                with self.assertRaisesRegex(RuntimeError, "adapter output size limit"):
+                    self.adapter.run([sys.executable, "-c", script], timeout=2)
+
+    def test_small_output_and_failure_diagnostics_are_preserved(self):
+        result = self.adapter.run([sys.executable, "-c", "import os;os.write(1,b'ok');os.write(2,b'note')"])
+        self.assertEqual((result.stdout, result.stderr, result.returncode), (b"ok", b"note", 0))
+        with self.assertRaisesRegex(RuntimeError, "failed: deliberate"):
+            self.adapter.run([sys.executable, "-c", "import sys;sys.stderr.write('deliberate');sys.exit(3)"])
+
+    def test_timeout_remains_bounded(self):
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.adapter.run([sys.executable, "-c", "import time;time.sleep(5)"], timeout=0.1)
+
+
 if __name__ == "__main__":
     unittest.main()
