@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased - Bounded annotation-layer concordance
+
+- Combine exact token text and token language with exact existing span label or
+  variety, requiring one whole-token span to explicitly anchor the entire match.
+- Retain qualified sidecar/anchor/hash evidence in KWIC disclosure, historical
+  inspection and page exports, with unchanged observed-audio qualification.
+- Bound joins and repeated evidence; reject ambiguous sidecar/schema/reference
+  scope. Keep span constraints native-only in the optional literal CQP adapter.
+- Add compact grouped search controls and targeted native/browser regressions.
+
 ## 0.2.0-dev.11 - Integrated transcript authoring
 
 - Add bounded same-browser inline correction recovery with explicit

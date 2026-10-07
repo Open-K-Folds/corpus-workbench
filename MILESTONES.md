@@ -26,6 +26,7 @@ The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 
 - [x] Hosted native amd64/ARM64 contracts and dev.8 multi-architecture manifest publication; authenticated pulls accepted.
 - [x] Bounded edited-package return, reviewed conflict choices, frozen XML/backup lineage, native TEITOK Save/reopen and complete reimport; [scope and evidence](docs/EDITED-PACKAGE-MILESTONE.md).
 - [x] Bounded revision-bound corpus concordance, observed audio, historical inspection, draft-safe navigation and optional derived literal CWB/CQP qualification; [scope and evidence](docs/CORPUS-SEARCH-MILESTONE.md).
+- [x] First bounded annotation-layer join: exact text/language plus one existing whole-token span label or variety, qualified matched evidence and historical exports; [scope and limits](docs/CORPUS-SEARCH-MILESTONE.md#bounded-span-constraint-increment).
 - [ ] Physical Pi/resource/power-loss qualification and production risk/operations acceptance.
 - [ ] Full TEITOK/CWB/CQP parity and arbitrary-schema/structural editing; external changes beyond the bounded token return grammar.
 - [ ] Native durable job/outbox/worker fencing, shared assertions, ontology/model recipes and permanent rights-withdrawal lifecycle.

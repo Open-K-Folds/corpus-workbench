@@ -105,6 +105,16 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 #recording-layers{max-height:calc(var(--recording-height) - 174px)}
 .search-panel .media-player{display:flex;width:100%;max-width:100%;padding:10px 0;border-top:1px solid var(--border)}
 .search-panel .player-volume{margin-left:0}.search-panel .player-seek{min-width:100px}
+.search-group{border:0;padding:0;margin:0;min-width:0;display:grid;gap:7px}
+.search-group legend{padding:0;margin:8px 0 4px;font-size:11px;color:var(--muted)}
+.search-panel .search-controls{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+.search-controls label{min-width:0}.search-controls input,.search-controls select{width:100%}
+.search-span>summary{font-size:12px;cursor:pointer;padding:6px 0;color:var(--ink)}
+.search-span .material-symbol{font-size:18px;margin-right:4px}
+.search-span-evidence{font-size:11px;margin-top:7px;overflow-wrap:anywhere}
+.search-span-evidence summary{cursor:pointer}.search-span-evidence pre{font-size:11px;max-height:220px}
+.search-panel button.secondary{background:var(--control-surface);color:var(--ink);border-color:var(--control-edge)}
+.search-panel .kwic mark{background:var(--control-hover);color:var(--ink)}
 /* Stable gutters prevent a pane from shifting on hover. Overflow stays native. */
 :is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre){scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
 @media(hover:hover) and (pointer:fine){
