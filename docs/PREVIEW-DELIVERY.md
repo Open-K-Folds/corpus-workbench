@@ -8,7 +8,9 @@ verification results before choosing an artifact.
 
 The publication workflow follows the preserved one-time GHCR workflow, using its
 existing repository Actions token with `contents: read` and `packages: write`.
-It runs only on the dedicated delivery branch, builds the fixed reviewed commit
+Its [successful one-time run](https://github.com/Open-K-Folds/corpus-workbench/actions/runs/37571757182)
+ran on the dedicated delivery branch and is now disabled to preserve publication.
+It builds the fixed reviewed commit
 on native Linux amd64/ARM64 runners, executes production-loader contracts and
 the isolated browser/persistence journey, and retains each qualified Docker
 archive, SPDX inventory and verification result before attempting publication.
@@ -19,9 +21,12 @@ and never changes package visibility, requests credentials or changes permission
 Actions artifacts last 30 days; release assets are the durable delivery.
 
 Download the Windows x86-64 ZIP and follow `PACKAGE.md`; Python 3.11+ generates
-the explicitly synthetic demo tone. Extract to a fresh directory, start with
-`powershell -File scripts/start-workbench.ps1 -Binary bin/corpus-workbench.exe`,
-then open `Open-Workbench.cmd`. Use protected, separate authorities for real data.
+the explicitly synthetic demo tone. Extract to a fresh directory. The tested
+launcher uses an existing PowerShell 7 installation:
+`pwsh -NoProfile -File scripts/start-workbench.ps1 -Binary bin/corpus-workbench.exe`.
+Then open `Open-Workbench.cmd`. The host's legacy Windows PowerShell policy
+denied scripts; no execution policy was changed. Use an already authorized shell
+or the native CLI instructions instead. Use separate protected authorities for real data.
 
 For containers, use the release's exact registry digest when authenticated GHCR
 access is available. Otherwise verify the Docker archive checksum from the release
@@ -31,8 +36,11 @@ and load the archive for your architecture:
 docker load --input corpus-workbench-0.2.0-dev.11-linux-amd64.docker.tar.gz
 ```
 
-The archive retains a version/source/architecture tag; inspect its OCI revision
-and use the immutable image ID recorded in the manifest as `WB_IMAGE`. Obtain
+The archive retains a version/source/architecture tag. Inspect that tag's OCI
+revision, then obtain its local immutable identity with
+`docker image inspect TAG --format '{{.Id}}'` and use that value as `WB_IMAGE`.
+Docker stores can assign a different image ID after loading; the manifest records
+config, registry and tested loaded-image digests separately. Obtain
 `compose.yaml` from the release's corresponding source archive. Follow
 [CONTAINERS.md](CONTAINERS.md) with a fresh Compose project and unused loopback
 port. Initialize the synthetic authority explicitly with `tools init-demo`, start

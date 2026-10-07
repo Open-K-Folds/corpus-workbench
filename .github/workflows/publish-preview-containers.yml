@@ -2,7 +2,8 @@ name: publish-preview-containers
 
 on:
   push:
-    branches: [release/preview-delivery-0.2.0-dev.11]
+    # Successful publication: run 37571757182. Freeze this one-time delivery.
+    branches: [disabled/preview-delivery-0.2.0-dev.11]
 
 # Reuses the prior GHCR publisher's normal repository token and permissions.
 permissions:
