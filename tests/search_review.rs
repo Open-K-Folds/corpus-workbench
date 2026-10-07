@@ -54,6 +54,7 @@ impl Case {
                 })
                 .collect(),
             documents: vec![],
+            span: None,
             context: 1,
             offset: 0,
             limit: 1,

@@ -204,6 +204,8 @@ def qualify(binary, store, request, tools, work):
 def _qualify_frozen(binary,store,request,tools,work):
     before = native(binary, store, request, "search")  # validates the full finite grammar before CQP
     query = before["result"]["query"]
+    if query.get("span") is not None:
+        raise RuntimeError("span constraints are native-only; CQP span joins are unqualified")
     request.write_text(json.dumps(query,ensure_ascii=False),encoding="utf-8")
     projection = native(binary, store, request, "search-projection")
     if projection["binding"]!=before["result"]["binding"]:

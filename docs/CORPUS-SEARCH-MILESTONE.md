@@ -13,7 +13,8 @@ plan; full TEITOK/CWB/CQP parity remains open.
 - [x] Draft-safe reload, stale-head rejection and obsolete-response suppression.
 - [x] Optional derived CWB index and real CQP comparison for the selected grammar.
 - [x] Independent native, HTTP, browser and adapter fault tests.
-- [ ] Original TEITOK index rebuilding, arbitrary CQP, regex and multi-layer joins.
+- [x] Bounded exact label/variety constraints on existing whole-token spans.
+- [ ] Original TEITOK index rebuilding, arbitrary CQP, regex and general multi-layer joins.
 - [ ] Bulk authoring from hit sets, durable worker jobs and production operations.
 
 ## Use the search
@@ -43,6 +44,51 @@ Audio requires one unambiguous in-package media reference and observed timing.
 When every matched token has a word interval, playback uses those intervals;
 otherwise a known whole-utterance interval is explicitly labelled. Missing or
 ambiguous media/timing yields no play action. No word timings are invented.
+
+## Bounded span constraint increment
+
+The source increment after integrated main `ed82deb` advances B28 without a new
+release or deployment. Expand **Span annotation constraint**, select **Label** or
+**Language / variety**, and supply its exact value. This combines token text and
+the existing token-language filter with an annotation on the same saved revision.
+Every token in a phrase must occur in the explicit `corresp` anchors of **one**
+matching whole-token span. Two separate spans cannot jointly satisfy a phrase;
+gaps in discontinuous anchors are never filled. Character/subtoken annotations,
+including unresolved coordinates, are excluded from this whole-token grammar.
+
+The native query adds one optional `span` object, for example:
+
+```json
+{"span": {"field": "label", "value": "code-switch"}}
+```
+
+`label` and `variety` are the actual fields of the supported unqualified
+`spanGrp` / direct `span` sidecars, already projected by the package authority.
+No parallel annotation database or inferred language metadata is introduced.
+Values are case-sensitive and byte-exact, at most 512 UTF-8 bytes. An empty value
+matches an authored empty field; a missing field does not match. Ambiguous shared
+sidecars, unsupported/namespaced field structures and `xml:base` reference scope
+are rejected with the original source preserved. Annotation joins are bounded to
+100,000 projected anchors; repeated witness evidence is bounded before copying
+into the existing 4 MiB page limit.
+
+Hits remain unique token occurrences even when multiple spans satisfy the query.
+Their `spans` evidence retains each sidecar-qualified ID, artifact hash, full
+projected fields and explicit anchors. The same evidence is available in compact
+result disclosure, historical read-only inspection and JSON export. Counts and
+pagination apply after the span constraint. Current hits are rechecked against
+the saved head; historical queries retain the exact old annotation bytes and
+media revision. No annotation constraint creates timing or changes the existing
+word/whole-utterance audio qualification.
+
+The additive query uses schema 1 and omits `span` when unconstrained. The engine
+fingerprint is now `literal-token-concordance/2`; exports from engine 1 retain
+their historical provenance but require a new query for action resolution under
+engine 2. Corpus snapshots, revision history and imported-index status do not
+change. The optional CQP adapter rejects span constraints as native-only before
+external execution; general CQP joins remain unqualified.
+
+## Query and projection bounds
 
 The native engine accepts 1-8 literal terms, each at most 512 UTF-8 bytes, optional
 exact language values at most 256 bytes, 0-12 context tokens, at most 200 hits per
@@ -92,12 +138,22 @@ the browser and is not included in the default application image.
 
 This mapping is not original TEITOK byte-offset/index parity. Imported CWB indexes
 remain governed by their existing stale-index/export checks. Regex, case folding,
-Unicode normalization, structural joins, alignment, arbitrary CQP programs and
+Unicode normalization, general structural joins, alignment, arbitrary CQP programs and
 bulk edits are unqualified and unavailable in this slice.
 
 ## Validation and provenance
 
-The native suite contains 175 tests: the prior 155 plus five search contracts and
+The span increment adds seven native contracts for same-span phrase coverage,
+qualified witnesses, exact values and bounds, stale/current versus historical
+evidence, ambiguous schemas/associations and output amplification. Two browser
+journeys extend the six concordance journeys with empty/no-match states,
+layer/filter changes, keyboard controls, light/dark/mobile rendering, exact
+witness export, span-only concurrent edits and historical audio/navigation.
+The adapter has a regression for explicit native-only rejection. Exact-head
+results and independent review are recorded in the scoped pull request. All
+local mutation fixtures use fresh synthetic authorities on KhanCreate.
+
+The original dev.10 native suite contained 175 tests: the prior 155 plus five search contracts and
 15 independent falsifications. Focused local runs passed all 20 new contracts,
 including deterministic concurrent-head races, strict bounds, forged hit proofs,
 Unicode/IDs, unresolved normalization, overlap, media ambiguity, result limits,
