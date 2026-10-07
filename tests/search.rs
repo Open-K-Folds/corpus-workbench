@@ -41,6 +41,7 @@ fn query(s: &Store, words: &[&str]) -> Query {
             })
             .collect(),
         documents: vec![],
+        span: None,
         context: 2,
         offset: 0,
         limit: 50,

@@ -135,6 +135,13 @@ class AdapterBoundary(unittest.TestCase):
         self.assertEqual(after["revision"], self.initial["revision"])
         self.assertEqual(after["snapshot"], self.initial["snapshot"])
 
+    def test_native_span_constraint_is_rejected_before_external_execution(self):
+        self.query["span"] = {"field": "label", "value": "focus"}
+        self.write_request()
+        with self.assertRaisesRegex(RuntimeError, "native-only"):
+            self.qualify()
+        self.assertEqual(self.external_scripts, [])
+
     def test_offpage_unmapped_position_is_rejected(self):
         self.dump = b"0 0 -1 -1\n500 500 -1 -1\n"
         with self.assertRaisesRegex(RuntimeError, "bounds"):

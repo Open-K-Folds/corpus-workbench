@@ -3,10 +3,11 @@
 use crate::{handoff::digest, model::*, store::Store};
 use anyhow::{ensure, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
-pub const ENGINE: &str = "literal-token-concordance/1";
+use std::collections::{BTreeMap, BTreeSet};
+pub const ENGINE: &str = "literal-token-concordance/2";
 pub const MAX_TOKENS: usize = 100_000;
 pub const MAX_XML_BYTES: u64 = 16 * 1024 * 1024;
+pub const MAX_SPAN_ANCHORS: usize = 100_000;
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -27,6 +28,26 @@ pub struct Term {
     pub text: String,
     pub language: Option<String>,
 }
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SpanField {
+    Label,
+    Variety,
+}
+impl SpanField {
+    fn key(self) -> &'static str {
+        match self {
+            Self::Label => "label",
+            Self::Variety => "variety",
+        }
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SpanConstraint {
+    pub field: SpanField,
+    pub value: String,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Query {
@@ -37,6 +58,8 @@ pub struct Query {
     pub mode: Mode,
     pub reading: Reading,
     pub terms: Vec<Term>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub span: Option<SpanConstraint>,
     pub documents: Vec<String>,
     pub context: usize,
     pub offset: usize,
@@ -124,6 +147,14 @@ pub struct Hit {
     pub right: Vec<Word>,
     pub readings: Vec<String>,
     pub audio: Option<Audio>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spans: Vec<SpanEvidence>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpanEvidence {
+    #[serde(flatten)]
+    pub span: Span,
+    pub artifact_hash: String,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Matches {
@@ -160,6 +191,12 @@ fn validate(q: &Query) -> Result<()> {
                 .as_ref()
                 .is_none_or(|s| !s.is_empty() && s.len() <= 256 && !s.contains('\0')),
             "language filter length limit"
+        );
+    }
+    if let Some(span) = &q.span {
+        ensure!(
+            span.value.len() <= 512 && !span.value.contains('\0'),
+            "span filter length limit"
         );
     }
     ensure!(
@@ -266,6 +303,18 @@ impl Store {
                 .all(|p| view.documents.iter().any(|d| &d.path == p)),
             "document filter not in project revision"
         );
+        if q.span.is_some() {
+            let anchors: usize = view
+                .documents
+                .iter()
+                .flat_map(|d| &d.spans)
+                .map(|s| s.token_ids.len())
+                .sum();
+            ensure!(
+                anchors <= MAX_SPAN_ANCHORS,
+                "search span anchor limit (100000)"
+            );
+        }
         Ok(view)
     }
     pub fn search_projection(&self, q: &Query) -> Result<serde_json::Value> {
@@ -295,6 +344,11 @@ impl Store {
                 continue;
             }
             let audio_allowed = self.search_document(&view, doc)?;
+            let coverage = if let Some(constraint) = &q.span {
+                self.search_spans(&view, doc, constraint)?
+            } else {
+                BTreeMap::new()
+            };
             // Contiguous runs never cross document or utterance boundaries.
             let mut start = 0;
             while start < doc.tokens.len() {
@@ -315,6 +369,24 @@ impl Store {
                                 t.language_effective.as_ref() == Some(language)
                             })
                     }) {
+                        continue;
+                    }
+                    // One witness span must explicitly anchor every matched token.
+                    // Never fill the gaps of a discontinuous span or join two spans.
+                    let witnesses: Vec<_> = coverage
+                        .get(matched[0].id.as_str())
+                        .into_iter()
+                        .flatten()
+                        .copied()
+                        .filter(|index| {
+                            matched.iter().skip(1).all(|t| {
+                                coverage
+                                    .get(t.id.as_str())
+                                    .is_some_and(|spans| spans.contains(index))
+                            })
+                        })
+                        .collect();
+                    if q.span.is_some() && witnesses.is_empty() {
                         continue;
                     }
                     if total >= q.offset && hits.len() < q.limit {
@@ -349,6 +421,18 @@ impl Store {
                             } else {
                                 None
                             },
+                            spans: witnesses
+                                .iter()
+                                .map(|&index| {
+                                    let span = doc.spans[index].clone();
+                                    SpanEvidence {
+                                        artifact_hash: view.snapshot.files[&span.sidecar]
+                                            .sha256
+                                            .clone(),
+                                        span,
+                                    }
+                                })
+                                .collect(),
                         });
                     }
                     total += 1;
@@ -421,6 +505,71 @@ impl Store {
             n.attribute(("http://www.w3.org/XML/1998/namespace", "base"))
                 .is_some()
         }))
+    }
+    fn search_spans<'a>(
+        &self,
+        view: &View,
+        doc: &'a Document,
+        constraint: &SpanConstraint,
+    ) -> Result<BTreeMap<&'a str, BTreeSet<usize>>> {
+        // Projection fields retain imported attributes. Qualify the actual supported
+        // sidecar grammar before relying on those fields for a linguistic join.
+        let sidecars: BTreeSet<_> = doc.spans.iter().map(|s| &s.sidecar).collect();
+        for sidecar in sidecars {
+            let basename = std::path::Path::new(&doc.path)
+                .file_name()
+                .context("document basename")?
+                .to_str()
+                .context("document basename")?;
+            ensure!(
+                view.documents
+                    .iter()
+                    .filter(|d| std::path::Path::new(&d.path)
+                        .file_name()
+                        .and_then(|p| p.to_str())
+                        == Some(basename))
+                    .count()
+                    == 1,
+                "span search sidecar matches multiple transcripts; explicit association required"
+            );
+            let source = self.objects.text(&view.snapshot, sidecar)?;
+            let tree = crate::xml::parse(&source)?;
+            let root = tree.root_element();
+            ensure!(
+                root.has_tag_name("spanGrp") && root.tag_name().namespace().is_none(),
+                "unsupported span search sidecar dialect; source preserved"
+            );
+            for node in tree.descendants().filter(|n| n.has_tag_name("span")) {
+                ensure!(
+                    node.parent() == Some(root)
+                        && node.tag_name().namespace().is_none()
+                        && node.attributes().all(|a| a.namespace().is_none()
+                            || !["id", "corresp", "label", "variety"].contains(&a.name())),
+                    "unsupported or ambiguous span search fields; source preserved"
+                );
+            }
+        }
+        let character_fields = [
+            "wb_start",
+            "wb_end",
+            "wb_coordinate",
+            "wb_layer",
+            "wb_quote",
+            "wb_status",
+        ];
+        let mut coverage: BTreeMap<&str, BTreeSet<usize>> = BTreeMap::new();
+        for (index, span) in doc.spans.iter().enumerate() {
+            if span.fields.get(constraint.field.key()) == Some(&constraint.value)
+                && !character_fields
+                    .iter()
+                    .any(|key| span.fields.contains_key(*key))
+            {
+                for token in &span.token_ids {
+                    coverage.entry(token).or_default().insert(index);
+                }
+            }
+        }
+        Ok(coverage)
     }
 }
 fn binding(view: &View) -> Result<Binding> {
