@@ -338,6 +338,7 @@ impl Store {
         let mut hits = Vec::new();
         let mut total = 0usize;
         let mut corpus = 0usize;
+        let mut span_evidence_bytes = 0usize;
         for doc in &view.documents {
             if !q.documents.is_empty() && !q.documents.contains(&doc.path) {
                 corpus += doc.tokens.len();
@@ -348,6 +349,14 @@ impl Store {
                 self.search_spans(&view, doc, constraint)?
             } else {
                 BTreeMap::new()
+            };
+            let span_sizes = if q.span.is_some() {
+                doc.spans
+                    .iter()
+                    .map(|span| Ok(serde_json::to_vec(span)?.len() + 128))
+                    .collect::<Result<Vec<_>>>()?
+            } else {
+                vec![]
             };
             // Contiguous runs never cross document or utterance boundaries.
             let mut start = 0;
@@ -390,6 +399,15 @@ impl Store {
                         continue;
                     }
                     if total >= q.offset && hits.len() < q.limit {
+                        // Bound repeated witness evidence before cloning it into hits.
+                        // 128 bytes covers the added artifact hash and JSON separators.
+                        for &index in &witnesses {
+                            span_evidence_bytes += span_sizes[index];
+                            ensure!(
+                                span_evidence_bytes <= 4 * 1024 * 1024,
+                                "search result size limit; reduce page/context"
+                            );
+                        }
                         let token_ids: Vec<_> = matched.iter().map(|t| t.id.clone()).collect();
                         let id = digest(&(&q.project, &doc.path, &token_ids))?;
                         let left = position.saturating_sub(q.context).max(start);
@@ -535,6 +553,12 @@ impl Store {
             let source = self.objects.text(&view.snapshot, sidecar)?;
             let tree = crate::xml::parse(&source)?;
             let root = tree.root_element();
+            ensure!(
+                !tree.descendants().any(|n| n
+                    .attribute(("http://www.w3.org/XML/1998/namespace", "base"))
+                    .is_some()),
+                "span search xml:base has unknown reference scope; source preserved"
+            );
             ensure!(
                 root.has_tag_name("spanGrp") && root.tag_name().namespace().is_none(),
                 "unsupported span search sidecar dialect; source preserved"

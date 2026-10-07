@@ -226,6 +226,8 @@ fn ambiguous_associations_and_unsupported_namespace_or_structure_fail_closed() {
         "<spanGrp xmlns:x='urn:test'><span id='s' corresp='#w1' label='focus' x:label='other'/></spanGrp>",
         "<spanGrp><group><span id='s' corresp='#w1' label='focus'/></group></spanGrp>",
         "<other><span id='s' corresp='#w1' label='focus'/></other>",
+        "<spanGrp xml:base='https://example.invalid/elsewhere.xml'><span id='s' corresp='#w1' label='focus'/></spanGrp>",
+        "<spanGrp><span id='s' xml:base='other.xml' corresp='#w1' label='focus'/></spanGrp>",
     ] {
         let (_tmp, s) = fixture(spans, &[]);
         assert!(s.search(&query(&s, &["alpha"], SpanField::Label, "focus")).is_err());
@@ -238,6 +240,35 @@ fn ambiguous_associations_and_unsupported_namespace_or_structure_fail_closed() {
         .unwrap_err()
         .to_string()
         .contains("multiple transcripts"));
+}
+
+#[test]
+fn repeated_witness_evidence_is_bounded_and_a_smaller_page_still_works() {
+    let tokens = (0..100)
+        .map(|i| format!("<tok id='w{i}' form='alpha'/>"))
+        .collect::<String>();
+    let ids = (0..100)
+        .map(|i| format!("#w{i}"))
+        .collect::<Vec<_>>()
+        .join(" ");
+    let spans = format!(
+        "<spanGrp><span id='s' corresp='{ids}' label='focus' note='{}'/></spanGrp>",
+        "x".repeat(60_000)
+    );
+    let xml = format!("<TEI><text>{tokens}</text></TEI>");
+    let (_tmp, s) = fixture(&spans, &[(DOC, &xml)]);
+    let mut q = query(&s, &["alpha"], SpanField::Label, "focus");
+    q.limit = 200;
+    assert!(s
+        .search(&q)
+        .unwrap_err()
+        .to_string()
+        .contains("result size limit"));
+    q.limit = 10;
+    let result = s.search(&q).unwrap();
+    assert_eq!(result.result.total, 100);
+    assert_eq!(result.result.hits.len(), 10);
+    assert_eq!(result.result.hits[0].spans[0].span.token_ids.len(), 100);
 }
 
 #[test]
