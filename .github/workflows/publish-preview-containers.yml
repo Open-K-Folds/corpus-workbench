@@ -1,0 +1,167 @@
+name: publish-preview-containers
+
+on:
+  push:
+    branches: [release/preview-delivery-0.2.0-dev.11]
+
+# Reuses the prior GHCR publisher's normal repository token and permissions.
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: preview-delivery-0.2.0-dev.11
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE: ghcr.io/open-k-folds/corpus-workbench
+  SOURCE_SHA: 789038771c88ff28430912c1be1c710bd818fd12
+  SOURCE_TAG: sha-789038771c88ff28430912c1be1c710bd818fd12
+  VERSION: 0.2.0-dev.11
+
+jobs:
+  build-test-push:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            architecture: amd64
+            machine: x86_64
+          - runner: ubuntu-24.04-arm
+            architecture: arm64
+            machine: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Verify reviewed source and native architecture
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$(uname -m)" = '${{ matrix.machine }}'
+          test -z "$(git status --porcelain)"
+          python3 -c 'import os,tomllib; assert tomllib.load(open("Cargo.toml","rb"))["package"]["version"] == os.environ["VERSION"]'
+      - name: Test and build immutable tracked source
+        run: python3 scripts/build-containers.py --platform linux/${{ matrix.architecture }} --tag corpus-workbench:preview
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.18.0'
+      - run: npm ci --prefix ui
+      - name: Install isolated Chromium
+        working-directory: ui
+        run: npx playwright install --with-deps chromium
+      - name: Qualify actual image, browser, export and persistence
+        run: python3 scripts/container-smoke.py --image corpus-workbench:preview --port 18920 --out .runtime/container-preview.local.json --browser
+      - name: Retain qualified distributable and inventory
+        shell: bash
+        run: |
+          mkdir -p delivery
+          image_id="$(docker image inspect corpus-workbench:preview --format '{{.Id}}')"
+          test "$image_id" = "$(jq -r .image_id .runtime/container-preview.local.json)"
+          test "$(docker image inspect "$image_id" --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}')" = "$SOURCE_SHA"
+          test "$(docker image inspect "$image_id" --format '{{ index .Config.Labels "org.opencontainers.image.version" }}')" = "$VERSION"
+          cp .runtime/container-preview.local.json delivery/container-verification-${{ matrix.architecture }}.json
+          docker image inspect "$image_id" > delivery/image-inspect-${{ matrix.architecture }}.json
+          for file in BUILD.json SBOM.spdx.json SHA256SUMS; do
+            docker run --rm --network none --read-only --cap-drop ALL --entrypoint cat "$image_id" "/opt/workbench/$file" > "delivery/${{ matrix.architecture }}-$file"
+          done
+          archive_tag="corpus-workbench:$VERSION-$SOURCE_SHA-${{ matrix.architecture }}"
+          docker tag "$image_id" "$archive_tag"
+          docker save "$archive_tag" | gzip -n > "delivery/corpus-workbench-$VERSION-linux-${{ matrix.architecture }}.docker.tar.gz"
+          (cd delivery && sha256sum "corpus-workbench-$VERSION-linux-${{ matrix.architecture }}.docker.tar.gz" > archive-${{ matrix.architecture }}.sha256)
+      - name: Sign in with existing Actions publication access
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
+      - name: Refuse replacement and push exact qualified image
+        shell: bash
+        run: |
+          for tag in "$VERSION-${{ matrix.architecture }}" "$SOURCE_TAG-${{ matrix.architecture }}"; do
+            if docker buildx imagetools inspect "$REGISTRY_IMAGE:$tag" > "$RUNNER_TEMP/existing" 2> "$RUNNER_TEMP/registry-error"; then
+              echo "Refusing to replace existing registry tag: $tag" >&2
+              exit 1
+            fi
+            if ! grep -Eiq 'manifest unknown|not found|no such manifest' "$RUNNER_TEMP/registry-error"; then
+              cat "$RUNNER_TEMP/registry-error" >&2
+              exit 1
+            fi
+          done
+          image_id="$(jq -r .image_id delivery/container-verification-${{ matrix.architecture }}.json)"
+          for tag in "$VERSION-${{ matrix.architecture }}" "$SOURCE_TAG-${{ matrix.architecture }}"; do
+            docker tag "$image_id" "$REGISTRY_IMAGE:$tag"
+            docker push "$REGISTRY_IMAGE:$tag"
+          done
+          docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION-${{ matrix.architecture }}" --raw > delivery/registry-manifest-${{ matrix.architecture }}.json
+          digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION-${{ matrix.architecture }}" | awk '/^Digest:/ {print $2}')"
+          test -n "$digest"
+          printf '%s@%s\n' "$REGISTRY_IMAGE" "$digest" > delivery/registry-reference-${{ matrix.architecture }}.txt
+      - name: Retain artifacts even if registry publication is blocked
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-linux-${{ matrix.architecture }}
+          path: delivery/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  publish-manifests:
+    needs: build-test-push
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: preview-linux-*
+          path: delivery
+          merge-multiple: true
+      - name: Sign in with existing Actions publication access
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username '${{ github.actor }}' --password-stdin
+      - name: Publish additive index from qualified digests
+        shell: bash
+        run: |
+          for tag in "$VERSION" "$SOURCE_TAG"; do
+            if docker buildx imagetools inspect "$REGISTRY_IMAGE:$tag" > "$RUNNER_TEMP/existing" 2> "$RUNNER_TEMP/registry-error"; then
+              echo "Refusing to replace existing registry tag: $tag" >&2
+              exit 1
+            fi
+            if ! grep -Eiq 'manifest unknown|not found|no such manifest' "$RUNNER_TEMP/registry-error"; then
+              cat "$RUNNER_TEMP/registry-error" >&2
+              exit 1
+            fi
+          done
+          docker buildx imagetools create --tag "$REGISTRY_IMAGE:$VERSION" --tag "$REGISTRY_IMAGE:$SOURCE_TAG" \
+            "$(cat delivery/registry-reference-amd64.txt)" "$(cat delivery/registry-reference-arm64.txt)"
+          docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" --raw > delivery/registry-index.json
+          jq -e '[.manifests[].platform | .os + "/" + .architecture] | sort == ["linux/amd64", "linux/arm64"]' delivery/registry-index.json
+          digest="$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$VERSION" | awk '/^Digest:/ {print $2}')"
+          test -n "$digest"
+          test "$digest" = "$(docker buildx imagetools inspect "$REGISTRY_IMAGE:$SOURCE_TAG" | awk '/^Digest:/ {print $2}')"
+          printf '%s@%s\n' "$REGISTRY_IMAGE" "$digest" > delivery/registry-index-reference.txt
+      - name: Record anonymous access without changing package visibility
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/anonymous-docker"
+          if DOCKER_CONFIG="$RUNNER_TEMP/anonymous-docker" docker buildx imagetools inspect "$(cat delivery/registry-index-reference.txt)" --raw > "$RUNNER_TEMP/anonymous-index.json" 2> "$RUNNER_TEMP/anonymous-error"; then
+            cmp delivery/registry-index.json "$RUNNER_TEMP/anonymous-index.json"
+            printf '{"anonymous_pull":true}\n' > delivery/registry-access.json
+          else
+            printf '{"anonymous_pull":false,"limit":"Anonymous GHCR access denied; authenticated pull required. No visibility or credential changes attempted."}\n' > delivery/registry-access.json
+          fi
+          cat delivery/registry-index-reference.txt >> "$GITHUB_STEP_SUMMARY"
+          cat delivery/registry-access.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain index and publication evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: preview-registry-evidence
+          path: |
+            delivery/registry-*
+            delivery/container-verification-*
+          if-no-files-found: error
+          retention-days: 30
