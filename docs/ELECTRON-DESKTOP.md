@@ -31,7 +31,7 @@ a signing service. The output is under `release/desktop/`.
 To build a separate review package while keeping a running preview intact, use:
 
 ```powershell
-npm run package:windows -- --out release/desktop-review
+npm.cmd run package:windows -- --out release/desktop-review
 ```
 
 The alternate output must stay beneath this checkout's `release/` folder.
