@@ -1,9 +1,9 @@
 import {test,expect} from '@playwright/test';
 import {spawn,execFileSync, type ChildProcess} from 'node:child_process';
-import {readFileSync,mkdirSync,existsSync,writeFileSync} from 'node:fs';
+import {readFileSync,mkdirSync,existsSync,writeFileSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 const root=resolve('..');const runtime=resolve(root,'.private',`browser-qa-${process.pid}`);
-let service:ChildProcess;let code='';let exported='';
+let service:ChildProcess;let code='';let exported='';let sessionRuntime='';
 test.beforeAll(async()=>{
   if(existsSync(runtime))throw new Error('Use a fresh QA directory; test will not overwrite prior data.');
   mkdirSync(runtime,{recursive:true});
@@ -18,6 +18,8 @@ test.beforeAll(async()=>{
   service=spawn(binary,['serve','--store',resolve(runtime,'authority'),'--project','synthetic','--ui',process.env.WB_UI??resolve(root,'ui','dist'),'--port','18912'],{cwd:runtime,stdio:'pipe'});
   await expect.poll(()=>existsSync(resolve(runtime,'.runtime','session-code'))).toBe(true);
   code=readFileSync(resolve(runtime,'.runtime','session-code'),'utf8');
+  const sessions=readdirSync(resolve(runtime,'.runtime','sessions'),{withFileTypes:true}).filter(entry=>entry.isDirectory());
+  expect(sessions).toHaveLength(1);sessionRuntime=resolve(runtime,'.runtime','sessions',sessions[0].name);
   await expect.poll(async()=>{try{return (await fetch('http://127.0.0.1:18912/')).status}catch{return 0}}).toBe(200);
 });
 test.afterAll(()=>service?.kill());
@@ -116,7 +118,10 @@ test('HTTP boundary rejects unauthenticated reads and forged commands',async({re
   expect((await request.get('/api/media?path=..%2Fledger.sqlite')).status()).toBe(422);
   expect((await request.get('/api/media?path=Resources%2Fsettings.xml')).status()).toBe(403);
   const range=await request.get('/api/media?path=Audio%2Fsynthetic-workbench.wav',{headers:{Range:'bytes=10-20'}});expect(range.status()).toBe(206);expect((await range.body()).length).toBe(11);
-  const foreign='export-other-project';writeFileSync(resolve(runtime,'.runtime','exports',foreign+'.zip'),readFileSync(exported));
+  const exportDirectory=resolve(sessionRuntime,'exports');expect(existsSync(exportDirectory)).toBe(true);
+  expect(readdirSync(exportDirectory).some(name=>name.endsWith('.zip'))).toBe(true);
+  const foreign='export-other-project';const foreignFile=resolve(exportDirectory,foreign+'.zip');writeFileSync(foreignFile,readFileSync(exported));
+  expect(readFileSync(foreignFile).subarray(0,2).toString()).toBe('PK');
   expect((await request.get('/api/download?id='+foreign)).status()).toBe(403);
 });
 

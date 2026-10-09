@@ -52,3 +52,17 @@ test('unrecognized disk journal remains intact and cannot be replaced by an empt
     assert.equal(await fs.readFile(journal.file,'utf8'),raw);
   }finally{await fs.rm(profile,{recursive:true,force:true})}
 });
+
+test('successful recovery retry restores writes after a failed journal read',async()=>{
+  const profile=await fs.mkdtemp(path.join(os.tmpdir(),'workbench-journal-retry-'));
+  try{
+    const journal=new Journal(profile),draft=record(),raw=JSON.stringify({[draft.id]:draft});
+    await fs.mkdir(journal.directory,{recursive:true});await fs.writeFile(journal.file,'{"unrecognized":"preserve until repaired"}');
+    await assert.rejects(()=>journal.read(),/preserved/);
+    await assert.rejects(()=>journal.write(raw),/preserved/);
+    await fs.writeFile(journal.file,'{}');
+    assert.equal(await journal.read(),'{}');
+    assert.equal(await journal.write(raw),true);
+    assert.equal(await new Journal(profile).read(),raw);
+  }finally{await fs.rm(profile,{recursive:true,force:true})}
+});

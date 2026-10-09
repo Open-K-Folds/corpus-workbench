@@ -28,6 +28,17 @@ creates a release sidecar, a compiled UI and a generated eight-second synthetic
 practice recording. Packaging is local; it never uploads files or signs up for
 a signing service. The output is under `release/desktop/`.
 
+To build a separate review package while keeping a running preview intact, use:
+
+```powershell
+npm run package:windows -- --out release/desktop-review
+```
+
+The alternate output must stay beneath this checkout's `release/` folder.
+Packaging rejects linked output directories and paths outside that folder before
+replacing a build. Keep the running preview in `release/desktop/` and launch the
+review build from `release/desktop-review/` with a separate QA profile.
+
 ## Desktop workflows
 
 First launch offers **Import TEITOK package**, **Open existing workbench** and

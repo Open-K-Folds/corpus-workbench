@@ -285,3 +285,36 @@ test('a cold unavailable authority can retry into its exact synthetic project',a
     writeFileSync(join(evidence,'cold-retry-evidence.json'),JSON.stringify({platform:process.platform,cold_error_visible:true,retry_renders_exact_project:true,revision:1},null,2));
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
+
+test('retrying a repaired native journal acknowledges subsequent inline drafts and cleans shutdown',async()=>{
+  const work=workspace('journal-retry'),source=createPackage(join(work,'source-package')),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','journal-retry-preview'],{windowsHide:true});
+  const directory=join(profile,'drafts'),journal=join(directory,'correction-journal.json');
+  mkdirSync(directory,{recursive:true});
+  const malformed='{\n  synthetic retained journal bytes\n}\n';writeFileSync(journal,malformed,'utf8');
+  let application,page;
+  try{
+    ({application,page}=await launch(profile,store,'journal-retry-preview'));
+    await expect(page.getByRole('button',{name:'Retry draft recovery',exact:true})).toBeVisible();
+    await expect(page.locator('#tokens')).toHaveCount(0);
+    expect(readFileSync(journal,'utf8')).toBe(malformed);
+    const before=(await head(page)).revision;
+    await page.screenshot({path:join(evidence,'electron-journal-recovery-blocked.png')});
+    // Repair only this synthetic profile's journal, simulating a successful
+    // validated read on Retry. Opening the editor alone is insufficient: the
+    // formerly unavailable native journal must acknowledge subsequent writes.
+    writeFileSync(journal,'{}','utf8');
+    await page.getByRole('button',{name:'Retry draft recovery',exact:true}).click();await ready(page);
+    expect((await state(page)).project.project).toBe('journal-retry-preview');
+    await draft(page,'resumed-journal');
+    await expect.poll(()=>Object.values(JSON.parse(readFileSync(journal,'utf8'))).map(record=>record.replacement),{message:'Recovered native journal acknowledges the new inline correction'}).toEqual(['resumed-journal']);
+    await expect(page.locator('#draft-explanation')).not.toContainText('Updating local draft');
+    await expect(page.locator('#draft-explanation')).not.toContainText('unavailable');
+    const canonical=JSON.parse(readFileSync(journal,'utf8')),retained=await records(page);
+    expect(retained).toEqual(Object.values(canonical));expect(retained[0].command).toBeNull();
+    expect((await head(page)).revision).toEqual(before);
+    await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
+    expect(JSON.parse(readFileSync(journal,'utf8'))).toEqual(canonical);
+    writeFileSync(join(evidence,'journal-retry-evidence.json'),JSON.stringify({platform:process.platform,barrier_visible:true,malformed_bytes_preserved:true,validated_repair_recovery:true,canonical_native_acknowledgement:true,browser_mirror_matches_native:true,unchanged_saved_revision:before.id,retained_on_normal_shutdown:true,sidecar_shutdown:true},null,2));
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});

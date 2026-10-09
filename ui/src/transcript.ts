@@ -17,6 +17,7 @@ export class Transcript {
   private persistence:Promise<void>=Promise.resolve();private finalizing=false;
   private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
+  private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
     this.surface.classList.add('prose');this.surface.tabIndex=0;
@@ -24,9 +25,9 @@ export class Transcript {
     window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
     this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
-    // Popovers use viewport coordinates. Dismiss them when the reading pane
-    // moves, while keeping the evidence selection and correction draft intact.
-    const dismissPopovers=()=>{this.menu.hidden=true;this.details.hidden=true};
+    // Notifications can arrive after a new selection has already been placed.
+    // Dismiss only popovers whose viewport or reading pane has since moved.
+    const dismissPopovers=()=>{const geometry=this.readingGeometry();for(const popup of [this.menu,this.details])if(!popup.hidden&&this.popoverGeometry.get(popup)!==geometry)popup.hidden=true};
     const readingPane=this.surface.closest<HTMLElement>('.transcript');
     readingPane?.addEventListener('scroll',dismissPopovers,{passive:true});
     window.addEventListener('resize',dismissPopovers);
@@ -183,7 +184,8 @@ export class Transcript {
     const status=document.getElementById('token-count');
     if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
   }
-  private position(element:HTMLElement,rect:DOMRect){element.hidden=false;const height=element.getBoundingClientRect().height;const available=window.innerHeight-Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--recording-height'))-12;const top=rect.bottom+height+12<available?rect.bottom+10:Math.max(68,rect.top-height-10);element.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-350))+'px';element.style.top=top+'px'}
+  private readingGeometry(){const pane=this.surface.closest<HTMLElement>('.transcript'),rect=pane?.getBoundingClientRect();return [window.innerWidth,window.innerHeight,rect?.left,rect?.top,rect?.width,rect?.height,pane?.scrollLeft,pane?.scrollTop].join(':')}
+  private position(element:HTMLElement,rect:DOMRect){element.hidden=false;const height=element.getBoundingClientRect().height;const available=window.innerHeight-Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--recording-height'))-12;const top=rect.bottom+height+12<available?rect.bottom+10:Math.max(68,rect.top-height-10);element.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-350))+'px';element.style.top=top+'px';this.popoverGeometry.set(element,this.readingGeometry())}
   private showMenu(rect:DOMRect){
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;
     this.menu.innerHTML=`<div class="tool-primary"><button data-action="correct">Correct</button><button data-action="language">Language</button><button data-action="annotations">Annotate</button><button data-action="structure">Tokenize</button></div><div class="tool-secondary"><button data-action="definitions">Definitions</button><button data-action="references">References</button><button data-action="listen">Listen · ${s.ids.every(id=>{const t=this.host.doc().tokens.find(t=>t.id===id);return !!t&&t.start_us!==null&&t.end_us!==null&&t.end_us>t.start_us})?'word':'utterance'}</button></div><small>${s.ids.length} token${s.ids.length===1?'':'s'} · ${esc(s.layer)} · R${s.view.revision.id}</small>`;

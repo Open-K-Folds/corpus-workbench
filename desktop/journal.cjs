@@ -25,8 +25,8 @@ function validateJournal(raw) {
 class Journal {
   constructor(profile) {this.directory = path.join(profile, 'drafts'); this.file = path.join(this.directory, 'correction-journal.json'); this.loaded = false; this.unavailable = false; this.pending = Promise.resolve();}
   async read() {
-    try {const metadata = await fs.stat(this.file); if (!metadata.isFile() || metadata.size > 1024 * 1024) throw new Error('Correction journal size limit'); const raw = await fs.readFile(this.file, 'utf8'); validateJournal(raw); this.loaded = true; return raw;}
-    catch (error) {if (error.code === 'ENOENT') {this.loaded = true; return null;} this.unavailable = true; throw new Error(`The retained desktop correction journal could not be read and was preserved: ${error.message}`);}
+    try {const metadata = await fs.stat(this.file); if (!metadata.isFile() || metadata.size > 1024 * 1024) throw new Error('Correction journal size limit'); const raw = await fs.readFile(this.file, 'utf8'); validateJournal(raw); this.loaded = true; this.unavailable = false; return raw;}
+    catch (error) {if (error.code === 'ENOENT') {this.loaded = true; this.unavailable = false; return null;} this.unavailable = true; throw new Error(`The retained desktop correction journal could not be read and was preserved: ${error.message}`);}
   }
   write(raw) {
     validateJournal(raw);
