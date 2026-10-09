@@ -1,0 +1,22 @@
+{
+  "name": "open-k-folds-workbench",
+  "productName": "Open-K-Folds Workbench",
+  "version": "0.2.0-dev.12",
+  "private": true,
+  "description": "Transcript-first corpus authoring desktop application",
+  "author": "Open-K-Folds",
+  "license": "GPL-3.0-or-later",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "desktop": "electron .",
+    "build:desktop": "node desktop/build.cjs",
+    "package:windows": "node desktop/package.cjs",
+    "test:desktop": "node --test desktop/tests/*.test.cjs",
+    "test:electron": "playwright test --config desktop/playwright.config.mjs"
+  },
+  "devDependencies": {
+    "electron": "44.7.0",
+    "@electron/packager": "20.3.0",
+    "@playwright/test": "1.56.1"
+  }
+}

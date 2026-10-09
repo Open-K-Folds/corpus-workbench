@@ -4,6 +4,9 @@ import {draftContext} from './api';
 const PREFIX='wb-correction-v1:';
 const JOURNAL=PREFIX+'journal';
 const MAX_RECORD=64*1024,MAX_TOTAL=1024*1024,MAX_COUNT=20;
+let nativeInitialized=false;
+const NATIVE_UNAVAILABLE='Desktop draft recovery is unavailable. Retained records were preserved; retry recovery before editing.';
+export function nativeDraftsReady():boolean{return !window.workbenchDesktop||nativeInitialized}
 export interface LocalDraft {
   schema:1;id:string;authority:string;actor:string;project:string;document:string;
   revision:number;snapshot:string;artifact:string;config:number;layer:'corrected';
@@ -24,6 +27,7 @@ export function validDraft(v:LocalDraft):boolean {
   return true;
 }
 export function scopedDrafts():{records:LocalDraft[];warning:string} {
+  if(!nativeDraftsReady())return {records:[],warning:NATIVE_UNAVAILABLE};
   try{
     const context=draftContext();if(!context)throw new Error('The server did not provide a draft recovery identity.');
     const records:LocalDraft[]=[];let invalid=false;
@@ -36,6 +40,36 @@ export function scopedDrafts():{records:LocalDraft[];warning:string} {
   }catch{return {records:[],warning:'Local draft storage is unavailable. Unsaved corrections may be lost on reload or browser exit.'}}
 }
 function journal():Record<string,LocalDraft>{const value=JSON.parse(localStorage.getItem(JOURNAL)??'{}');if(!value||typeof value!=='object'||Array.isArray(value))throw new Error('Unrecognized draft journal');return value}
+// Electron's DOM storage can acknowledge a write before Chromium flushes it.
+// A fixed-path native journal provides the disk barrier before command dispatch.
+export async function initializeNativeDrafts():Promise<string>{
+  const desktop=window.workbenchDesktop;if(!desktop)return '';
+  nativeInitialized=false;
+  try{
+    const retained=await desktop.readDraftJournal(),browser=localStorage.getItem(JOURNAL)??'{}';
+    if(retained===null){await desktop.persistDraftJournal(browser);nativeInitialized=true;return ''}
+    if(retained===browser){nativeInitialized=true;return ''}
+    // Native acknowledgement is authoritative, including removals. Merging an
+    // older browser mirror would resurrect discarded drafts or duplicate saves.
+    // Preserve divergent browser bytes separately without replaying them.
+    if(browser!=='{}')localStorage.setItem(PREFIX+'unflushed-'+crypto.randomUUID(),browser);
+    localStorage.setItem(JOURNAL,retained);
+    nativeInitialized=true;
+    return browser==='{}'?'':'An unflushed browser draft journal was preserved separately for inspection. Desktop retained corrections are restored below.';
+  }catch{return NATIVE_UNAVAILABLE}
+}
+async function retainNative():Promise<void>{await window.workbenchDesktop?.persistDraftJournal(localStorage.getItem(JOURNAL)??'{}')}
+async function retainedMutation(change:()=>string):Promise<string>{
+  if(!nativeDraftsReady())return NATIVE_UNAVAILABLE;
+  const before=localStorage.getItem(JOURNAL),warning=change();if(warning)return warning;
+  const provisional=localStorage.getItem(JOURNAL);
+  try{await retainNative();return ''}catch(error){
+    // The browser lock is still held. Undo only our own provisional mirror so
+    // a temporary native write failure can be retried with the same preimage.
+    if(localStorage.getItem(JOURNAL)===provisional){if(before===null)localStorage.removeItem(JOURNAL);else localStorage.setItem(JOURNAL,before)}
+    throw error;
+  }
+}
 function storeDraft(record:LocalDraft,expected?:LocalDraft,replace?:LocalDraft):string {
   try{
     if(!validDraft(record))throw new Error('Invalid draft');
@@ -57,10 +91,10 @@ function deleteDraft(record:LocalDraft):string {
 // A shared browser lock makes both the origin-wide cap and conditional removal
 // atomic across tabs. No record is evicted to make room for another correction.
 export async function writeDraft(record:LocalDraft,expected?:LocalDraft,replace?:LocalDraft):Promise<string> {
-  try{if(!navigator.locks)throw new Error('Browser locks unavailable');return await navigator.locks.request(PREFIX,()=>storeDraft(record,expected,replace))}catch{return 'Local draft storage is unavailable. This correction is only in memory.'}
+  try{if(!navigator.locks)throw new Error('Browser locks unavailable');return await navigator.locks.request(PREFIX,()=>retainedMutation(()=>storeDraft(record,expected,replace)))}catch{return 'Local draft storage is unavailable. This correction is only in memory.'}
 }
 export async function removeDraft(record:LocalDraft):Promise<string> {
-  try{if(!navigator.locks)throw new Error('Browser locks unavailable');return await navigator.locks.request(PREFIX,()=>deleteDraft(record))}catch{return 'Could not remove the local draft. It may be offered again after reload.'}
+  try{if(!navigator.locks)throw new Error('Browser locks unavailable');return await navigator.locks.request(PREFIX,()=>retainedMutation(()=>deleteDraft(record)))}catch{return 'Could not remove the local draft. It may be offered again after reload.'}
 }
 export function matchesDraft(record:LocalDraft,view:View):boolean {
   const doc=view.documents.find(d=>d.path===record.document);

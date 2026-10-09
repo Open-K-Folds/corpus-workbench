@@ -1,7 +1,8 @@
 /* Compact chrome. Transcript typography and native text selection stay separate. */
 @font-face{font-family:Material Symbols Outlined;src:url('./assets/material-symbols-subset.woff2') format('woff2');font-style:normal;font-weight:400;font-display:block}
-:root{--control-surface:#f5f5f5;--control-hover:#ececec;--control-edge:#cecece;--symbol-grade:0;--scroll-thumb:#b6b6b6}
-:root[data-theme=dark]{--control-surface:#252525;--control-hover:#313131;--control-edge:#535353;--symbol-grade:-25;--scroll-thumb:#666}
+:root{--control-surface:#f5f5f5;--control-hover:#ececec;--control-edge:#cecece;--symbol-grade:0;--scroll-thumb:#cecece;--scroll-hover:#aaa;--scroll-active:#777}
+:root[data-theme=dark]{--control-surface:#252525;--control-hover:#313131;--control-edge:#535353;--symbol-grade:-25;--scroll-thumb:#474747;--scroll-hover:#737373;--scroll-active:#a0a0a0}
+.secondary{background:var(--paper);color:var(--ink);border-color:var(--control-edge)}
 .material-symbol{display:inline-block;flex:none;font-family:Material Symbols Outlined;font-size:20px;font-style:normal;font-weight:400;line-height:1;letter-spacing:normal;text-transform:none;white-space:nowrap;word-wrap:normal;direction:ltr;font-feature-settings:'liga';font-variation-settings:'opsz' 20,'wght' 400,'FILL' 0,'GRAD' var(--symbol-grade);user-select:none;vertical-align:middle;-webkit-font-smoothing:antialiased}
 [aria-pressed=true]>.material-symbol,[aria-selected=true]>.material-symbol,.segmented-radio input:checked+span .material-symbol{font-variation-settings:'opsz' 20,'wght' 400,'FILL' 1,'GRAD' var(--symbol-grade)}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
@@ -31,11 +32,21 @@ header .export-short{display:none}
 .navigation-modes .material-symbol{font-size:20px}
 .documents .search-label{font-size:11px;margin:0 0 14px}
 .documents .search-label input{font-size:12px}
+.documents{container-type:inline-size;container-name:corpus-nav}
+@container corpus-nav (max-width:180px){
+  .navigation-modes.segmented-buttons{display:flex;width:100%}
+  .navigation-modes.segmented-buttons button{flex:1;min-width:0;padding:5px 4px;font-size:11px}
+  .navigation-modes .material-symbol{display:none}
+}
 .document{display:block!important;text-align:left;justify-content:flex-start!important;padding:10px!important}
 .document strong{font-size:12px}.document small{font-size:10px}
 .document-count{font-size:10px}
 .source-file{justify-content:flex-start!important;text-align:left}
 .location-bar{align-items:center;gap:10px 12px}
+.source-location-controls{display:inline-flex;align-items:center;gap:6px;min-width:0;max-width:100%}
+.source-location-controls label{min-width:0}
+.source-location-controls input{min-width:8ch!important}
+.source-location-controls button{flex:none}
 .location-bar label{font-size:11px;gap:6px}
 .location-bar input:not([type=checkbox],[type=radio]){width:22ch;min-width:10ch;max-width:22ch;font-size:12px;margin:0}
 .location-bar button{font-size:11px;min-height:30px;padding:5px 7px}
@@ -76,6 +87,14 @@ header .export-short{display:none}
 .recording-heading #timeline-toggle{margin-left:auto;min-height:28px;width:32px;padding:3px}
 .resize-grip{display:inline-block;width:36px;height:3px;border-radius:2px;background:var(--control-edge);vertical-align:top;margin-top:2px}
 #timeline-resizer .resize-grip{padding:0;background:var(--control-edge)}
+.workspace{position:relative}
+:root[data-resizing] *{user-select:none!important}
+:root[data-resizing=x],:root[data-resizing=x] *{cursor:col-resize!important}
+:root[data-resizing=y],:root[data-resizing=y] *{cursor:row-resize!important}
+#recording-waveform{touch-action:none;border-radius:3px}
+#recording-waveform:hover:not([aria-disabled=true]){background:color-mix(in srgb,var(--ink) 3%,transparent)}
+#recording-waveform:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#recording-waveform[aria-disabled=true]{cursor:default}
 .media-engine{display:none!important}
 .media-player{display:inline-flex;vertical-align:middle;width:min(760px,calc(100% - 290px));align-items:center;flex-wrap:wrap;gap:7px 10px;min-width:0;max-width:760px;margin-top:5px}
 .player-play{background:var(--ink);color:var(--paper);border-radius:6px;min-height:32px!important}
@@ -97,11 +116,13 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 .audio .actions{display:inline-flex;vertical-align:middle;gap:12px;min-height:32px;margin:5px 0 0 14px}
 .audio .actions button{font-size:12px;min-height:30px}
 #recording-pane[data-detail=minimal] .media-player{margin-top:0}
-#recording-pane[data-detail=minimal]{min-height:104px}
+#recording-pane{--recording-minimal-min:104px;--recording-compact-min:130px;--recording-expanded-min:220px}
+#recording-pane[data-detail=minimal]{min-height:var(--recording-minimal-min)}
+#recording-pane[data-detail=compact]{min-height:var(--recording-compact-min)}
+#recording-pane[data-detail=expanded]{min-height:var(--recording-expanded-min)}
 #recording-pane[data-detail=minimal] .recording-heading{display:flex}
 #recording-pane[data-detail=minimal] #timeline-toggle{display:inline-flex}
-#recording-pane:has(.player-status:not(:empty)){min-height:154px}
-#recording-pane[data-detail=minimal]:has(.player-status:not(:empty)){min-height:124px}
+#recording-pane:has(.player-status:not(:empty)){--recording-minimal-min:124px;--recording-compact-min:154px}
 #recording-layers{max-height:calc(var(--recording-height) - 174px)}
 .search-panel .media-player{display:flex;width:100%;max-width:100%;padding:10px 0;border-top:1px solid var(--border)}
 .search-panel .player-volume{margin-left:0}.search-panel .player-seek{min-width:100px}
@@ -115,18 +136,30 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 .search-span-evidence summary{cursor:pointer}.search-span-evidence pre{font-size:11px;max-height:220px}
 .search-panel button.secondary{background:var(--control-surface);color:var(--ink);border-color:var(--control-edge)}
 .search-panel .kwic mark{background:var(--control-hover);color:var(--ink)}
-/* Stable gutters prevent a pane from shifting on hover. Overflow stays native. */
-:is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre){scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
-@media(hover:hover) and (pointer:fine){
-  :is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre):not(:hover,:focus-within,:focus,.is-scrolling){scrollbar-color:transparent transparent}
+/* Native scrolling with consistent slim chrome, including nested editors/dialogs. */
+:where(*){scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
+:is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre,textarea,dialog){scrollbar-gutter:stable}
+@supports selector(::-webkit-scrollbar){
+  :where(*){scrollbar-width:auto;scrollbar-color:auto}
+  :where(*)::-webkit-scrollbar{width:8px;height:8px}
+  :where(*)::-webkit-scrollbar-track,:where(*)::-webkit-scrollbar-corner{background:transparent}
+  :where(*)::-webkit-scrollbar-button{display:none;width:0;height:0}
+  :where(*)::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:8px;background:var(--scroll-thumb);background-clip:padding-box}
+  :where(*):is(:hover,:focus-within,.is-scrolling)::-webkit-scrollbar-thumb{background-color:var(--scroll-hover)}
+  :where(*)::-webkit-scrollbar-thumb:active{background-color:var(--scroll-active)}
 }
 @media(max-width:1000px) and (min-width:701px){.transcript{padding-left:18px;padding-right:18px}.navigation-modes.segmented-buttons button{font-size:11px;padding:5px}.navigation-modes .material-symbol{display:none}}
 @media(min-width:701px){#document-list{display:block}.document{min-width:0;max-width:none}}
+@media(min-width:701px){
+  .reading-toolbar{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);width:min(100%,620px);gap:12px}
+  .reading-toolbar>label,.reading-toolbar>label:first-child{min-width:0;grid-column:auto}
+  .reading-toolbar input,.reading-toolbar select{width:100%;min-width:0;max-width:100%}
+}
 @media(max-width:1100px) and (min-width:701px){
+  .source-location-controls #source-location{width:17ch;max-width:17ch}
   .media-player{display:flex;width:100%;max-width:760px}.audio .actions{display:flex;margin:4px 0 0}
-  #recording-pane[data-detail=compact]{min-height:158px}
-  #recording-pane[data-detail=compact]:has(.player-status:not(:empty)){min-height:184px}
-  #recording-pane[data-detail=expanded]:has(.player-status:not(:empty)){min-height:260px}
+  #recording-pane{--recording-compact-min:180px}
+  #recording-pane:has(.player-status:not(:empty)){--recording-compact-min:206px;--recording-expanded-min:260px}
 }
 @media(max-width:700px){
   header{gap:6px 10px;padding:8px 12px}header .brand{flex:1}header #save-state{margin-left:0;font-size:11px;max-width:none;order:1;width:100%}header #export-package{order:2}header #toggle-navigation,header #toggle-properties,header #toggle-theme{order:2}header button{font-size:12px}
@@ -135,9 +168,8 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   .location-bar{gap:8px 10px}.location-bar label{font-size:11px}.location-bar #source-location{width:22ch;max-width:22ch}
   .reading-toolbar input{width:23ch}.reading-toolbar select{min-width:15ch}
   .inspector nav{position:static}.workspace[data-focus=properties] .inspector{padding-top:10px}
-  #recording-pane.audio{padding-left:12px;padding-right:12px;min-height:130px}
-  #recording-pane[data-detail=minimal]{min-height:130px}
-  #recording-pane[data-detail=minimal]:has(.player-status:not(:empty)){min-height:176px}
+  #recording-pane.audio{padding-left:12px;padding-right:12px;--recording-minimal-min:130px;--recording-compact-min:194px;--recording-expanded-min:300px}
+  #recording-pane:has(.player-status:not(:empty)){--recording-minimal-min:176px;--recording-compact-min:232px;--recording-expanded-min:300px}
   .recording-heading span{font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
   .recording-heading strong{flex:none}.recording-heading #timeline-toggle{flex:none}
   .media-player{display:flex;width:100%;gap:4px 8px;margin-top:1px}.media-player .player-seek{flex:1 1 90px;max-width:none}
@@ -145,21 +177,19 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   .player-speed{margin-left:40px!important}.player-speed select{min-height:30px}
   .audio .actions{display:flex;gap:8px;margin:2px 0 0;flex-wrap:wrap}
   .audio .actions #loop-selection{display:inline-block}
-  #recording-pane[data-detail=compact]{min-height:194px}
-  #recording-pane[data-detail=compact]:has(.player-status:not(:empty)){min-height:232px}
-  #recording-pane[data-detail=expanded]{min-height:300px}
-  #recording-pane[data-detail=expanded]:has(.player-status:not(:empty)){min-height:300px}
   #recording-layers{max-height:calc(var(--recording-height) - 215px)}
   .search-panel .player-speed{margin-left:0!important}
   button:not(.token){min-height:34px}input[type=range]{height:32px;min-height:32px}
 }
 @media(prefers-reduced-motion:reduce){.switch-field input[type=checkbox]::before{transition:none}}
 @media(forced-colors:active){
-  :is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre){scrollbar-width:auto;scrollbar-color:auto!important}
+  :where(*){scrollbar-width:auto;scrollbar-color:auto!important}
+  :where(*)::-webkit-scrollbar,:where(*)::-webkit-scrollbar-track,:where(*)::-webkit-scrollbar-thumb,:where(*)::-webkit-scrollbar-corner,:where(*)::-webkit-scrollbar-button{all:revert!important}
   .switch-field input[type=checkbox]{appearance:auto;forced-color-adjust:auto;width:20px;height:20px}.switch-field input::before{display:none}
   .segmented-radio input:checked+span,.navigation-modes [aria-pressed=true],.inspector nav button.active{outline:2px solid Highlight;outline-offset:-2px}
   input[type=range]{appearance:auto;forced-color-adjust:auto}.player-play{border:1px solid ButtonText}
 }
 @media(prefers-contrast:more){
-  :is(.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre){scrollbar-width:auto;scrollbar-color:auto!important}
+  :where(*){scrollbar-width:auto;scrollbar-color:auto!important}
+  :where(*)::-webkit-scrollbar,:where(*)::-webkit-scrollbar-track,:where(*)::-webkit-scrollbar-thumb,:where(*)::-webkit-scrollbar-corner,:where(*)::-webkit-scrollbar-button{all:revert!important}
 }

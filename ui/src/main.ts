@@ -11,19 +11,29 @@ import {corpusSearch,type SearchPanel} from './search';
 import {documentNavigation,sourceNavigation,inspectorViews,isInspectorView,reading,visibleToken,type InspectorView,type ReadingPreferences} from './workspace';
 import {sourceInspector} from './source';
 import {Transcript} from './transcript';
-import {RecordingPanel,resizePane} from './panes';
+import {RecordingPanel,resizeWorkbenchSides} from './panes';
 import './style.css';
 import './editor.css';
 import './controls.css';
 import {icon} from './icons';
 import {buttonGroup,scrollIndicators} from './controls';
+import {desktop,desktopNavigation,initializeDesktop,type Departure} from './desktop';
 let view:View;let docPath='';let selected:string[]=[];let tab:InspectorView|'source'='token';let sourcePath='';let navigationMode:'documents'|'sources'='documents';let navigationQuery='';const readingPreferences:ReadingPreferences={query:'',layer:'corrected',filter:'all'};let saving=false;let loop=false;let redoRevision:number|null=null;let conflict:{operations:Operation[];label:string;latest:View;source?:HTMLFormElement;sourceValues:string|null}|null=null;
 const tokenDrafts=new Map<string,HTMLElement>();const annotationDrafts=new Map<string,HTMLElement>();const structuralDrafts=new Map<string,HTMLElement>();
 const returnDrafts=new Map<number,HTMLElement>();
 let pendingWrite:{command:Command;unlock:()=>void;before:number;restore:boolean}|null=null;let searchPanel:SearchPanel|null=null;let transcript:Transcript;let recording:RecordingPanel;let openDocuments:string[]=[];const documentStates=new Map<string,{selected:string[];time:number;scroll:number}>();
 const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values()];let annotationRevision=0;let inspectorEpoch=0;
 const app=el('app');
-window.addEventListener('beforeunload',event=>{if(pendingWrite||transcript?.dirty()||draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')!==null)){event.preventDefault();event.returnValue=''}});
+function departure():Departure {
+  const inline=transcript?.departureState()??{dirty:false,recoverable:true,saving:false};
+  const memory=draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')!==null)||app.querySelector('form[data-desktop-dirty="true"]:not([data-dirty])')!==null;
+  return {dirty:memory||inline.dirty||!!pendingWrite,recoverable:!memory&&!pendingWrite&&inline.recoverable,saving:saving||!!pendingWrite||inline.saving};
+}
+window.addEventListener('beforeunload',event=>{const state=departure();desktop?.reportDraft(state);if(state.dirty||state.saving){event.preventDefault();event.returnValue=''}});
+if(desktop){
+  document.addEventListener('input',event=>{const form=(event.target as HTMLElement).closest('form');if(form&&form.dataset.dirty===undefined)form.dataset.desktopDirty='true'});
+  document.addEventListener('reset',event=>{const form=event.target as HTMLFormElement;delete form.dataset.desktopDirty});
+}
 function lockAuthoring(){const controls=[...document.querySelectorAll<HTMLInputElement>('button,input,select,textarea')].map(e=>[e,e.disabled] as const);controls.forEach(([e])=>e.disabled=true);return ()=>controls.forEach(([e,disabled])=>e.disabled=disabled);}
 function message(text:string,isError=false){el('message').textContent=text;el('message').className=isError?'notice error':'notice';}
 function currentDoc():Document{return view.documents.find(d=>d.path===docPath)??view.documents[0]}
@@ -38,23 +48,23 @@ function shell(){app.innerHTML=`<a class="skip-link" href="#tokens">Skip to tran
   <main class="transcript"><div class="audio"><h2 id="document-title"></h2><audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p><div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div></div><p id="selection-help" class="muted">Click a token to correct it. Shift-click selects a range; Ctrl / Command-click adds tokens.</p><div class="reading-toolbar"><label>Find tokens<input id="token-query" type="search" autocomplete="off" placeholder="Reading, ID or variety"></label><label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label><label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label></div><div class="reading-status"><span id="token-count" role="status"></span><button id="next-match" class="secondary">${icon('skip_next')}Next match</button></div><div id="tokens" tabindex="-1"></div></main>
   <aside class="inspector"><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.id==='history'?icon('history'):item.id==='review'?icon('fact_check'):item.id==='references'?icon('link'):item.id==='search'?icon('search'):''}${item.label}</button>`).join('')}</nav><div id="inspector-content"></div></aside></div>`;
   const main=document.querySelector<HTMLElement>('.transcript')!;
+  desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
   const audioPane=document.querySelector<HTMLElement>('.audio')!;const title=el('document-title');main.prepend(title);
   audioPane.id='recording-pane';document.querySelector('.workspace')!.after(audioPane);
   title.insertAdjacentHTML('beforebegin','<div id="document-tabs" role="tablist" aria-label="Open documents"></div>');
-  title.insertAdjacentHTML('afterend',`<div class="location-bar"><fieldset id="transcript-layout" class="segmented-radio"><legend>View</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon("notes")}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon("view_agenda")}Lines</span></label></fieldset><label class="switch-field interlinear-toggle"><input id="show-interlinear" type="checkbox" role="switch"><span>Interlinear</span></label><label>Go to source<input id="source-location" placeholder="Utterance or token ID" autocomplete="off"></label><button id="jump-source" class="secondary">Go</button><button id="copy-citation" class="secondary">${icon('link')}Copy link</button><button id="native-problems" class="secondary">Package validation</button></div><p id="source-location-status" class="muted">Small numbers are display order; source IDs stay stable across layouts.</p>`);
+  title.insertAdjacentHTML('afterend',`<div class="location-bar"><fieldset id="transcript-layout" class="segmented-radio"><legend>View</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon("notes")}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon("view_agenda")}Lines</span></label></fieldset><label class="switch-field interlinear-toggle"><input id="show-interlinear" type="checkbox" role="switch"><span>Interlinear</span></label><div class="source-location-controls"><label>Go to source<input id="source-location" placeholder="Utterance or token ID" autocomplete="off"></label><button id="jump-source" class="secondary">Go</button></div><button id="copy-citation" class="secondary">${icon('link')}Copy link</button><button id="native-problems" class="secondary">Package validation</button></div><p id="source-location-status" class="muted">Small numbers are display order; source IDs stay stable across layouts.</p>`);
   el('selection-help').textContent='Select transcript text to correct or annotate. Original source and recording stay unchanged.';
   document.querySelector('header')!.insertAdjacentHTML('beforeend',`<button id="toggle-navigation" class="secondary" aria-expanded="true">${icon('view_sidebar')}Projects</button><button id="toggle-properties" class="secondary" aria-expanded="true">${icon('tune')}Tools</button><button id="toggle-theme" class="secondary icon-button" aria-label="Dark appearance" aria-pressed="false">${icon("dark_mode")}</button>`);
   document.querySelector('.documents')!.insertAdjacentHTML('beforeend','<div id="navigation-resizer" class="side-resizer" aria-label="Resize projects pane"></div>');
   document.querySelector('.inspector')!.insertAdjacentHTML('afterbegin','<div id="properties-resizer" class="side-resizer" aria-label="Resize properties pane"></div>');
-  resizePane(el('navigation-resizer'),'wb-navigation-width',160,360,208,'x',1,size=>document.documentElement.style.setProperty('--navigation-width',size+'px'));
-  resizePane(el('properties-resizer'),'wb-properties-width',260,520,304,'x',-1,size=>document.documentElement.style.setProperty('--properties-width',size+'px'));
+  resizeWorkbenchSides(document.querySelector<HTMLElement>('.workspace')!,el('navigation-resizer'),el('properties-resizer'));
   document.querySelector('.documents')!.id='projects-pane';document.querySelector('.inspector')!.id='properties-pane';
   el('toggle-navigation').setAttribute('aria-controls','projects-pane');el('toggle-properties').setAttribute('aria-controls','properties-pane');
   document.querySelector<HTMLElement>('.workspace')!.dataset.focus='transcript';
   const fold=(side:string)=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;if(matchMedia('(max-width:700px)').matches){workspace.dataset.focus=workspace.dataset.focus===side?'transcript':side;if(workspace.dataset.focus===side)workspace.classList.remove(side+'-folded')}else{const folded=workspace.classList.toggle(side+'-folded');workspace.dataset.focus=folded?'transcript':side}updatePaneAccessibility()};
   el('toggle-navigation').onclick=()=>fold('navigation');el('toggle-properties').onclick=()=>fold('properties');
   matchMedia('(max-width:700px)').addEventListener('change',updatePaneAccessibility);updatePaneAccessibility();
-  const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;el('toggle-theme').innerHTML=icon(theme==='dark'?'light_mode':'dark_mode');el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
+  const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').innerHTML=icon(theme==='dark'?'light_mode':'dark_mode');el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
   try{setTheme(localStorage.getItem('wb-theme')??(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))}catch{setTheme('light')}
   el('toggle-theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   transcript=new Transcript(el('tokens'),{view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listen:()=>void listen(),projection:unsupported=>configureMedia(unsupported)});
@@ -76,7 +86,7 @@ function shell(){app.innerHTML=`<a class="skip-link" href="#tokens">Skip to tran
   el<HTMLInputElement>('loop-selection').onchange=e=>{loop=(e.target as HTMLInputElement).checked};
   el<HTMLAudioElement>('audio').ontimeupdate=()=>{const audio=el<HTMLAudioElement>('audio');const extent=selectionExtent();if(loop&&extent&&audio.currentTime>=extent[1]){audio.currentTime=extent[0];void audio.play()};highlightPlayback(audio.currentTime);};
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>b.onclick=()=>{if(isInspectorView(b.dataset.tab!)){tab=b.dataset.tab;showProperties();void renderInspector()}});
-  el('export-package').onclick=async()=>{try{message('Preparing exact revision export…');const r=await api<{revision:number;download:string;job_id:string}>('/api/export',{revision:view.revision.id});message(`Complete export ready for R${r.revision}.`);const a=document.createElement('a');a.href=r.download;a.textContent='Download complete package';a.setAttribute('download','');el('message').append(' ',a)}catch(e){message(String(e),true)}};
+  el('export-package').onclick=async()=>{try{if(desktop){message('Preparing exact revision export…');const result=await desktop.exportRevision(view.revision.id);message(result.cancelled?'Export cancelled.':`Complete package saved for R${view.revision.id}.`);return}message('Preparing exact revision export…');const r=await api<{revision:number;download:string;job_id:string}>('/api/export',{revision:view.revision.id});message(`Complete export ready for R${r.revision}.`);const a=document.createElement('a');a.href=r.download;a.textContent='Download complete package';a.setAttribute('download','');el('message').append(' ',a)}catch(e){message(String(e),true)}};
   document.addEventListener('keydown',event=>{
     if(saving||pendingWrite||transcript.busy()||event.isComposing)return;
     if((event.target as HTMLElement).closest('#tokens,[contenteditable]'))return;
@@ -164,4 +174,22 @@ function showProperties(){const workspace=document.querySelector<HTMLElement>('.
 function switchDocument(path:string){if(saving||pendingWrite||transcript.activeDraft()||transcript.busy()){message('Finish or undo the correction draft before switching documents. Your selection and recording remain here.',true);return}const audio=el<HTMLAudioElement>('audio');documentStates.set(docPath,{selected:[...selected],time:audio.currentTime,scroll:document.querySelector('.transcript')!.scrollTop});audio.pause();audio.removeAttribute('src');audio.load();audio.hidden=true;for(const id of ['listen-selected','loop-selection'])el<HTMLInputElement>(id).disabled=true;docPath=path;void recording.update(view,currentDoc(),undefined);const state=documentStates.get(path);selected=state?.selected??[];render();if(state)document.querySelector('.transcript')!.scrollTop=state.scroll}
 function renderDocumentTabs(){if(!openDocuments.includes(docPath))openDocuments.push(docPath);const focused=(document.activeElement as HTMLElement)?.dataset.openDocument;el('document-tabs').innerHTML=openDocuments.map(path=>`<button role="tab" aria-selected="${path===docPath}" data-open-document="${esc(path)}">${esc(view.documents.find(d=>d.path===path)?.title??path)}</button>`).join('');el('document-tabs').querySelectorAll<HTMLButtonElement>('[data-open-document]').forEach(b=>{b.onclick=()=>switchDocument(b.dataset.openDocument!);if(b.dataset.openDocument===focused)b.focus()})}
 async function followCitation(){const value=new URLSearchParams(location.hash.slice(1)).get('loc');if(!value)return;try{const citation=JSON.parse(value);if(citation.project!==view.snapshot.project||citation.revision!==view.revision.id){message(`Citation refers to ${citation.project} R${citation.revision}. Current saved head is R${view.revision.id}; inspect that exact revision in History before resolving it.`,true);return}if(!view.documents.some(d=>d.path===citation.document))throw new Error('Citation document is unavailable');switchDocument(citation.document);await transcript.render();if(citation.anchor&&!transcript.location(citation.anchor))message('Citation anchor is unavailable; no replacement location was guessed.',true)}catch(e){message('Could not resolve citation: '+String(e),true)}}
-void start().catch(error=>{app.textContent='Could not load workbench: '+String(error)});
+function desktopMenu(command:string){
+  if(command==='backend-reconnected'){void resumeSession().catch(error=>message('Session reconnection failed: '+String(error),true));return}
+  if(!view||!document.querySelector('.workspace'))return;
+  if(command==='save'){
+    const correction=document.querySelector<HTMLButtonElement>('#retry-draft:not([hidden]),#accept-draft');
+    if(correction&&!correction.disabled){correction.click();return}
+    if(pendingWrite){void resolvePendingWrite();return}
+    const focused=(document.activeElement as HTMLElement)?.closest('form');
+    const form=focused??document.querySelector<HTMLFormElement>('#inspector-content form[data-dirty="true"],#inspector-content form[data-desktop-dirty="true"]');
+    const submit=form?.querySelector<HTMLButtonElement>('button:not([type="button"]):not(:disabled),input[type="submit"]:not(:disabled)');
+    if(form&&submit)form.requestSubmit(submit);else message('Choose a correction or a properties form to save. Every accepted edit creates a named revision.');
+  }
+  if(command==='search'){tab='search';showProperties();void renderInspector()}
+  if(command==='export')el('export-package').click();
+  if(command==='history'){tab='history';showProperties();void renderInspector()}
+  if(command==='toggle-inspector')el('toggle-properties').click();
+  if(command==='toggle-recording')el('timeline-toggle').click();
+}
+void initializeDesktop(app,start,departure,desktopMenu).catch(error=>{app.textContent='Could not load workbench: '+String(error)});

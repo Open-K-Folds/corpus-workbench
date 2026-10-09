@@ -43,7 +43,8 @@ export class AudioPlayer {
     if(available!==this.playable){this.playable=available;for(const control of [this.play,this.mute,this.seek,this.volume,this.speed])control.disabled=!available}
     this.play.innerHTML=icon(a.paused?'play_arrow':'pause');
     this.play.setAttribute('aria-label',a.paused?(a.ended?'Play recording from start':'Play recording'):'Pause recording');
-    this.mute.innerHTML=icon(a.muted||a.volume===0?'volume_off':'volume_up');this.mute.setAttribute('aria-pressed',String(a.muted));
+    this.mute.innerHTML=icon(a.muted||a.volume===0?'volume_off':'volume_up');this.mute.setAttribute('aria-pressed',String(a.muted));this.mute.setAttribute('aria-label',a.muted?'Unmute recording':'Mute recording');
+    this.play.title=this.play.getAttribute('aria-label')!;this.mute.title=this.mute.getAttribute('aria-label')!;
     this.clock.textContent=time(a.currentTime)+' / '+time(a.duration);
     this.seek.max=String(duration);this.seek.value=String(Math.max(0,Math.min(duration,a.currentTime)));
     this.seek.setAttribute('aria-valuetext',time(a.currentTime)+' of '+time(a.duration));

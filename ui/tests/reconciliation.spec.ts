@@ -3,7 +3,7 @@ import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
 import {readFileSync,writeFileSync,mkdirSync,existsSync,readdirSync,cpSync} from 'node:fs';
 import {resolve} from 'node:path';
 const root=resolve('..');const binary=process.env.WB_BINARY??resolve(root,'target/debug/corpus-workbench'+(process.platform==='win32'?'.exe':''));
-let runtime:string;let returned:string;let service:ChildProcess;let code:string;let sequence=0;
+let runtime:string;let returned:string;let service:ChildProcess;let code:string;let sequence=0;let sessionRuntime:string;
 function nativeView(){return JSON.parse(execFileSync(binary,['view','--store',resolve(runtime,'authority'),'--project','return'],{encoding:'utf8'}))}
 function localEdit(token:string,fields:Record<string,string>){const v=nativeView();const command={schema:1,project:'return',command_id:'local-'+sequence+'-'+v.revision.id,base_revision:v.revision.id,preimage_hash:v.revision.snapshot_hash,config_version:v.snapshot.config.version,label:'Concurrent local work',operations:[{kind:'set_token',document:'xmlfiles/demo.xml',token,fields}]};const file=resolve(runtime,'local-command.json');writeFileSync(file,JSON.stringify(command));execFileSync(binary,['apply','--store',resolve(runtime,'authority'),'--command',file]);}
 test.beforeEach(async()=>{
@@ -18,6 +18,8 @@ test.beforeEach(async()=>{
   const xml=resolve(returned,'xmlfiles/demo.xml');writeFileSync(xml,readFileSync(xml,'utf8').replace("nform='base'","nform='external' note='external note'"));localEdit('w1',{nform:'saved',lemma:'saved lemma'});
   service=spawn(binary,['serve','--store',resolve(runtime,'authority'),'--project','return','--ui',process.env.WB_UI??resolve(root,'ui/dist'),'--port','18912'],{cwd:runtime,stdio:'pipe'});
   await expect.poll(()=>existsSync(resolve(runtime,'.runtime/session-code'))).toBe(true);code=readFileSync(resolve(runtime,'.runtime/session-code'),'utf8');await expect.poll(async()=>{try{return(await fetch('http://127.0.0.1:18912/')).status}catch{return 0}}).toBe(200);
+  const sessions=readdirSync(resolve(runtime,'.runtime','sessions'),{withFileTypes:true}).filter(entry=>entry.isDirectory());
+  expect(sessions).toHaveLength(1);sessionRuntime=resolve(runtime,'.runtime','sessions',sessions[0].name);
 });
 test.afterEach(async()=>{if(service&&service.exitCode===null){service.kill();await new Promise<void>(done=>service.once('exit',()=>done()))}});
 async function choose(page:import('@playwright/test').Page,path=returned){await page.getByRole('button',{name:'Return copy',exact:true}).click();await page.locator('#return-directory').setInputFiles(path);await page.locator('#preview-return').click();await expect(page.locator('#return-status')).not.toContainText('Uploading');await expect(page.locator('#return-result')).toContainText('Exported R1');}
@@ -62,12 +64,13 @@ test('abandoned uploads on a superseded revision release slots and files',async(
       const file=await fetch(`/api/return/file?upload=${upload}&path=abandoned.bin`,{method:'POST',headers:{'X-WB-CSRF':headers['X-WB-CSRF']},body:'ok'});if(file.status!==200)throw new Error('Synthetic upload file failed');
     }return ids;
   });
-  const uploadRoot=resolve(runtime,'.runtime/return-uploads'),session=readdirSync(uploadRoot)[0];
-  for(const id of ids)expect(readFileSync(resolve(uploadRoot,session,id,'abandoned.bin'),'utf8')).toBe('ok');
+  const uploadRoot=resolve(sessionRuntime,'return-uploads');
+  for(const id of ids)expect(readFileSync(resolve(uploadRoot,id,'abandoned.bin'),'utf8')).toBe('ok');
   localEdit('w2',{note:'supersedes abandoned upload basis'});const before=nativeView();
   const next=await page.evaluate(async()=>{const headers={'Content-Type':'application/json','X-WB-CSRF':sessionStorage.getItem('wb-csrf')!};const v=await(await fetch('/api/view')).json();const response=await fetch('/api/return/start',{method:'POST',headers,body:JSON.stringify({project:v.snapshot.project,revision:v.revision.id,snapshot_hash:v.revision.snapshot_hash,files:[{path:'fresh.bin',bytes:2}]})});return {status:response.status,data:await response.json()}});
-  expect(next.status).toBe(200);for(const id of ids)expect(existsSync(resolve(uploadRoot,session,id))).toBe(false);expect(nativeView().revision).toEqual(before.revision);
+  expect(next.status).toBe(200);for(const id of ids)expect(existsSync(resolve(uploadRoot,id))).toBe(false);expect(existsSync(resolve(uploadRoot,next.data.upload))).toBe(true);expect(nativeView().revision).toEqual(before.revision);
   await page.evaluate(async id=>{const response=await fetch('/api/return/cancel',{method:'POST',headers:{'Content-Type':'application/json','X-WB-CSRF':sessionStorage.getItem('wb-csrf')!},body:JSON.stringify({upload:id})});if(response.status!==200)throw new Error('Synthetic cleanup failed')},next.data.upload);
+  expect(readdirSync(uploadRoot)).toEqual([]);
 });
 
 test('late return preview stays in its proposal and structural reload protects it',async({page})=>{
