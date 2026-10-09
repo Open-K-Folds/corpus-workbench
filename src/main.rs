@@ -9,9 +9,13 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use std::{
     fs,
-    io::{Read, Write},
+    io::{BufRead, Read, Write},
     net::{SocketAddr, TcpStream},
     path::{Path, PathBuf},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     time::{Duration, Instant},
 };
 use tiny_http::{Header, Method, Request, Response, Server, StatusCode};
@@ -76,6 +80,30 @@ fn verification_store(root: &Path, args: &[String]) -> Result<Store> {
         Store::open(root)
     }
 }
+// Discovery must never initialize an arbitrary selected directory or migrate
+// its schema. Read live WAL state normally rather than using immutable mode.
+fn projects_readonly(root: &Path) -> Result<Vec<String>> {
+    ensure!(
+        root.join("ledger.sqlite").is_file() && root.join("objects").is_dir(),
+        "existing complete authority required"
+    );
+    let conn = rusqlite::Connection::open_with_flags(
+        root.join("ledger.sqlite"),
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY,
+    )?;
+    conn.busy_timeout(Duration::from_secs(5))?;
+    conn.execute_batch("PRAGMA query_only=ON;")?;
+    let schema: i64 = conn.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+    ensure!(schema == 2, "authority discovery requires current schema 2");
+    let store = Store {
+        conn,
+        objects: package::Objects {
+            root: root.join("objects"),
+        },
+        root: root.into(),
+    };
+    store.projects()
+}
 fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     let mode = args.get(1).map(String::as_str).unwrap_or("help");
@@ -109,8 +137,23 @@ fn main() -> Result<()> {
         "generations" => println!("{}",serde_json::to_string(&Store::open(&root)?.generations(&project,option(&args,"--historical","no")=="yes")?)?),
         "generation" => println!("{}",Store::open(&root)?.generation(&project,&option(&args,"--id",""),option(&args,"--historical","no")=="yes")?),
         "apply" => { let mut s=Store::open(&root)?; let c:Command=serde_json::from_slice(&fs::read(option(&args,"--command",""))?)?; let fault=match option(&args,"--fault","none").as_str() { "after-stage"=>Fault::AfterStage,"before-commit"=>Fault::BeforeCommit,"after-commit"=>Fault::AfterCommit,_=>Fault::None }; let r=s.apply("local-owner",&c,fault)?; println!("{}",serde_json::to_string(&r)?); }
-        "serve" => serve(Store::open(&root)?,&project,&PathBuf::from(option(&args,"--ui","ui/dist")),option(&args,"--port","18910").parse()?, option(&args,"--container-network","no")=="yes")?,
-        _ => println!("corpus-workbench import|serve|view|export|backup|check|health|apply|review|search|search-projection|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Search/search-projection require --request FILE with exact revision and snapshot hash. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
+        "projects" => println!("{}", json!({"projects": projects_readonly(&root)?})),
+        "serve" => {
+            let desktop = option(&args, "--desktop", "no") == "yes";
+            if desktop {
+                ensure!(root.join("ledger.sqlite").is_file(), "existing authority required");
+                ensure!(args.iter().any(|arg| arg == "--runtime-dir"), "desktop requires --runtime-dir");
+                ensure!(option(&args, "--container-network", "no") != "yes", "desktop requires loopback networking");
+            }
+            serve(Store::open(&root)?, &project, &PathBuf::from(option(&args, "--ui", "ui/dist")), ServeOptions {
+                port: option(&args, "--port", "18910").parse()?,
+                container_network: option(&args, "--container-network", "no") == "yes",
+                runtime: PathBuf::from(option(&args, "--runtime-dir", &option(&args, "--runtime", ".runtime"))),
+                desktop,
+                parent_stdin: option(&args, "--parent-stdin", "no") == "yes",
+            })?;
+        }
+        _ => println!("corpus-workbench import|serve|projects|view|export|backup|check|health|apply|review|search|search-projection|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist --runtime-dir .runtime. Desktop sidecar: --desktop yes --port 0 --runtime-dir PRIVATE_DIRECTORY --parent-stdin yes; emits private workbench-ready JSON on stdout. Projects: read-only discovery of an existing schema-2 authority. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Search/search-projection require --request FILE with exact revision and snapshot hash. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
     }
     Ok(())
 }
@@ -195,13 +238,51 @@ fn respond(request: Request, status: u16, bytes: Vec<u8>, mime: &str, extra: Vec
     }
     let _ = request.respond(response);
 }
-fn serve(
-    mut store: Store,
-    project: &str,
-    ui: &Path,
+struct ServeOptions {
     port: u16,
     container_network: bool,
-) -> Result<()> {
+    runtime: PathBuf,
+    desktop: bool,
+    parent_stdin: bool,
+}
+
+// Only this server's fresh session directory is removed. The caller's runtime
+// directory may contain other sessions or files and is never recursively purged.
+struct RuntimeSession {
+    directory: PathBuf,
+    browser_files: Vec<(PathBuf, Vec<u8>)>,
+}
+impl Drop for RuntimeSession {
+    fn drop(&mut self) {
+        for (path, owned_bytes) in &self.browser_files {
+            if fs::read(path).ok().as_ref() == Some(owned_bytes) {
+                let _ = fs::remove_file(path);
+            }
+        }
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+fn parent_shutdown(enabled: bool) -> Arc<AtomicBool> {
+    let shutdown = Arc::new(AtomicBool::new(false));
+    if enabled {
+        let signal = Arc::clone(&shutdown);
+        std::thread::spawn(move || {
+            for line in std::io::stdin().lock().lines() {
+                match line {
+                    Ok(line) if line.trim() != "shutdown" => continue,
+                    _ => break,
+                }
+            }
+            // EOF also covers an unexpected Electron main-process exit. The
+            // request loop finishes any active transaction before releasing it.
+            signal.store(true, Ordering::Release);
+        });
+    }
+    shutdown
+}
+
+fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> Result<()> {
     ensure!(store.project_exists(project)?, "project not imported");
     // Import command IDs are unique per independently imported authority. This
     // stable, non-secret lineage identity survives serving restarts and backups.
@@ -225,20 +306,57 @@ fn serve(
     );
     // Bind before publishing a capability. A failed second launch must not
     // replace the working session's launcher with an unusable new code.
-    let server =
-        Server::http(bind_address(port, container_network)?).map_err(|e| anyhow::anyhow!("{e}"))?;
-    fs::create_dir_all(".runtime")?;
-    fs::write(".runtime/session-code", &token)?;
+    let server = Server::http(bind_address(options.port, options.container_network)?)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let port = server
+        .server_addr()
+        .to_ip()
+        .context("HTTP listener address required")?
+        .port();
+    fs::create_dir_all(&options.runtime).context("create writable runtime directory")?;
+    let runtime_root = fs::canonicalize(&options.runtime)?;
+    let session_directory = runtime_root
+        .join("sessions")
+        .join(uuid::Uuid::new_v4().to_string());
+    fs::create_dir_all(&session_directory)?;
+    let mut runtime = RuntimeSession {
+        directory: session_directory,
+        browser_files: vec![],
+    };
     let url = format!("http://127.0.0.1:{port}/");
-    fs::write(".runtime/Open-Workbench.html",format!("<!doctype html><meta charset=\"utf-8\"><title>Open corpus workbench</title><h1>Corpus workbench</h1><p>Private local research copy.</p><a href=\"{url}#session={token}\">Open protected workbench</a>"))?;
-    println!("Usable local workbench: {url} (open .runtime/Open-Workbench.html for its protected session)");
+    if options.desktop {
+        // stdout is a private pipe owned by Electron main; the capability is
+        // never written to a launcher, browser cookie, or renderer response.
+        println!(
+            "{}",
+            json!({"event":"workbench-ready","port":port,"capability":token,"project":project,"authority":draft_authority,"runtime":runtime.directory})
+        );
+        std::io::stdout().flush()?;
+    } else {
+        let launcher = format!("<!doctype html><meta charset=\"utf-8\"><title>Open corpus workbench</title><h1>Corpus workbench</h1><p>Private local research copy.</p><a href=\"{url}#session={token}\">Open protected workbench</a>");
+        for (name, bytes) in [
+            ("session-code", token.as_bytes()),
+            ("Open-Workbench.html", launcher.as_bytes()),
+        ] {
+            let path = runtime_root.join(name);
+            fs::write(&path, bytes)?;
+            runtime.browser_files.push((path, bytes.to_vec()));
+        }
+        println!(
+            "Usable local workbench: {url} (open {} for its protected session)",
+            runtime_root.join("Open-Workbench.html").display()
+        );
+    }
     // A download belongs to this server's authenticated project session. Files
     // left by another server/project in a shared cwd confer no access.
     let mut downloads = std::collections::BTreeMap::<String, PathBuf>::new();
-    let upload_root =
-        PathBuf::from(".runtime/return-uploads").join(format!("session-{}", uuid::Uuid::new_v4()));
+    let upload_root = runtime.directory.join("return-uploads");
     let mut uploads = std::collections::BTreeMap::<String, Upload>::new();
-    for mut request in server.incoming_requests() {
+    let shutdown = parent_shutdown(options.parent_stdin);
+    while !shutdown.load(Ordering::Acquire) {
+        let Some(mut request) = server.recv_timeout(Duration::from_millis(200))? else {
+            continue;
+        };
         let path = request.url().split('?').next().unwrap_or("").to_string();
         let method = request.method().clone();
         if path == "/health/ready" {
@@ -264,13 +382,18 @@ fn serve(
             continue;
         }
         let is_api = path.starts_with("/api/");
-        let session = header(&request, "Cookie")
-            .unwrap_or_default()
-            .split(';')
-            .map(str::trim)
-            .any(|v| v == format!("wb_session={token}"));
+        let desktop_session =
+            options.desktop && header(&request, "X-WB-Desktop").as_deref() == Some(token.as_str());
+        let session = desktop_session
+            || (!options.desktop
+                && header(&request, "Cookie")
+                    .unwrap_or_default()
+                    .split(';')
+                    .map(str::trim)
+                    .any(|v| v == format!("wb_session={token}")));
         if path == "/api/session" && method == Method::Post {
             let result = (|| -> Result<Value> {
+                ensure!(!options.desktop, "unauthorized desktop session route");
                 ensure!(
                     header(&request, "Origin").as_deref() == Some(url.trim_end_matches('/')),
                     "origin denied"
@@ -317,6 +440,7 @@ fn serve(
         }
         if is_api
             && method == Method::Post
+            && !desktop_session
             && (header(&request, "X-WB-CSRF").as_deref() != Some(&token)
                 || header(&request, "Origin").as_deref() != Some(url.trim_end_matches('/')))
         {
@@ -402,7 +526,11 @@ fn serve(
                         f.take(end - start + 1),
                         Some((end - start + 1) as usize),
                         None,
-                    );
+                    )
+                    // The immutable artifact has an exact known size. Keep
+                    // streaming its file while giving Chromium a fixed-length
+                    // media resource, including ranges larger than 32 KiB.
+                    .with_chunked_threshold(usize::MAX);
                     if status == 206 {
                         response
                             .add_header(h("Content-Range", &format!("bytes {start}-{end}/{len}")));
@@ -430,7 +558,7 @@ fn serve(
                 }
                 match (method, path.as_str()) {
                     (Method::Get, "/api/session") => Ok(
-                        json!({"actor":"local-owner","project":project,"authority":draft_authority,"roles":["reader","editor","reviewer"],"csrf":token}),
+                        json!({"actor":"local-owner","project":project,"authority":draft_authority,"roles":["reader","editor","reviewer"],"csrf":if options.desktop { "" } else { token.as_str() }}),
                     ),
                     (Method::Get, "/api/inventory") => {
                         let inventory = store.reference_inventory(
@@ -698,7 +826,7 @@ fn serve(
                         let data = body(&mut request)?;
                         let revision = data["revision"].as_i64().context("revision")?;
                         let job_id = format!("export-{}", uuid::Uuid::new_v4());
-                        let dir = PathBuf::from(".runtime/exports").join(&job_id);
+                        let dir = runtime.directory.join("exports").join(&job_id);
                         store.export(project, revision, &dir)?;
                         package::zip_directory(&dir, &dir.with_extension("zip"))?;
                         downloads.insert(job_id.clone(), dir.with_extension("zip"));

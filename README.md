@@ -1,5 +1,10 @@
 # Corpus workbench
 
+The **0.2.0-dev.12 Electron desktop preview** reuses the Rust authority and transcript
+editor, adding native project import/open, exact-revision saving/export, backups,
+stable draft storage and managed process lifecycle. See
+[desktop build, workflows and architecture](docs/ELECTRON-DESKTOP.md).
+
 Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. **0.1.0-preview.1 is an engineering preview.** Source development is now **0.2.0-dev.11**, including [annotation editing](docs/ANNOTATION-MILESTONE.md), the [reference inventory foundation](docs/REFERENCE-INVENTORY-MILESTONE.md), [bounded split/merge](docs/RETOKENIZATION-MILESTONE.md), a [packaged TEITOK reader](docs/TEITOK-READER-MILESTONE.md), the [detailed authoring experience](docs/AUTHORING-EXPERIENCE.md), a tested [local container workflow](docs/CONTAINERS.md), [dependency/upgrade qualification](docs/RELEASE-QUALIFICATION.md), [one qualified local Trixie runtime](docs/TRIXIE-RUNTIME-MILESTONE.md) and [reviewed TEITOK copy returns](docs/EDITED-PACKAGE-MILESTONE.md) and [bounded corpus concordance](docs/CORPUS-SEARCH-MILESTONE.md) and the [integrated transcript editor](docs/TRANSCRIPT-EDITOR-MILESTONE.md). The full approved migration is still in progress; the published preview stays immutable.
 
 Import a complete TEITOK directory, listen to its media, correct tokens, maintain custom language values, create and edit discontinuous spans and relations, compare/undo/restore named revisions, review an exact revision, and export the complete package. SQLite transactions own revisions and review; immutable objects preserve source artifacts. Optional native Semantica generations are derived from approved exact snapshots and excluded from current queries after correction or review rejection.

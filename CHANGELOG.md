@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.2.0-dev.12 - Electron desktop preview
+
+- Reuse the Rust SQLite/object authority and transcript-first TypeScript editor
+  in a sandboxed, isolated Electron renderer with a stable local storage origin.
+- Own native import/open, recent projects, exact-revision export, verified backups,
+  sidecar startup/retry/shutdown and unsaved-change prompts in the main process.
+- Keep the private backend capability out of the renderer and bound API/IPC paths.
+- Preserve draft lineage and exact command recovery across backend port changes.
+- Add focused Windows Electron journeys and practical waveform/keyboard polish.
+
 ## Unreleased - Bounded annotation-layer concordance
 
 - Combine exact token text and token language with exact existing span label or

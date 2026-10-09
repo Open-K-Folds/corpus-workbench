@@ -17,3 +17,6 @@ __pycache__/
 /ui/dist-qualification/
 /ui/dist-reconciliation/
 /ui/dist-search/
+
+/node_modules/
+/desktop/resources/

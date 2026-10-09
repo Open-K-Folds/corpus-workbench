@@ -24,6 +24,13 @@ export class Transcript {
     window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
     this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
+    // Popovers use viewport coordinates. Dismiss them when the reading pane
+    // moves, while keeping the evidence selection and correction draft intact.
+    const dismissPopovers=()=>{this.menu.hidden=true;this.details.hidden=true};
+    const readingPane=this.surface.closest<HTMLElement>('.transcript');
+    readingPane?.addEventListener('scroll',dismissPopovers,{passive:true});
+    window.addEventListener('resize',dismissPopovers);
+    if(readingPane)new ResizeObserver(dismissPopovers).observe(readingPane);
     this.menu.addEventListener('mousedown',e=>{if((e.target as HTMLElement).closest('button'))e.preventDefault()});
     this.surface.addEventListener('mouseup',()=>setTimeout(()=>this.capture(),0));
     this.surface.addEventListener('keyup',e=>{if(!this.draft&&e.key.startsWith('Arrow'))this.capture()});
@@ -37,6 +44,10 @@ export class Transcript {
   }
   dirty(){return this.draft!==null||this.records.some(r=>r.document===this.host.doc().path||r.command!==null)}
   activeDraft(){return this.draft!==null}
+  departureState(){
+    const dirty=this.dirty();
+    return {dirty,recoverable:!dirty||(!this.storageWarning&&this.writesPending===0&&(!this.draft||this.stored?.id===this.draft.id)),saving:this.busy()};
+  }
   busy(){return this.finalizing||this.resolving||this.records.some(r=>r.command!==null)||(this.draft!==null&&this.draft.phase!=='editing'&&this.draft.phase!=='conflict')}
   private lock(){const controls=[...document.querySelectorAll<HTMLInputElement>('button,input,select,textarea')].filter(e=>!this.surface.contains(e)&&!this.recovery.contains(e)).map(e=>[e,e.disabled] as const);controls.forEach(([e])=>e.disabled=true);return ()=>controls.forEach(([e,disabled])=>e.disabled=disabled)}
   private localRecord():LocalDraft|null {
@@ -51,7 +62,7 @@ export class Transcript {
     if(this.records.some(r=>r.command!==null)){if(!this.recoveryUnlock)this.recoveryUnlock=this.lock()}else{this.recoveryUnlock?.();this.recoveryUnlock=null}
     for(const record of this.records){
       const row=document.createElement('section');row.dataset.localDraft=record.id;const pending=record.command!==null,exact=matchesDraft(record,this.host.view()),here=record.document===this.host.doc().path;
-      const text=document.createElement('p');text.textContent=`${pending?'Save outcome unresolved':'Unsaved local correction'} · ${record.document} · saved basis R${record.revision} · ${record.snapshot.slice(0,12)}. ${!exact&&!pending?'Saved source changed; recovery is unavailable. ':''}Local browser copy, not a saved corpus revision.`;row.append(text);
+      const text=document.createElement('p');text.textContent=`${pending?'Save outcome unresolved':'Unsaved local correction'} · ${record.document} · saved basis R${record.revision} · ${record.snapshot.slice(0,12)}. ${!exact&&!pending?'Saved source changed; recovery is unavailable. ':''}Locally retained correction proposal.`;row.append(text);
       const detail=document.createElement('details'),summary=document.createElement('summary'),pre=document.createElement('pre');summary.textContent='Inspect proposal';pre.textContent=`${record.quote} → ${record.replacement}\n${record.ids.join(', ')} · corrected · ${record.start}–${record.end} code points${record.backward?' · backward selection':''}`;detail.append(summary,pre);row.append(detail);
       const action=document.createElement('button');action.type='button';action.textContent=pending?'Resolve original save':here?'Recover correction':'Open draft document';action.disabled=!pending&&(!exact||!this.currentProjection()&&here);action.onclick=()=>{if(this.draft||this.finalizing||this.resolving){this.host.message('Finish or undo the active correction before recovering another draft.',true);return}if(this.host.busy()||this.host.otherDraft()){this.host.message('Finish the other active save or properties draft before recovering.',true);return}if(pending)void this.resolveLocal(record);else if(!here)this.host.openDocument(record.document);else void this.recover(record)};row.append(action);
       if(!pending){const discard=document.createElement('button');discard.type='button';discard.textContent='Discard local correction';discard.onclick=async()=>{discard.disabled=true;await this.forget(record);this.offerRecovery()};row.append(discard)}
@@ -165,7 +176,13 @@ export class Transcript {
     const fragment=range.cloneContents();fragment.querySelectorAll('.source-number,.interlinear,.draft-ghost,.draft-actions,.filtered').forEach(n=>n.remove());fragment.querySelectorAll<HTMLInputElement>('input').forEach(input=>input.replaceWith(document.createTextNode(input.value)));return fragment.textContent??'';
   }
   private copy(event:ClipboardEvent){if((event.target as HTMLElement).closest('input'))return;const s=window.getSelection();if(s?.rangeCount&&this.surface.contains(s.anchorNode)&&this.surface.contains(s.focusNode)){event.preventDefault();event.clipboardData?.setData('text/plain',this.primaryRangeText(s.getRangeAt(0)))}}
-  private paintSelection(){for(const span of this.surface.querySelectorAll<HTMLElement>('[data-token]'))span.classList.toggle('selected',this.host.selected().includes(span.dataset.token!))}
+  private paintSelection(){
+    const selected=this.host.selected();
+    for(const span of this.surface.querySelectorAll<HTMLElement>('[data-token]'))span.classList.toggle('selected',selected.includes(span.dataset.token!));
+    const doc=this.host.doc(),shown=doc.tokens.filter(token=>visibleToken(token,this.host.preferences));
+    const status=document.getElementById('token-count');
+    if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
+  }
   private position(element:HTMLElement,rect:DOMRect){element.hidden=false;const height=element.getBoundingClientRect().height;const available=window.innerHeight-Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--recording-height'))-12;const top=rect.bottom+height+12<available?rect.bottom+10:Math.max(68,rect.top-height-10);element.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-350))+'px';element.style.top=top+'px'}
   private showMenu(rect:DOMRect){
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;
@@ -211,15 +228,19 @@ export class Transcript {
     const accept=this.surface.querySelector<HTMLButtonElement>('#accept-draft')!;accept.disabled=busy||d.phase==='conflict'||this.composing||this.settling||!!this.reason();
     this.surface.querySelector<HTMLButtonElement>('#undo-draft')!.disabled=busy;
     this.surface.querySelector<HTMLButtonElement>('#retry-draft')!.hidden=d.phase!=='unknown';this.surface.querySelector<HTMLButtonElement>('#compare-draft')!.hidden=d.phase!=='conflict';this.surface.querySelector<HTMLButtonElement>('#reapply-draft')!.hidden=d.phase!=='conflict'||!d.compared;
-    this.surface.querySelector<HTMLElement>('#draft-explanation')!.textContent=(d.phase==='unknown'?'Save outcome unknown. Resolve the original command before editing.':d.phase==='conflict'?'Saved head changed. Compare before explicitly reapplying.':this.reason()||'Not saved · local browser draft')+(this.writesPending?' Updating local draft…':this.storageWarning?' '+this.storageWarning:'');
+    this.surface.querySelector<HTMLElement>('#draft-explanation')!.textContent=(d.phase==='unknown'?'Save outcome unknown. Resolve the original command before editing.':d.phase==='conflict'?'Saved head changed. Compare before explicitly reapplying.':this.reason()||'Unsaved correction draft')+(this.writesPending?' Updating local draft…':this.storageWarning?' '+this.storageWarning:'');
     this.host.status(`${d.phase==='saving'?'Saving':d.phase==='unknown'?'Save outcome unknown':'Draft'} · saved R${d.basis.view.revision.id}`);
   }
   private async accept(retry=false){
     const d=this.draft;if(!d||this.finalizing||this.composing||this.settling||this.host.busy()||d.phase==='saving')return;
     if(this.host.otherDraft()){this.host.message('Save or discard the properties draft before accepting this correction. Both drafts remain here.',true);return}
     if(!retry&&(this.reason()||d.phase==='conflict'||d.phase==='unknown'))return;
+    const previousPhase=d.phase;
     if(!d.command)d.command=makeCommand(d.basis.view,[{kind:'set_token',document:d.basis.document,token:d.basis.ids[0],fields:{nform:d.prefix+d.replacement+d.suffix}}],`Correct ${d.basis.ids[0]} in place`);
-    d.phase='saving';this.updateDraft();await this.persist();if(this.storageWarning)this.host.message(this.storageWarning+' The save can proceed, but reload recovery of its outcome is unavailable.',true);
+    d.phase='saving';this.updateDraft();await this.persist();if(this.storageWarning){
+      if(window.workbenchDesktop){d.phase=previousPhase;if(previousPhase!=='unknown')d.command=null;this.updateDraft();this.host.message(this.storageWarning+' The correction stays open; retry after desktop storage is available.',true);return}
+      this.host.message(this.storageWarning+' The save can proceed, but reload recovery of its outcome is unavailable.',true);
+    }
     if(!d.unlock)d.unlock=this.lock();
     d.phase='saving';this.updateDraft();let confirmed:Revision|null=null;
     try{confirmed=await commit(d.command);const latest=await loadView();if(latest.revision.id<confirmed.id)throw new Error('Committed revision has not been reconciled');await this.reconcileReading(latest,d.basis.document);const record=this.stored;if(record)await this.forget(record);this.stored=null;d.unlock?.();this.draft=null;this.selection=null;this.host.accepted(latest);this.host.message(`Correction saved in R${confirmed.id}. Current head R${latest.revision.id} · ${latest.approved?'Reviewed':'Unreviewed'}.`)}
