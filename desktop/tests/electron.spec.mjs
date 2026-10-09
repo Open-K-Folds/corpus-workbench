@@ -358,7 +358,7 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
     await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1.25);window.setSize(1000,700)});await settleLayout(page);
     await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');await settleLayout(page);
     const zoomed=await paneGeometry(application,page);geometry.push({stage:'minimum native window at 125 percent',...zoomed});
-    expect(zoomed.transcript.height).toBeGreaterThanOrEqual(240);expect(zoomed.transcript.width).toBeGreaterThanOrEqual(300);
+    expect(zoomed.transcript.height,'240px reading reservation allows subpixel rounding').toBeGreaterThanOrEqual(239.5);expect(zoomed.transcript.clientHeight).toBeGreaterThanOrEqual(240);expect(zoomed.transcript.width).toBeGreaterThanOrEqual(300);
     nearPixels(zoomed.recordingControl.value,zoomed.recording.height);expect(zoomed.recording.height).toBeLessThanOrEqual(zoomed.recordingControl.max+1);
     for(const [selector,side,dx] of [['#navigation-resizer','navigation',-12],['#properties-resizer','properties',12]]){
       const start=(await paneGeometry(application,page))[side].width;await dragSplitter(page,selector,dx,0);
@@ -386,6 +386,14 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
     for(const [button,side] of [['#toggle-navigation','navigation'],['#toggle-properties','properties']]){
       await page.locator(button).click();await page.locator(button).click();await settleLayout(page);nearPixels((await paneGeometry(application,page))[side].width,preferred[side].width);
     }
+    for(const [selector,side,target,direction] of [['#navigation-resizer','navigation',184,1],['#properties-resizer','properties',320,-1]]){
+      const current=(await paneGeometry(application,page))[side].width;await dragSplitter(page,selector,(target-current)*direction,0);nearPixels((await paneGeometry(application,page))[side].width,target);
+    }
+    for(const [button,side,target] of [['#toggle-navigation','navigation',184],['#toggle-properties','properties',320]]){
+      await page.locator(button).click();await page.locator(button).click();await settleLayout(page);nearPixels((await paneGeometry(application,page))[side].width,target);
+    }
+    for(const selector of ['#navigation-resizer','#properties-resizer']){await page.locator(selector).focus();await page.keyboard.press('End')}
+    await settleLayout(page);
     const current=(await paneGeometry(application,page)).recording.height;await dragSplitter(page,'#timeline-resizer',0,current-310);
     nearPixels((await paneGeometry(application,page)).recording.height,310);
     await page.locator('#timeline-toggle').click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','minimal');
