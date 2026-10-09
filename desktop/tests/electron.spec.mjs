@@ -407,7 +407,7 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
     ({application,page}=await launch(profile,store,'pane-drag-preview'));await ready(page);await settleLayout(page);
     for(const side of ['navigation','properties'])nearPixels((await paneGeometry(application,page))[side].width,preferred[side].width);
     await expect(page.getByRole('button',{name:'Recover correction',exact:true})).toBeVisible();expect(await records(page)).toEqual(retained);
-    await quit(application,await sidecars(application));application=null;
+    await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
     writeFileSync(join(evidence,'pane-drag-evidence.json'),JSON.stringify({platform:process.platform,visible_origin_drag:true,zoom125_native_minimum:true,preferred_resize_and_collapse_restore:true,custom_recording_height_restore:310,audio_and_draft_continuity:true,persistence_and_shutdown:true,geometry},null,2));
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
