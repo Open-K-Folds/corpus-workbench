@@ -3,23 +3,24 @@ import {execFileSync} from 'node:child_process';
 import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
 import {createPackage} from './fixtures.mjs';
 
 const root=fileURLToPath(new URL('../..',import.meta.url));
 const evidence=process.env.WB_EVIDENCE_DIR??resolve(root,'..','evidence','electron');
 const packagedExecutable=join(root,'release','desktop','Open-K-Folds Workbench-win32-x64','Open-K-Folds Workbench.exe');
 const packagedBackend=join(root,'release','desktop','Open-K-Folds Workbench-win32-x64','resources','backend','corpus-workbench.exe');
+const executablePath=process.env.WB_ELECTRON_EXECUTABLE??packagedExecutable;
 const binary=process.env.WB_DESKTOP_BACKEND??process.env.WB_BINARY??(existsSync(packagedBackend)?packagedBackend:join(root,'target','debug','corpus-workbench.exe'));
 let serial=0;
 function workspace(label){const directory=join(evidence,`${label}-${process.pid}-${++serial}`);mkdirSync(directory,{recursive:true});return directory}
 async function launch(profile,store,project){
   const env={...process.env,WB_DESKTOP_USER_DATA:profile,WB_DESKTOP_BACKEND:binary};
-  const executablePath=process.env.WB_ELECTRON_EXECUTABLE??(process.platform==='win32'&&existsSync(packagedExecutable)?packagedExecutable:undefined);
   if(executablePath&&!process.env.WB_DESKTOP_BACKEND)delete env.WB_DESKTOP_BACKEND;
   delete env.ELECTRON_RUN_AS_NODE;delete env.WB_DESKTOP_STORE;delete env.WB_DESKTOP_PROJECT;
   if(store){env.WB_DESKTOP_STORE=store;env.WB_DESKTOP_PROJECT=project}
   // Explicit executable avoids Playwright's readiness loader with newer Electron.
-  const application=await electron.launch({executablePath:executablePath??join(root,'node_modules','electron','dist','electron.exe'),args:executablePath?[]:[root],cwd:root,env,timeout:30000});
+  const application=await electron.launch({executablePath,args:[],cwd:root,env,timeout:30000});
   application.__qaPid=await application.evaluate(()=>process.pid);
   application.__qaProfile=profile;
   const page=await application.firstWindow();
@@ -71,7 +72,14 @@ async function interrupt(application,pids=[]){
   for(const child of pids)await expect.poll(()=>alive(child),{message:`Backend ${child} exits after parent interruption`}).toBe(false);
 }
 
-test.beforeAll(()=>{mkdirSync(evidence,{recursive:true});if(!existsSync(binary))throw new Error('Build the Windows Rust sidecar first, or set WB_DESKTOP_BACKEND to its local executable')});
+test.beforeAll(()=>{
+  mkdirSync(evidence,{recursive:true});
+  if(!existsSync(executablePath))throw new Error('Run npm run package:windows first, or set WB_ELECTRON_EXECUTABLE to a locally packaged Workbench executable');
+  if(!existsSync(binary))throw new Error('Run npm run package:windows first, or set WB_DESKTOP_BACKEND to a built local sidecar');
+  const asar=join(executablePath,'..','resources','app.asar');
+  const sha=file=>createHash('sha256').update(readFileSync(file)).digest('hex');
+  writeFileSync(join(evidence,'tested-package.json'),JSON.stringify({platform:process.platform,architecture:process.arch,started_utc:new Date().toISOString(),executable:executablePath,cli_backend:binary,backend_sha256:sha(binary),asar_sha256:existsSync(asar)?sha(asar):null,sidecar_override:!!process.env.WB_DESKTOP_BACKEND},null,2));
+});
 
 test('real Electron imports, corrects, reviews, exports, reopens and protects memory-only drafts',async()=>{
   const work=workspace('workflow'),source=createPackage(join(work,'source-package'));
@@ -174,11 +182,18 @@ test('real Electron imports, corrects, reviews, exports, reopens and protects me
     await page.evaluate(()=>window.workbenchDesktop.chooseOpen());await ready(page);
     expect((await head(page)).revision.id).toBe(2);
     expect((await state(page)).recent.filter(entry=>entry.id===originalId)).toHaveLength(1);
+    const backup=join(work,'verified-desktop-backup');await queue(application,'save',[backup]);
+    expect(await page.evaluate(()=>window.workbenchDesktop.backup())).toMatchObject({cancelled:false});
+    const backupCheck=JSON.parse(execFileSync(binary,['check','--store',backup],{encoding:'utf8',windowsHide:true}));
+    expect(backupCheck.status).toBe('verified');
+    const backupView=JSON.parse(execFileSync(binary,['view','--store',backup,'--project',originalState.project.project],{encoding:'utf8',windowsHide:true}));
+    expect(backupView.revision).toEqual(savedHead);
     expect(errors).toEqual([]);
     const pids=await sidecars(application);expect(pids).toHaveLength(1);await quit(application,pids);application=null;
     ({application,page}=await launch(profile));await ready(page);expect((await head(page)).revision.id).toBe(2);
+    expect((await state(page)).project.id).toBe(originalId);
     await expect(page.locator('[data-token="w2"] .reading-text')).toHaveText('strolled');
-    const evidenceRecord={platform:process.platform,app_version:await application.evaluate(({app})=>app.getVersion()),origin:page.url(),import_source_unchanged:true,correction_revision:2,reviewed_contract:true,native_menu_export:exported,complete_export_reimport:true,opaque_bytes_preserved:true,repeated_open:true,dirty_open_cancel:true,dirty_close_cancel:true,backend_interruption_preserves_form:true,relaunch_exact_head:true,sidecar_shutdown:true,renderer_preferences:preferences,page_errors:errors};
+    const evidenceRecord={platform:process.platform,app_version:await application.evaluate(({app})=>app.getVersion()),origin:page.url(),import_source_unchanged:true,correction_revision:2,reviewed_contract:true,native_menu_export:exported,complete_export_reimport:true,opaque_bytes_preserved:true,repeated_open:true,dirty_open_cancel:true,dirty_close_cancel:true,backend_interruption_preserves_form:true,verified_native_backup:backup,backup_exact_head:true,relaunch_exact_head:true,sidecar_shutdown:true,renderer_preferences:preferences,page_errors:errors};
     writeFileSync(join(evidence,'workflow-evidence.json'),JSON.stringify(evidenceRecord,null,2));
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
