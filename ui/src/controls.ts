@@ -15,7 +15,7 @@ export function scrollIndicators(root:HTMLElement){
   const timers=new WeakMap<HTMLElement,ReturnType<typeof setTimeout>>();
   root.addEventListener('scroll',event=>{
     const pane=event.target as HTMLElement;
-    if(!pane.matches?.('.documents,.transcript,.inspector,#document-tabs,#document-list,#source-list,#recording-layers,.table-scroll,pre'))return;
+    if(!(pane instanceof HTMLElement))return;
     pane.classList.add('is-scrolling');clearTimeout(timers.get(pane));
     timers.set(pane,setTimeout(()=>pane.classList.remove('is-scrolling'),900));
   },true);

@@ -4,21 +4,28 @@ import {icon} from './icons';
 import {AudioPlayer} from './player';
 
 function preference(key:string,fallback:number,min:number,max:number){try{const n=Number(localStorage.getItem(key));return n>=min&&n<=max?n:fallback}catch{return fallback}}
-export function resizePane(handle:HTMLElement,key:string,min:number,max:number,initial:number,axis:'x'|'y',direction:number,apply:(size:number)=>void,maximum?:()=>number){
-  let size=preference(key,initial,min,max),start=0,origin=size;
-  const set=(n:number,persist=true)=>{const limit=Math.max(min,Math.min(max,maximum?.()??max));size=Math.round(Math.max(min,Math.min(limit,n)));apply(size);handle.setAttribute('aria-valuemax',String(Math.round(limit)));handle.setAttribute('aria-valuenow',String(size));handle.setAttribute('aria-valuetext',`${size} pixels`);if(persist)try{localStorage.setItem(key,String(size))}catch{/* Optional preference. */}};
+interface ResizeOptions {maximum?:()=>number;minimum?:()=>number;measure?:()=>number;onCommit?:(size:number)=>void}
+export function resizePane(handle:HTMLElement,key:string,min:number,max:number,initial:number,axis:'x'|'y',direction:number,apply:(size:number,interactive:boolean)=>void,options:ResizeOptions={}){
+  let preferred=preference(key,initial,min,max),size=preferred,start=0,origin=size,pointer:number|null=null,moved=false;
+  const value=()=>Math.round(options.measure?.()||size);
+  const limit=()=>Math.max(min,Math.min(max,options.maximum?.()??max));
+  const sync=()=>{const actual=value();handle.setAttribute('aria-valuemin',String(options.minimum?.()??min));handle.setAttribute('aria-valuemax',String(Math.max(actual,Math.round(limit()))));handle.setAttribute('aria-valuenow',String(actual));handle.setAttribute('aria-valuetext',`${actual} pixels`)};
+  const set=(n:number,persist=true,interactive=persist)=>{size=Math.round(Math.max(min,Math.min(Math.floor(limit()),n)));apply(size,interactive);sync();if(persist){preferred=size;options.onCommit?.(size);try{localStorage.setItem(key,String(preferred))}catch{/* Optional preference. */}}};
   const keys=axis==='y'?['ArrowUp','ArrowDown']:['ArrowLeft','ArrowRight'];
   handle.tabIndex=0;handle.setAttribute('role','separator');handle.setAttribute('aria-orientation',axis==='y'?'horizontal':'vertical');handle.setAttribute('aria-valuemin',String(min));handle.setAttribute('aria-valuemax',String(max));
   handle.setAttribute('aria-description',`${axis==='y'?'Up and Down':'Left and Right'} arrows resize. Shift resizes faster. Home collapses to the minimum; End expands to the maximum.`);
   handle.title=handle.getAttribute('aria-label')+`. ${axis==='y'?'Up / Down':'Left / Right'} to resize; Shift for larger steps.`;
-  const finish=()=>document.documentElement.removeAttribute('data-resizing');
-  handle.onpointerdown=e=>{if(e.button!==0)return;start=axis==='y'?e.clientY:e.clientX;origin=size;handle.setPointerCapture(e.pointerId);document.documentElement.dataset.resizing=axis;e.preventDefault()};
-  handle.onpointermove=e=>{if(handle.hasPointerCapture(e.pointerId))set(origin+direction*((axis==='y'?e.clientY:e.clientX)-start),false)};
-  handle.onpointerup=e=>{if(handle.hasPointerCapture(e.pointerId)){handle.releasePointerCapture(e.pointerId);set(size)}finish()};
-  handle.onpointercancel=e=>{if(handle.hasPointerCapture(e.pointerId)){handle.releasePointerCapture(e.pointerId);set(origin)}finish()};
-  handle.onlostpointercapture=finish;
-  handle.onkeydown=e=>{if(e.altKey||e.ctrlKey||e.metaKey||e.isComposing)return;if([...keys,'Home','End'].includes(e.key)){e.preventDefault();set(e.key==='Home'?min:e.key==='End'?max:size+(e.key===keys[0]?-1:1)*direction*(e.shiftKey?40:12))}};
-  set(size,false);return {set,getSize:()=>size};
+  const coordinate=(e:PointerEvent)=>axis==='y'?e.clientY:e.clientX;
+  const move=(e:PointerEvent)=>{moved=moved||coordinate(e)!==start;set(origin+direction*(coordinate(e)-start),false,true)};
+  const finish=(cancel=false)=>{if(pointer===null)return;const id=pointer;pointer=null;if(cancel)set(origin,false,true);else if(moved)set(size);if(handle.hasPointerCapture(id))handle.releasePointerCapture(id);document.documentElement.removeAttribute('data-resizing')};
+  handle.onpointerdown=e=>{if(e.button!==0||pointer!==null||document.documentElement.hasAttribute('data-resizing'))return;pointer=e.pointerId;start=coordinate(e);origin=value();moved=false;handle.focus({preventScroll:true});handle.setPointerCapture(e.pointerId);document.documentElement.dataset.resizing=axis;e.preventDefault()};
+  handle.onpointermove=e=>{if(e.pointerId===pointer)move(e)};
+  handle.onpointerup=e=>{if(e.pointerId===pointer){move(e);finish()}};
+  handle.onpointercancel=e=>{if(e.pointerId===pointer)finish(true)};
+  handle.onlostpointercapture=e=>{if(e.pointerId===pointer)finish(true)};
+  window.addEventListener('blur',()=>finish(true));
+  handle.onkeydown=e=>{if(e.altKey||e.ctrlKey||e.metaKey||e.isComposing)return;if([...keys,'Home','End'].includes(e.key)){e.preventDefault();set(e.key==='Home'?min:e.key==='End'?max:value()+(e.key===keys[0]?-1:1)*direction*(e.shiftKey?40:12))}};
+  set(size,false);return {set,sync,getSize:value,getPreferred:()=>preferred,isDragging:()=>pointer!==null};
 }
 
 /** Keep a useful reading surface when saved side panes meet a smaller window. */
@@ -26,13 +33,23 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
   const root=document.documentElement,navigationPane=navigationHandle.parentElement!,propertiesPane=propertiesHandle.parentElement!;
   const visible=(side:string)=>!workspace.classList.contains(side+'-folded');
   const budget=()=>workspace.clientWidth-320;
-  let fitting=true;
-  const navigation=resizePane(navigationHandle,'wb-navigation-width',160,360,208,'x',1,size=>root.style.setProperty('--navigation-width',size+'px'),()=>fitting?360:budget()-(visible('properties')?propertiesPane.getBoundingClientRect().width:0));
-  const properties=resizePane(propertiesHandle,'wb-properties-width',260,520,304,'x',-1,size=>root.style.setProperty('--properties-width',size+'px'),()=>fitting?520:budget()-(visible('navigation')?navigationPane.getBoundingClientRect().width:0));
+  // Keep boundary hit targets outside the panes' scrolling content.
+  workspace.append(navigationHandle,propertiesHandle);navigationHandle.style.right='auto';
+  const positionHandles=()=>{const bounds=workspace.getBoundingClientRect(),narrow=matchMedia('(max-width:700px)').matches;navigationHandle.hidden=narrow||!visible('navigation');propertiesHandle.hidden=narrow||!visible('properties');navigationHandle.style.left=navigationPane.getBoundingClientRect().right-bounds.left+'px';propertiesHandle.style.left=propertiesPane.getBoundingClientRect().left-bounds.left+'px'};
+  let fitting=true,constraints='',constraintWidth=-1;
+  const navigation=resizePane(navigationHandle,'wb-navigation-width',160,360,208,'x',1,size=>{root.style.setProperty('--navigation-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('navigation')?360:budget()-(visible('properties')?propertiesPane.getBoundingClientRect().width:0),measure:()=>navigationPane.getBoundingClientRect().width});
+  const properties=resizePane(propertiesHandle,'wb-properties-width',260,520,304,'x',-1,size=>{root.style.setProperty('--properties-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('properties')?520:budget()-(visible('navigation')?navigationPane.getBoundingClientRect().width:0),measure:()=>propertiesPane.getBoundingClientRect().width});
   const fit=()=>{
-    if(matchMedia('(max-width:700px)').matches){fitting=false;return}
+    if(navigation.isDragging()||properties.isDragging()){positionHandles();return}
     const showNavigation=visible('navigation'),showProperties=visible('properties');
-    let left=navigation.getSize(),right=properties.getSize();
+    const narrow=matchMedia('(max-width:700px)').matches,width=workspace.clientWidth,next=[width,showNavigation,showProperties,narrow].join(':');
+    // Pane notifications during dragging/scrolling only refresh the controls.
+    // Refit preferences when the available width changes; folds keep the last
+    // effective widths so reopening a pane restores the layout just left.
+    if(next===constraints){positionHandles();navigation.sync();properties.sync();return}
+    const widthChanged=width!==constraintWidth;constraints=next;constraintWidth=width;
+    if(narrow){fitting=false;positionHandles();return}
+    let left=widthChanged?navigation.getPreferred():navigation.getSize(),right=widthChanged?properties.getPreferred():properties.getSize();
     const available=Math.max((showNavigation?160:0)+(showProperties?260:0),budget());
     const total=(showNavigation?left:0)+(showProperties?right:0);
     if(total>available){
@@ -43,24 +60,38 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
     // Apply both values together before deriving either control's moving bound.
     // Automatic fitting leaves the user's saved larger-window preference intact.
     fitting=true;navigation.set(left,false);properties.set(right,false);
-    fitting=false;navigation.set(left,false);properties.set(right,false);
+    fitting=false;navigation.set(left,false);properties.set(right,false);positionHandles();
   };
   fit();window.addEventListener('resize',fit);
   new MutationObserver(fit).observe(workspace,{attributes:true,attributeFilter:['class']});
-  const layout=new ResizeObserver(fit);layout.observe(navigationPane);layout.observe(propertiesPane);
+  const layout=new ResizeObserver(fit);layout.observe(workspace);layout.observe(navigationPane);layout.observe(propertiesPane);
   return {navigation,properties};
 }
 export class RecordingPanel {
-  private canvas:HTMLCanvasElement;private lanes:HTMLElement;private summary:HTMLElement;private peaks:number[]=[];private mediaHash:string|null=null;private epoch=0;private height=100;private view:View|null=null;private doc:Document|null=null;
+  private canvas:HTMLCanvasElement;private lanes:HTMLElement;private summary:HTMLElement;private peaks:number[]=[];private mediaHash:string|null=null;private epoch=0;private view:View|null=null;private doc:Document|null=null;
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
     panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);
     const player=new AudioPlayer(audio);
     this.canvas=panel.querySelector('canvas')!;this.lanes=panel.querySelector('#recording-layers')!;this.summary=panel.querySelector('#recording-summary')!;panel.append(this.lanes);
-    const resize=resizePane(panel.querySelector('#timeline-resizer')!,'wb-recording-height',70,440,130,'y',-1,size=>{this.height=size;panel.style.height=size+'px';document.documentElement.style.setProperty('--recording-height',size+'px');panel.dataset.detail=size<110?'minimal':size<220?'compact':'expanded';const toggle=panel.querySelector<HTMLButtonElement>('#timeline-toggle')!;toggle.innerHTML=icon(size<220?'expand_less':'expand_more');toggle.setAttribute('aria-label',size<110?'Expand recording panel':size<220?'Show recording timeline':'Collapse recording timeline');toggle.title=toggle.getAttribute('aria-label')!;this.draw();this.renderLanes()});
-    panel.querySelector<HTMLButtonElement>('#timeline-toggle')!.onclick=()=>resize.set(this.height<110?180:this.height<220?360:70);
+    type Detail='minimal'|'compact'|'expanded';let preferredDetail:Detail|null=null;
+    let compactHeight=preference('wb-recording-compact-height',180,110,440),expandedHeight=preference('wb-recording-expanded-height',360,220,440);
+    try{const saved=localStorage.getItem('wb-recording-detail');if(saved==='minimal'||saved==='compact'||saved==='expanded')preferredDetail=saved}catch{/* Optional preference. */}
+    const minimum=(detail:Detail)=>parseFloat(getComputedStyle(panel).getPropertyValue('--recording-'+detail+'-min'))||({minimal:104,compact:130,expanded:220})[detail];
+    const workspace=document.querySelector<HTMLElement>('.workspace')!;
+    const maximum=()=>Math.max(70,panel.getBoundingClientRect().height+workspace.clientHeight-(matchMedia('(min-width:701px)').matches?240:180));
+    const detailFor=(size:number):Detail=>size<minimum('compact')?'minimal':size<minimum('expanded')?'compact':'expanded';
+    const resize=resizePane(panel.querySelector('#timeline-resizer')!,'wb-recording-height',70,440,130,'y',-1,(size,interactive)=>{
+      preferredDetail??=size<110?'minimal':size<220?'compact':'expanded';
+      let detail=interactive?detailFor(size):preferredDetail;if(minimum(detail)>maximum())detail=detailFor(maximum());
+      panel.dataset.detail=detail;panel.style.height=size+'px';document.documentElement.style.setProperty('--recording-height',panel.getBoundingClientRect().height+'px');
+      const toggle=panel.querySelector<HTMLButtonElement>('#timeline-toggle')!;toggle.innerHTML=icon(detail==='expanded'?'expand_more':'expand_less');toggle.setAttribute('aria-label',detail==='minimal'?'Expand recording panel':detail==='compact'?'Show recording timeline':'Collapse recording timeline');toggle.title=toggle.getAttribute('aria-label')!;
+    },{maximum,minimum:()=>minimum('minimal'),measure:()=>panel.getBoundingClientRect().height,onCommit:size=>{preferredDetail=panel.dataset.detail as Detail;if(preferredDetail==='compact')compactHeight=size;if(preferredDetail==='expanded')expandedHeight=size;try{localStorage.setItem('wb-recording-detail',preferredDetail);if(preferredDetail!=='minimal')localStorage.setItem('wb-recording-'+preferredDetail+'-height',String(size))}catch{/* Optional preference. */}}});
+    panel.querySelector<HTMLButtonElement>('#timeline-toggle')!.onclick=()=>resize.set(panel.dataset.detail==='minimal'?Math.max(compactHeight,minimum('compact')):panel.dataset.detail==='compact'?Math.max(expandedHeight,minimum('expanded')):70);
     audio.addEventListener('timeupdate',()=>this.draw());audio.addEventListener('loadedmetadata',()=>{this.draw();this.renderLanes()});new ResizeObserver(()=>this.draw()).observe(this.canvas);
-    const fitLanes=()=>{const bounds=panel.getBoundingClientRect();document.documentElement.style.setProperty('--recording-height',bounds.height+'px');const padding=parseFloat(getComputedStyle(panel).paddingBottom)||0;this.lanes.style.maxHeight=Math.max(0,Math.floor(bounds.bottom-this.lanes.getBoundingClientRect().top-padding))+'px'};
-    const layout=new ResizeObserver(fitLanes);for(const region of [panel,player.element,this.canvas,panel.querySelector<HTMLElement>('.actions')!])layout.observe(region);
+    let floors='';const refit=()=>{const next=[minimum('minimal'),minimum('compact'),minimum('expanded'),Math.round(maximum())].join(':');if(!resize.isDragging()&&next!==floors){floors=next;resize.set(resize.getPreferred(),false)}resize.sync()};
+    window.addEventListener('resize',()=>{floors='';refit()});
+    const fitLanes=()=>{refit();const bounds=panel.getBoundingClientRect();document.documentElement.style.setProperty('--recording-height',bounds.height+'px');const padding=parseFloat(getComputedStyle(panel).paddingBottom)||0;this.lanes.style.maxHeight=Math.max(0,Math.floor(bounds.bottom-this.lanes.getBoundingClientRect().top-padding))+'px'};
+    const layout=new ResizeObserver(fitLanes);for(const region of [panel,workspace,player.element,this.canvas,panel.querySelector<HTMLElement>('.actions')!])layout.observe(region);
     this.canvas.tabIndex=0;this.canvas.setAttribute('role','slider');this.canvas.setAttribute('aria-label','Seek recording on waveform');this.canvas.setAttribute('aria-valuemin','0');this.canvas.setAttribute('aria-description','Drag to scrub. Left and Right arrows seek one second; Shift seeks five seconds. Home and End seek to the recording bounds.');
     const seek=(value:number)=>{if(!audio.hidden&&!audio.error&&Number.isFinite(audio.duration)&&audio.duration>0){audio.currentTime=Math.max(0,Math.min(audio.duration,value));this.draw()}};
     const seekPointer=(e:PointerEvent)=>{const r=this.canvas.getBoundingClientRect();if(r.width>0)seek((e.clientX-r.left)/r.width*audio.duration)};

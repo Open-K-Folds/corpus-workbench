@@ -116,6 +116,20 @@ editor and pending commands in place; Reconnect restarts the same authority. Qui
 sends a shutdown command and waits for the sidecar; parent-pipe EOF also stops it.
 The sidecar removes its own temporary exports and partial return uploads.
 
+Pane resizing stays in the renderer. Splitters measure the visible CSS size at
+the start of each drag, use pointer capture, and restore the starting size if
+capture is interrupted. The side handles sit outside scrolling pane content.
+Window fitting preserves preferred widths for later expansion; dragging and
+keyboard resizing keep the selected pane stable after release. Recording detail
+and custom heights persist with the existing browser preferences, while the
+expanded recording panel reserves space for the transcript. Resizing keeps the
+same audio element and editor session alive.
+
+Scrollbars retain native scrolling and keyboard behavior. Light and dark themes
+use slim thumbs across panes, editors and dialogs; forced colors and increased
+contrast restore native styling. These preferences do not change corpus data or
+the native correction journal.
+
 ## Security boundary
 
 The renderer has context isolation, Chromium sandboxing and no Node integration.

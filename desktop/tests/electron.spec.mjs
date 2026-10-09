@@ -71,6 +71,25 @@ async function interrupt(application,pids=[]){
   await expect.poll(()=>alive(pid)).toBe(false);
   for(const child of pids)await expect.poll(()=>alive(child),{message:`Backend ${child} exits after parent interruption`}).toBe(false);
 }
+async function settleLayout(page){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))}
+async function dragSplitter(page,selector,dx,dy){
+  const r=await page.locator(selector).boundingBox();expect(r,`${selector} has a visible drag rail`).not.toBeNull();
+  await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();
+  await page.mouse.move(r.x+r.width/2+dx,r.y+r.height/2+dy,{steps:3});await page.mouse.up();await settleLayout(page);
+}
+async function paneGeometry(application,page){
+  const native=await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];return {bounds:window.getBounds(),content:window.getContentBounds(),zoom:window.webContents.getZoomFactor()}});
+  return {native,...await page.evaluate(()=>{
+    const box=selector=>{const e=document.querySelector(selector),r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,bottom:r.bottom,right:r.right,scrollTop:e.scrollTop,scrollHeight:e.scrollHeight,clientHeight:e.clientHeight}};
+    return {viewport:{width:innerWidth,height:innerHeight,ratio:devicePixelRatio},navigation:box('#projects-pane'),properties:box('#properties-pane'),transcript:box('.transcript'),recording:box('#recording-pane'),preferred:{navigation:localStorage.getItem('wb-navigation-width'),properties:localStorage.getItem('wb-properties-width'),recording:localStorage.getItem('wb-recording-height')},recordingControl:{value:Number(document.querySelector('#timeline-resizer').getAttribute('aria-valuenow')),min:Number(document.querySelector('#timeline-resizer').getAttribute('aria-valuemin')),max:Number(document.querySelector('#timeline-resizer').getAttribute('aria-valuemax'))}};
+  })};
+}
+async function captureNative(application,filename){
+  // Electron zoom changes CSS pixels; native capture preserves the complete
+  // content surface instead of cropping a CDP screenshot to CSS dimensions.
+  await application.evaluate(async({BrowserWindow},filename)=>{const captured=await BrowserWindow.getAllWindows()[0].webContents.capturePage();process.mainModule.require('node:fs').writeFileSync(filename,captured.toPNG())},filename);
+}
+function nearPixels(actual,expected){expect(Math.abs(actual-expected)).toBeLessThanOrEqual(1)}
 
 test.beforeAll(()=>{
   mkdirSync(evidence,{recursive:true});
@@ -316,5 +335,122 @@ test('retrying a repaired native journal acknowledges subsequent inline drafts a
     await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
     expect(JSON.parse(readFileSync(journal,'utf8'))).toEqual(canonical);
     writeFileSync(join(evidence,'journal-retry-evidence.json'),JSON.stringify({platform:process.platform,barrier_visible:true,malformed_bytes_preserved:true,validated_repair_recovery:true,canonical_native_acknowledgement:true,browser_mirror_matches_native:true,unchanged_saved_revision:before.id,retained_on_normal_shutdown:true,sidecar_shutdown:true},null,2));
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});
+
+test('pane drags use visible sizes, preserve preferred layouts and keep recording and drafts continuous',async()=>{
+  const work=workspace('pane-drag'),source=createPackage(join(work,'source-package')),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','pane-drag-preview'],{windowsHide:true});
+  let application,page;const geometry=[];
+  try{
+    ({application,page}=await launch(profile,store,'pane-drag-preview'));await ready(page);await expect(page.locator('#audio-play')).toBeEnabled();
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,1000));await settleLayout(page);
+    geometry.push({stage:'native default',...await paneGeometry(application,page)});
+    await captureNative(application,join(evidence,'electron-panes-native-default.png'));
+    const before=(await head(page)).revision;await draft(page,'pane-draft');
+    await page.evaluate(()=>{window.__paneAudio=document.querySelector('#audio');window.__paneAudio.loop=true});await page.locator('#audio-play').click();
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1100,760));await settleLayout(page);
+    const compact=await paneGeometry(application,page);geometry.push({stage:'before compact drag',...compact});
+    await dragSplitter(page,'#timeline-resizer',0,-24);
+    const dragged=await paneGeometry(application,page);geometry.push({stage:'after compact drag',...dragged});
+    nearPixels(dragged.recording.height,compact.recording.height+24);nearPixels(dragged.recordingControl.value,dragged.recording.height);
+    await captureNative(application,join(evidence,'electron-panes-compact-drag.png'));
+    await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1.25);window.setSize(1000,700)});await settleLayout(page);
+    await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');await settleLayout(page);
+    const zoomed=await paneGeometry(application,page);geometry.push({stage:'minimum native window at 125 percent',...zoomed});
+    expect(zoomed.transcript.height).toBeGreaterThanOrEqual(240);expect(zoomed.transcript.width).toBeGreaterThanOrEqual(300);
+    nearPixels(zoomed.recordingControl.value,zoomed.recording.height);expect(zoomed.recording.height).toBeLessThanOrEqual(zoomed.recordingControl.max+1);
+    for(const [selector,side,dx] of [['#navigation-resizer','navigation',-12],['#properties-resizer','properties',12]]){
+      const start=(await paneGeometry(application,page))[side].width;await dragSplitter(page,selector,dx,0);
+      nearPixels((await paneGeometry(application,page))[side].width,start-12);
+    }
+    await captureNative(application,join(evidence,'electron-panes-minimum-zoom125.png'));
+    await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1);window.setSize(1440,1000)});await settleLayout(page);
+    for(const selector of ['#navigation-resizer','#properties-resizer']){await page.locator(selector).focus();await page.keyboard.press('End')}
+    await settleLayout(page);const preferred=await paneGeometry(application,page);geometry.push({stage:'preferred wide layout',...preferred});
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1000,760));await settleLayout(page);
+    const fitted=await paneGeometry(application,page);geometry.push({stage:'fitted narrow layout',...fitted});expect(fitted.transcript.width).toBeGreaterThanOrEqual(300);
+    expect(fitted.preferred.navigation).toBe(preferred.preferred.navigation);expect(fitted.preferred.properties).toBe(preferred.preferred.properties);
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,1000));await settleLayout(page);
+    for(const side of ['navigation','properties'])nearPixels((await paneGeometry(application,page))[side].width,preferred[side].width);
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1000,760));await settleLayout(page);
+    const narrowStart=await paneGeometry(application,page);await dragSplitter(page,'#navigation-resizer',-50,0);
+    const narrowDrag=await paneGeometry(application,page);nearPixels(narrowDrag.navigation.width,narrowStart.navigation.width-50);
+    await page.locator('#navigation-resizer').focus();await page.keyboard.press('ArrowLeft');await settleLayout(page);
+    const narrowKey=await paneGeometry(application,page);nearPixels(narrowKey.navigation.width,narrowDrag.navigation.width-12);
+    expect(narrowKey.preferred.properties).toBe(preferred.preferred.properties);
+    geometry.push({stage:'settled narrow pointer and keyboard resize',...narrowKey});
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,1000));await settleLayout(page);
+    for(const selector of ['#navigation-resizer','#properties-resizer']){await page.locator(selector).focus();await page.keyboard.press('End')}
+    await settleLayout(page);
+    for(const [button,side] of [['#toggle-navigation','navigation'],['#toggle-properties','properties']]){
+      await page.locator(button).click();await page.locator(button).click();await settleLayout(page);nearPixels((await paneGeometry(application,page))[side].width,preferred[side].width);
+    }
+    const current=(await paneGeometry(application,page)).recording.height;await dragSplitter(page,'#timeline-resizer',0,current-310);
+    nearPixels((await paneGeometry(application,page)).recording.height,310);
+    await page.locator('#timeline-toggle').click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','minimal');
+    for(let i=0;i<2&&await page.locator('#recording-pane').getAttribute('data-detail')!=='expanded';i++)await page.locator('#timeline-toggle').click();
+    await settleLayout(page);nearPixels((await paneGeometry(application,page)).recording.height,310);
+    expect(await page.evaluate(()=>window.__paneAudio===document.querySelector('#audio')&&!window.__paneAudio.paused)).toBe(true);
+    await expect(page.getByLabel('Proposed correction')).toHaveValue('pane-draft');expect((await head(page)).revision).toEqual(before);
+    const retained=await records(page);expect(Object.values(JSON.parse(readFileSync(join(profile,'drafts/correction-journal.json'),'utf8')))).toEqual(retained);
+    geometry.push({stage:'restored custom recording and preferred sides',...await paneGeometry(application,page)});
+    await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
+    ({application,page}=await launch(profile,store,'pane-drag-preview'));await ready(page);await settleLayout(page);
+    for(const side of ['navigation','properties'])nearPixels((await paneGeometry(application,page))[side].width,preferred[side].width);
+    await expect(page.getByRole('button',{name:'Recover correction',exact:true})).toBeVisible();expect(await records(page)).toEqual(retained);
+    await quit(application,await sidecars(application));application=null;
+    writeFileSync(join(evidence,'pane-drag-evidence.json'),JSON.stringify({platform:process.platform,visible_origin_drag:true,zoom125_native_minimum:true,preferred_resize_and_collapse_restore:true,custom_recording_height_restore:310,audio_and_draft_continuity:true,persistence_and_shutdown:true,geometry},null,2));
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});
+
+test('scrolled panes keep splitters reachable and interrupted drags restore their saved sizes',async()=>{
+  const work=workspace('pane-scroll'),source=createPackage(join(work,'source-package')),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  const original=readFileSync(join(source,'xmlfiles/interview.xml'),'utf8');
+  for(let i=1;i<=28;i++)writeFileSync(join(source,`xmlfiles/zz-appendix-${String(i).padStart(2,'0')}.xml`),original.replace(/<title>.*?<\/title>/,`<title>Synthetic appendix ${i}</title>`));
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','pane-scroll-preview'],{windowsHide:true});
+  let application,page;
+  try{
+    ({application,page}=await launch(profile,store,'pane-scroll-preview'));await ready(page);
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,1000));await settleLayout(page);
+    await page.locator('[data-token="w2"]').click();await page.keyboard.press('Escape');await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');
+    await page.evaluate(()=>{for(const selector of ['.documents','.inspector']){const pane=document.querySelector(selector);pane.scrollTop=pane.scrollHeight}});await settleLayout(page);
+    for(const [selector,side,dx] of [['#navigation-resizer','navigation',-16],['#properties-resizer','properties',16]]){
+      const hit=await page.evaluate(selector=>{const handle=document.querySelector(selector),r=handle.getBoundingClientRect(),workspace=document.querySelector('.workspace').getBoundingClientRect();return document.elementFromPoint(r.x+r.width/2,workspace.y+workspace.height/2)?.closest(selector)?.id},selector);
+      expect(hit,`${selector} is reachable halfway down its scrolled pane`).toBe(selector.slice(1));
+      const start=(await paneGeometry(application,page))[side].width;await dragSplitter(page,selector,dx,0);nearPixels((await paneGeometry(application,page))[side].width,start-16);
+    }
+    for(const [pane,rail] of [['.documents','#navigation-resizer'],['.transcript','#properties-resizer']]){
+      const hit=await page.evaluate(({pane,rail})=>{const element=document.querySelector(pane),r=element.getBoundingClientRect(),target=document.elementFromPoint(r.right-3,r.y+r.height/2);return {pane:!!target?.closest(pane),rail:!!target?.closest(rail)}},{pane,rail});
+      expect(hit,`${pane} scrollbar edge is available independently of its splitter`).toEqual({pane:true,rail:false});
+    }
+    const navigationScroll=await page.locator('.documents').evaluate(element=>element.scrollTop),navigationBox=await page.locator('.documents').boundingBox();
+    await page.mouse.move(navigationBox.x+navigationBox.width/2,navigationBox.y+navigationBox.height/2);await page.mouse.wheel(0,-96);
+    await expect.poll(()=>page.locator('.documents').evaluate(element=>element.scrollTop)).toBeLessThan(navigationScroll);
+    const readingScroll=await page.locator('.transcript').evaluate(element=>element.scrollTop),readingBox=await page.locator('.transcript').boundingBox();
+    await page.mouse.move(readingBox.x+readingBox.width/2,readingBox.y+readingBox.height/2);await page.mouse.wheel(0,96);
+    await expect.poll(()=>page.locator('.transcript').evaluate(element=>element.scrollTop)).toBeGreaterThan(readingScroll);
+    await captureNative(application,join(evidence,'electron-panes-scrolled-light.png'));await page.locator('#toggle-theme').click();
+    await page.locator('[data-tab="search"]').click();const textarea=page.getByLabel('Exact token sequence',{exact:true});
+    await textarea.fill(Array(8).fill('walked').join('\n'));
+    const outerScroll=await textarea.evaluate(element=>{element.scrollTop=0;return element.closest('.inspector').scrollTop});
+    const textareaBox=await textarea.boundingBox();await page.mouse.move(textareaBox.x+textareaBox.width/2,textareaBox.y+textareaBox.height/2);await page.mouse.wheel(0,30);
+    await expect.poll(()=>textarea.evaluate(element=>element.scrollTop)).toBeGreaterThan(0);
+    nearPixels(await page.locator('.inspector').evaluate(element=>element.scrollTop),outerScroll);
+    await captureNative(application,join(evidence,'electron-panes-scrolled-dark.png'));
+    for(const interruption of ['lost capture','pointer cancel']){
+      const originalGeometry=await paneGeometry(application,page),r=await page.locator('#navigation-resizer').boundingBox();
+      await page.evaluate(()=>document.querySelector('#navigation-resizer').addEventListener('pointerdown',event=>{window.__panePointer=event.pointerId},{once:true}));
+      await page.mouse.move(r.x+r.width/2,r.y+r.height/2);await page.mouse.down();await page.mouse.move(r.x+r.width/2+20,r.y+r.height/2,{steps:3});
+      const pointer=await page.evaluate(()=>window.__panePointer);
+      if(interruption==='lost capture')await page.evaluate(pointer=>document.querySelector('#navigation-resizer').releasePointerCapture(pointer),pointer);
+      else await page.dispatchEvent('#navigation-resizer','pointercancel',{pointerId:pointer,pointerType:'mouse',isPrimary:true});
+      await page.mouse.up();await settleLayout(page);await expect(page.locator('html')).not.toHaveAttribute('data-resizing','x');
+      const restored=await paneGeometry(application,page);nearPixels(restored.navigation.width,originalGeometry.navigation.width);expect(restored.preferred.navigation).toBe(originalGeometry.preferred.navigation);
+    }
+    for(const dx of [8,-8,8]){const start=(await paneGeometry(application,page)).navigation.width;await dragSplitter(page,'#navigation-resizer',dx,0);nearPixels((await paneGeometry(application,page)).navigation.width,start+dx)}
+    const final=await paneGeometry(application,page);nearPixels(Number(final.preferred.navigation),final.navigation.width);nearPixels(Number(final.preferred.properties),final.properties.width);
+    await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
+    writeFileSync(join(evidence,'pane-scroll-evidence.json'),JSON.stringify({platform:process.platform,scrolled_rails_reachable:true,side_drag_tracks_pointer:true,scrollbar_edges_clear_of_rails:true,native_wheel_scroll:true,nested_textarea_scroll:true,lost_capture_rolls_back:true,pointer_cancel_rolls_back:true,repeated_quick_drag:true,preferred_matches_visible_geometry:true,shutdown_cleanup:true,geometry:final},null,2));
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
