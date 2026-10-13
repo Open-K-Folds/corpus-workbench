@@ -27,6 +27,7 @@ The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 
 - [x] Bounded edited-package return, reviewed conflict choices, frozen XML/backup lineage, native TEITOK Save/reopen and complete reimport; [scope and evidence](docs/EDITED-PACKAGE-MILESTONE.md).
 - [x] Bounded revision-bound corpus concordance, observed audio, historical inspection, draft-safe navigation and optional derived literal CWB/CQP qualification; [scope and evidence](docs/CORPUS-SEARCH-MILESTONE.md).
 - [x] First bounded annotation-layer join: exact text/language plus one existing whole-token span label or variety, qualified matched evidence and historical exports; [scope and limits](docs/CORPUS-SEARCH-MILESTONE.md#bounded-span-constraint-increment).
+- [x] B28 per-term language transitions: global default plus ordered Use default / Any language / Exact custom value overrides, preserving revision-bound evidence and search guards; [scope and local verification](docs/CORPUS-SEARCH-MILESTONE.md#per-term-language-filter-increment-b28).
 - [ ] Physical Pi/resource/power-loss qualification and production risk/operations acceptance.
 - [ ] Full TEITOK/CWB/CQP parity and arbitrary-schema/structural editing; external changes beyond the bounded token return grammar.
 - [ ] Native durable job/outbox/worker fencing, shared assertions, ontology/model recipes and permanent rights-withdrawal lifecycle.

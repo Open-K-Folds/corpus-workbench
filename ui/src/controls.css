@@ -132,6 +132,16 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 .search-controls label{min-width:0}.search-controls input,.search-controls select{width:100%}
 .search-span>summary{font-size:12px;cursor:pointer;padding:6px 0;color:var(--ink)}
 .search-span .material-symbol{font-size:18px;margin-right:4px}
+.search-term-languages{min-width:0;width:100%}
+.search-term-languages>summary{font-size:12px;cursor:pointer;padding:6px 0;color:var(--ink)}
+.search-term-languages .material-symbol{font-size:18px;margin-right:4px}
+.search-term-languages p{margin:4px 0 10px}
+.search-term-language{display:grid;grid-template-columns:minmax(0,1fr) minmax(156px,1.3fr);gap:6px 10px;padding:8px 0;border-top:1px solid var(--border);align-items:center}
+.search-term-heading{min-width:0;font-size:11px;color:var(--muted)}
+.search-term-text{display:block;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink);font-size:12px}
+.search-term-language label{margin:0;min-width:0}
+.search-term-language select,.search-term-language input{margin-top:0}
+.search-term-custom{grid-column:1/-1}.search-term-custom[hidden]{display:none}
 .search-span-evidence{font-size:11px;margin-top:7px;overflow-wrap:anywhere}
 .search-span-evidence summary{cursor:pointer}.search-span-evidence pre{font-size:11px;max-height:220px}
 .search-panel button.secondary{background:var(--control-surface);color:var(--ink);border-color:var(--control-edge)}
