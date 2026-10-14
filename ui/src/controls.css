@@ -203,3 +203,43 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   :where(*){scrollbar-width:auto;scrollbar-color:auto!important}
   :where(*)::-webkit-scrollbar,:where(*)::-webkit-scrollbar-track,:where(*)::-webkit-scrollbar-thumb,:where(*)::-webkit-scrollbar-corner,:where(*)::-webkit-scrollbar-button{all:revert!important}
 }
+/* Audio plots keep their axes separate from the player's recording-time seek. */
+.recording-heading .audio-views{flex:none;padding:2px;gap:1px}
+.audio-views label>span{min-height:24px;padding:2px 8px;font-size:11px}
+.recording-heading{height:30px;gap:10px}
+.recording-visual{position:relative;margin-top:3px;padding-bottom:16px}
+#recording-pane .recording-visual canvas{height:32px;width:100%;border-radius:3px}
+#recording-pane[data-audio-view=spectrogram] .recording-visual canvas,#recording-pane[data-audio-view=spectrum] .recording-visual canvas{height:64px}
+#recording-pane[data-detail=expanded] .recording-visual canvas{height:104px}
+#recording-pane[data-detail=expanded][data-audio-view=waveform] .recording-visual canvas{height:64px}
+.recording-time-axis{position:absolute;left:0;right:0;bottom:0;display:flex;justify-content:space-between;color:var(--muted);font-size:9px;line-height:14px;font-variant-numeric:tabular-nums;pointer-events:none}
+.recording-frequency-axis{position:absolute;right:4px;top:3px;bottom:19px;display:flex;flex-direction:column;justify-content:space-between;font-size:9px;pointer-events:none;color:#f5f5f5}
+.recording-frequency-axis span{background:#15191bd9;padding:0 3px;border-radius:2px}
+.recording-frequency-axis[hidden]{display:none}
+.recording-analysis-info{display:flex;flex-wrap:wrap;gap:2px 14px;color:var(--muted);font-size:10px;line-height:16px;min-height:16px}
+#recording-analysis-status:empty{display:none}
+#recording-pane[data-audio-view=spectrum] canvas{cursor:default;touch-action:auto}
+#recording-pane[data-detail=minimal] .recording-visual,#recording-pane[data-detail=minimal] .recording-analysis-info{display:none}
+#recording-pane.audio{--recording-minimal-min:94px;--recording-compact-min:166px;--recording-expanded-min:270px}
+#recording-pane[data-audio-view=spectrogram],#recording-pane[data-audio-view=spectrum]{--recording-compact-min:198px;--recording-expanded-min:310px}
+#recording-pane:has(.player-status:not(:empty)){--recording-minimal-min:118px;--recording-compact-min:190px}
+#recording-pane:is([data-audio-view=spectrogram],[data-audio-view=spectrum]):has(.player-status:not(:empty)){--recording-compact-min:222px}
+@media(max-width:1100px) and (min-width:701px){
+  #recording-pane.audio{--recording-compact-min:210px;--recording-expanded-min:302px}
+  #recording-pane:is([data-audio-view=spectrogram],[data-audio-view=spectrum]){--recording-compact-min:242px;--recording-expanded-min:342px}
+  #recording-pane:has(.player-status:not(:empty)){--recording-minimal-min:118px;--recording-compact-min:234px}
+  #recording-pane:is([data-audio-view=spectrogram],[data-audio-view=spectrum]):has(.player-status:not(:empty)){--recording-compact-min:266px}
+}
+@media(max-width:700px){
+  .recording-heading{height:58px;gap:2px 8px;flex-wrap:wrap;align-content:center}
+  .recording-heading strong{order:0}.recording-heading #recording-summary{order:1}.recording-heading #timeline-toggle{order:2;width:26px}
+  .recording-heading .audio-views{order:3;margin-right:auto}.audio-views label>span{font-size:11px;min-height:26px}
+  #recording-pane.audio{--recording-minimal-min:158px;--recording-compact-min:254px;--recording-expanded-min:354px}
+  #recording-pane:is([data-audio-view=spectrogram],[data-audio-view=spectrum]){--recording-minimal-min:158px;--recording-compact-min:286px;--recording-expanded-min:394px}
+  #recording-pane[data-audio-view=spectrum]{--recording-compact-min:302px;--recording-expanded-min:410px}
+  #recording-pane:has(.player-status:not(:empty)){--recording-minimal-min:200px;--recording-compact-min:296px}
+  #recording-pane:is([data-audio-view=spectrogram],[data-audio-view=spectrum]):has(.player-status:not(:empty)){--recording-compact-min:328px}
+  #recording-pane[data-audio-view=spectrum]:has(.player-status:not(:empty)){--recording-compact-min:344px}
+  .recording-analysis-info{font-size:9px;gap:0 8px}
+}
+@media(forced-colors:active){.recording-frequency-axis span{color:CanvasText;background:Canvas}.audio-views input:checked+span{outline:2px solid Highlight}}

@@ -252,6 +252,40 @@ test('stable desktop origin recovers backward Unicode draft and identical respon
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
 
+test('native audio views analyse packaged PCM and preserve playback and transcript seeking',async()=>{
+  const work=workspace('audio-views'),source=createPackage(join(work,'source-package'),'SYNTHETIC audio view qualification'),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','audio-views'],{windowsHide:true});
+  let application,page;
+  try{
+    ({application,page}=await launch(profile,store,'audio-views'));const errors=[];page.on('pageerror',error=>errors.push(error.message));await ready(page);
+    await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','ready');
+    await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');
+    const audio=page.locator('#audio'),src=await audio.getAttribute('src');
+    await page.getByRole('radio',{name:'Spectrogram',exact:true}).check();
+    await expect(page.getByRole('slider',{name:'Seek recording on spectrogram',exact:true})).toBeVisible();
+    expect(await page.locator('#recording-waveform').evaluate(canvas=>{const data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;return new Set(Array.from(data).filter((_,i)=>i%4===0)).size})).toBeGreaterThan(10);
+    await page.getByRole('slider',{name:'Seek recording on spectrogram',exact:true}).focus();await page.keyboard.press('Home');await page.keyboard.press('ArrowRight');
+    await expect.poll(()=>audio.evaluate(a=>a.currentTime)).toBeCloseTo(1,1);
+    await page.getByRole('button',{name:'Dark appearance',exact:true}).click();
+    await captureNative(application,join(evidence,'native-audio-spectrogram-dark.png'));
+    await page.getByRole('radio',{name:'Spectrum',exact:true}).check();await expect(page.locator('#recording-analysis-status')).toContainText('Paused');
+    await page.getByRole('button',{name:'Play recording',exact:true}).click();
+    await expect(page.locator('#recording-analysis-status')).toContainText('Live ·');await expect.poll(()=>audio.evaluate(a=>a.currentTime)).toBeGreaterThan(1.2);
+    expect(await page.locator('#recording-waveform').evaluate(canvas=>{const data=canvas.getContext('2d').getImageData(0,0,canvas.width,canvas.height).data;let painted=0;for(let i=3;i<data.length;i+=4)if(data[i])painted++;return painted/(canvas.width*canvas.height)})).toBeGreaterThan(.02);
+    await captureNative(application,join(evidence,'native-audio-live-spectrum-dark.png'));
+    await page.getByRole('radio',{name:'Waveform',exact:true}).check();expect(await audio.getAttribute('src')).toBe(src);expect(await audio.evaluate(a=>a.paused)).toBe(false);
+    await page.getByRole('button',{name:'Pause recording',exact:true}).click();
+    await page.locator('[data-token="w1"]').click();await page.locator('#listen-selected').click();
+    await expect.poll(()=>audio.evaluate(a=>a.currentTime)).toBeLessThan(1);expect(await audio.evaluate(a=>a.paused)).toBe(false);
+    await page.getByRole('button',{name:'Pause recording',exact:true}).click();
+    await page.getByRole('radio',{name:'Spectrogram',exact:true}).check();
+    await page.locator('[data-document="xmlfiles/notes.xml"]').click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','empty');
+    await page.locator('[data-document="xmlfiles/interview.xml"]').click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','ready');await expect(page.getByRole('radio',{name:'Spectrogram',exact:true})).toBeChecked();
+    expect(errors).toEqual([]);
+    writeFileSync(join(evidence,'audio-views-evidence.json'),JSON.stringify({origin:page.url(),worker_decodes_actual_pcm:true,spectrogram_keyboard_seek:true,live_analyser:true,mode_switch_preserves_playback:true,transcript_seek_after_spectrum:true,missing_media_clears_analysis:true,console_errors:errors},null,2));
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});
+
 test('real Electron custom audio keeps playback through pane drag and handles missing media',async()=>{
   const work=workspace('audio'),source=createPackage(join(work,'source-package')),store=join(work,'authority'),profile=join(work,'desktop-profile');
   execFileSync(binary,['import','--store',store,'--package',source,'--project','audio-preview'],{windowsHide:true});

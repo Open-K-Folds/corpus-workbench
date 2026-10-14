@@ -10,7 +10,8 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "check": "tsc --noEmit",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:audio": "node --test tests/audio-analysis.unit.mjs"
   },
   "overrides": {
     "rollup": "4.62.2"
