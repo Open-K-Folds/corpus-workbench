@@ -2,6 +2,7 @@ import type {Document,View} from './contracts';
 import {esc} from './dom';
 import {icon} from './icons';
 import {AudioPlayer} from './player';
+import {AudioView} from './audio-view';
 
 function preference(key:string,fallback:number,min:number,max:number){try{const n=Number(localStorage.getItem(key));return n>=min&&n<=max?n:fallback}catch{return fallback}}
 interface ResizeOptions {maximum?:()=>number;minimum?:()=>number;measure?:()=>number;onCommit?:(size:number)=>void}
@@ -68,11 +69,11 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
   return {navigation,properties};
 }
 export class RecordingPanel {
-  private canvas:HTMLCanvasElement;private lanes:HTMLElement;private summary:HTMLElement;private peaks:number[]=[];private mediaHash:string|null=null;private epoch=0;private view:View|null=null;private doc:Document|null=null;
+  private visual:AudioView;private lanes:HTMLElement;private view:View|null=null;private doc:Document|null=null;
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
     panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);
     const player=new AudioPlayer(audio);
-    this.canvas=panel.querySelector('canvas')!;this.lanes=panel.querySelector('#recording-layers')!;this.summary=panel.querySelector('#recording-summary')!;panel.append(this.lanes);
+    this.lanes=panel.querySelector('#recording-layers')!;panel.append(this.lanes);this.visual=new AudioView(panel,audio,panel.querySelector('#recording-summary')!);
     type Detail='minimal'|'compact'|'expanded';let preferredDetail:Detail|null=null;
     let compactHeight=preference('wb-recording-compact-height',180,110,440),expandedHeight=preference('wb-recording-expanded-height',360,220,440);
     try{const saved=localStorage.getItem('wb-recording-detail');if(saved==='minimal'||saved==='compact'||saved==='expanded')preferredDetail=saved}catch{/* Optional preference. */}
@@ -87,37 +88,15 @@ export class RecordingPanel {
       const toggle=panel.querySelector<HTMLButtonElement>('#timeline-toggle')!;toggle.innerHTML=icon(detail==='expanded'?'expand_more':'expand_less');toggle.setAttribute('aria-label',detail==='minimal'?'Expand recording panel':detail==='compact'?'Show recording timeline':'Collapse recording timeline');toggle.title=toggle.getAttribute('aria-label')!;
     },{maximum,minimum:()=>minimum('minimal'),measure:()=>panel.getBoundingClientRect().height,onCommit:size=>{preferredDetail=panel.dataset.detail as Detail;if(preferredDetail==='compact')compactHeight=size;if(preferredDetail==='expanded')expandedHeight=size;try{localStorage.setItem('wb-recording-detail',preferredDetail);if(preferredDetail!=='minimal')localStorage.setItem('wb-recording-'+preferredDetail+'-height',String(size))}catch{/* Optional preference. */}}});
     panel.querySelector<HTMLButtonElement>('#timeline-toggle')!.onclick=()=>resize.set(panel.dataset.detail==='minimal'?Math.max(compactHeight,minimum('compact')):panel.dataset.detail==='compact'?Math.max(expandedHeight,minimum('expanded')):70);
-    audio.addEventListener('timeupdate',()=>this.draw());audio.addEventListener('loadedmetadata',()=>{this.draw();this.renderLanes()});new ResizeObserver(()=>this.draw()).observe(this.canvas);
+    audio.addEventListener('loadedmetadata',()=>this.renderLanes());
     let floors='';const refit=()=>{const next=[minimum('minimal'),minimum('compact'),minimum('expanded'),Math.round(maximum())].join(':');if(!resize.isDragging()&&next!==floors){floors=next;resize.set(resize.getPreferred(),false)}resize.sync()};
     window.addEventListener('resize',()=>{floors='';refit()});
     const fitLanes=()=>{refit();const bounds=panel.getBoundingClientRect();document.documentElement.style.setProperty('--recording-height',bounds.height+'px');const padding=parseFloat(getComputedStyle(panel).paddingBottom)||0;this.lanes.style.maxHeight=Math.max(0,Math.floor(bounds.bottom-this.lanes.getBoundingClientRect().top-padding))+'px'};
-    const layout=new ResizeObserver(fitLanes);for(const region of [panel,workspace,player.element,this.canvas,panel.querySelector<HTMLElement>('.actions')!])layout.observe(region);
-    this.canvas.tabIndex=0;this.canvas.setAttribute('role','slider');this.canvas.setAttribute('aria-label','Seek recording on waveform');this.canvas.setAttribute('aria-valuemin','0');this.canvas.setAttribute('aria-description','Drag to scrub. Left and Right arrows seek one second; Shift seeks five seconds. Home and End seek to the recording bounds.');
-    const seek=(value:number)=>{if(!audio.hidden&&!audio.error&&Number.isFinite(audio.duration)&&audio.duration>0){audio.currentTime=Math.max(0,Math.min(audio.duration,value));this.draw()}};
-    const seekPointer=(e:PointerEvent)=>{const r=this.canvas.getBoundingClientRect();if(r.width>0)seek((e.clientX-r.left)/r.width*audio.duration)};
-    this.canvas.addEventListener('pointerdown',e=>{if(e.button!==0||audio.hidden||audio.error||!Number.isFinite(audio.duration)||audio.duration<=0)return;this.canvas.setPointerCapture(e.pointerId);this.canvas.focus({preventScroll:true});seekPointer(e);e.preventDefault()});
-    this.canvas.addEventListener('pointermove',e=>{if(this.canvas.hasPointerCapture(e.pointerId))seekPointer(e)});
-    this.canvas.addEventListener('pointerup',e=>{if(this.canvas.hasPointerCapture(e.pointerId)){seekPointer(e);this.canvas.releasePointerCapture(e.pointerId)}});
-    this.canvas.addEventListener('pointercancel',e=>{if(this.canvas.hasPointerCapture(e.pointerId))this.canvas.releasePointerCapture(e.pointerId)});
-    this.canvas.addEventListener('keydown',e=>{if(e.altKey||e.ctrlKey||e.metaKey||e.isComposing)return;if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();seek(e.key==='Home'?0:e.key==='End'?audio.duration:audio.currentTime+(e.key==='ArrowLeft'?-1:1)*(e.shiftKey?5:1))}});
-    for(const event of ['emptied','error','durationchange','seeked'])audio.addEventListener(event,()=>this.draw());
-    new MutationObserver(()=>this.draw()).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+    const layout=new ResizeObserver(fitLanes);for(const region of [panel,workspace,player.element,panel.querySelector('canvas')!,panel.querySelector<HTMLElement>('.actions')!])layout.observe(region);
   }
   async update(view:View,doc:Document,media:string|undefined){
-    this.view=view;this.doc=doc;this.renderLanes();
-    const hash=media?view.snapshot.files[media]?.sha256??'':'';if(hash===this.mediaHash)return;this.mediaHash=hash;const epoch=++this.epoch;this.peaks=[];this.draw();
-    if(!media){this.summary.textContent='No unambiguous packaged recording';return}
-    this.summary.textContent='Loading recorded waveform';
-    if(view.snapshot.files[media].bytes>32*1024*1024){this.summary.textContent='Waveform unavailable above 32 MiB · playback remains available';return}
-    let context:AudioContext|null=null;
-    try{const response=await fetch(`/api/media?path=${encodeURIComponent(media)}&revision=${view.revision.id}`);if(!response.ok)throw new Error('Media read failed');const bytes=await response.arrayBuffer();if(bytes.byteLength>32*1024*1024)throw new Error('Waveform resource limit');context=new AudioContext();const decoded=await context.decodeAudioData(bytes);if(epoch!==this.epoch)return;
-      const buckets=800;for(let b=0;b<buckets;b++){let peak=0;const first=Math.floor(b*decoded.length/buckets),last=Math.floor((b+1)*decoded.length/buckets);for(let channel=0;channel<decoded.numberOfChannels;channel++){const samples=decoded.getChannelData(channel);for(let i=first;i<last;i++)peak=Math.max(peak,Math.abs(samples[i]))}this.peaks.push(peak)}
-      this.summary.textContent=`${decoded.duration.toFixed(1)} s · original recording`;this.draw();
-    }catch{if(epoch===this.epoch)this.summary.textContent='Waveform unavailable · use the recording player'}finally{await context?.close()}
+    this.view=view;this.doc=doc;this.renderLanes();await this.visual.update(view,media);
   }
-  private draw(){if(!this.canvas)return;const available=!this.audio.hidden&&!this.audio.error&&Number.isFinite(this.audio.duration)&&this.audio.duration>0;this.canvas.setAttribute('aria-disabled',String(!available));this.canvas.setAttribute('aria-valuemax',String(available?this.audio.duration:0));this.canvas.setAttribute('aria-valuenow',String(available?this.audio.currentTime:0));this.canvas.setAttribute('aria-valuetext',available?`${this.audio.currentTime.toFixed(1)} of ${this.audio.duration.toFixed(1)} seconds`:'No playable recording');this.canvas.tabIndex=available?0:-1;const r=this.canvas.getBoundingClientRect(),ratio=window.devicePixelRatio||1;this.canvas.width=Math.max(1,r.width*ratio);this.canvas.height=Math.max(1,r.height*ratio);const c=this.canvas.getContext('2d');if(!c)return;c.scale(ratio,ratio);const color=getComputedStyle(document.documentElement).getPropertyValue('--wave').trim()||'#8a8a8a';c.strokeStyle=color;c.lineWidth=1;
-    c.beginPath();if(this.peaks.length){const scale=Math.max(.01,...this.peaks);this.peaks.forEach((p,i)=>{const x=i/this.peaks.length*r.width,y=Math.max(1,p/scale*(r.height/2-4));c.moveTo(x,r.height/2-y);c.lineTo(x,r.height/2+y)})}else{c.moveTo(0,r.height/2);c.lineTo(r.width,r.height/2)}c.stroke();
-    if(Number.isFinite(this.audio.duration)&&this.audio.duration>0){const x=this.audio.currentTime/this.audio.duration*r.width;c.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();c.beginPath();c.moveTo(x,0);c.lineTo(x,r.height);c.stroke()}}
   private renderLanes(){if(!this.lanes||!this.doc||!this.view)return;const duration=this.audio.duration;const timed=this.doc.segments.filter(s=>s.start_us!==null&&s.end_us!==null&&s.start_us>=0&&s.end_us>s.start_us);const extent=Number.isFinite(duration)&&duration>0?duration:Math.max(0,...timed.map(s=>s.end_us!/1e6));
     const lane=(label:string,items:{id:string;start:number;end:number;className?:string;title:string}[])=>`<div class="timeline-lane"><span class="lane-label">${label}</span><div class="lane-track">${items.map(i=>`<span class="interval ${i.className??''}" data-start="${i.start}" data-end="${i.end}" title="${esc(i.title)}">${esc(i.id)}</span>`).join('')}</div></div>`;
     const segments=timed.map(s=>({id:s.id,start:s.start_us!/1e6,end:s.end_us!/1e6,title:`${s.id} · supplied utterance bounds ${s.start_us!/1e6}–${s.end_us!/1e6} s`}));
