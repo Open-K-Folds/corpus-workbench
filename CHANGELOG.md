@@ -10,6 +10,14 @@
 - Preserve draft lineage and exact command recovery across backend port changes.
 - Add focused Windows Electron journeys and practical waveform/keyboard polish.
 
+## Unreleased - Per-term language concordance (B28)
+
+- Keep the global language default and add compact, ordered per-term choices for
+  Use default, Any language and Exact custom value to find language transitions.
+- Preserve literal custom values, existing query/revision fingerprints, historical
+  evidence, page exports, audio and stale/draft guards without schema changes.
+- Add focused mixed-language native and browser regression coverage.
+
 ## Unreleased - Bounded annotation-layer concordance
 
 - Combine exact token text and token language with exact existing span label or

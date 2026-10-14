@@ -462,3 +462,149 @@ test('scrolled panes keep splitters reachable and interrupted drags restore thei
     writeFileSync(join(evidence,'pane-scroll-evidence.json'),JSON.stringify({platform:process.platform,scrolled_rails_reachable:true,side_drag_tracks_pointer:true,scrollbar_edges_clear_of_rails:true,native_wheel_scroll:true,nested_textarea_scroll:true,lost_capture_rolls_back:true,pointer_cancel_rolls_back:true,repeated_quick_drag:true,preferred_matches_visible_geometry:true,shutdown_cleanup:true,geometry:final},null,2));
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
+
+const b28Words=Array.from({length:8},(_,index)=>`Term ${index+1} e\u0301 ’ ${'syntheticliteral'.repeat(8)}`);
+const b28CustomLanguage='  Français e\u0301 / custom ’  ';
+const b28LiteralToken='  e\u0301 token ’  ';
+function b28Package(directory){
+  const source=createPackage(directory,'SYNTHETIC packaged language transitions');
+  const utterances=Array.from({length:40},(_,utterance)=>`<u id="u${utterance}" start="1" end="7" variety="fr">${b28Words.map((word,index)=>`<tok id="w${utterance*8+index+1}" start="${(1+index*.7).toFixed(3)}" end="${(1+(index+1)*.7).toFixed(3)}"${index%2?' variety="en"':''}>${word}</tok>`).join(' ')}</u>`).join('\n');
+  writeFileSync(join(source,'xmlfiles/interview.xml'),`<TEI><teiHeader><title>SYNTHETIC packaged language transitions</title><note>Synthetic B28 qualification only. No research corpus content.</note><media url="preview.wav"/></teiHeader><text>${utterances}<u id="french" variety="fr"><tok id="f1">${b28Words[0]}</tok> <tok id="f2">${b28Words[1]}</tok></u><u id="literal"><tok id="l1" form="${b28LiteralToken}" variety="${b28CustomLanguage}">literal</tok> <tok id="l2" variety="en">next</tok></u><u id="greeting" start="1" end="3" variety="xh"><tok id="greeting1" start="1" end="1.5">molo</tok> <tok id="greeting2" start="1.5" end="2" variety="zu">sawubona</tok></u></text></TEI>`);
+  return source;
+}
+const b28Language=(page,position)=>page.getByRole('combobox',{name:`Term ${position} language`,exact:true});
+const b28Exact=(page,position)=>page.getByRole('textbox',{name:`Term ${position} exact language`,exact:true});
+async function b28ChooseExact(page,position,value){await b28Language(page,position).selectOption('exact');await b28Exact(page,position).fill(value)}
+async function b28ObserveSearch(page){
+  await page.evaluate(()=>{
+    const original=window.fetch.bind(window);window.__b28Searches=[];
+    window.fetch=async(input,init)=>{
+      const response=await original(input,init);
+      if(new URL(typeof input==='string'?input:input.url,location.href).pathname==='/api/search'&&response.ok)window.__b28Searches.push(await response.clone().json());
+      return response;
+    };
+  });
+}
+async function b28Search(page,total){
+  const count=await page.evaluate(()=>window.__b28Searches.length);await page.getByRole('button',{name:'Search corpus',exact:true}).click();
+  await expect.poll(()=>page.evaluate(()=>window.__b28Searches.length)).toBe(count+1);
+  const envelope=await page.evaluate(()=>window.__b28Searches.at(-1));expect(envelope.result.total).toBe(total);await expect(page.locator('#corpus-search-status')).toContainText(`${total} hits`);return envelope;
+}
+
+test('packaged per-term language search preserves literal bindings, native downloads, audio and tab state',async()=>{
+  const work=workspace('b28-search'),source=b28Package(join(work,'source-package')),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  const sourceXML=readFileSync(join(source,'xmlfiles/interview.xml'));
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','b28-search-preview'],{windowsHide:true});
+  let application,page;
+  try{
+    ({application,page}=await launch(profile,store,'b28-search-preview'));await ready(page);expect(page.url()).toBe('workbench://app/');
+    const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
+    const before=(await head(page)).revision;await b28ObserveSearch(page);await page.getByRole('button',{name:'Corpus search',exact:true}).click();
+    await page.getByLabel('Exact token sequence',{exact:true}).fill(b28Words.slice(0,2).join('\n'));await page.locator('.search-term-languages>summary').click();
+    await expect(b28Language(page,1)).toHaveValue('default');await expect(b28Language(page,2)).toHaveValue('default');
+    const unfiltered=await b28Search(page,41);expect(unfiltered.result.query.terms).toEqual(b28Words.slice(0,2).map(text=>({text,language:null})));
+    await page.getByLabel('Language / variety filter',{exact:true}).fill('fr');const defaults=await b28Search(page,1);expect(defaults.result.query.terms.map(term=>term.language)).toEqual(['fr','fr']);
+    await b28Language(page,2).selectOption('any');const any=await b28Search(page,41);expect(any.result.query.terms.map(term=>term.language)).toEqual(['fr',null]);
+    await b28ChooseExact(page,2,'en');await page.getByRole('combobox',{name:'Page size',exact:true}).selectOption('25');const mixed=await b28Search(page,40);
+    expect(mixed.result.query.terms).toEqual([{text:b28Words[0],language:'fr'},{text:b28Words[1],language:'en'}]);await expect(page.locator('.search-hit')).toHaveCount(25);
+    expect(mixed.result.hits[0].matched.map(token=>[token.language,token.language_source])).toEqual([['fr','ancestor/variety'],['en','token/variety']]);
+    expect(mixed.result.binding.snapshot_hash).toBe(before.snapshot_hash);await expect(page.locator('#corpus-search-results .hash')).toContainText(mixed.result_hash);
+    expect(new Set([unfiltered.result_hash,defaults.result_hash,any.result_hash,mixed.result_hash]).size).toBe(4);
+    await b28ChooseExact(page,1,'fr');await page.getByLabel('Language / variety filter',{exact:true}).fill('unrelated global default');expect((await b28Search(page,40)).result.query.terms).toEqual(mixed.result.query.terms);
+    await page.getByRole('button',{name:'Token',exact:true}).click();await page.getByRole('button',{name:'Corpus search',exact:true}).click();await expect(b28Exact(page,1)).toHaveValue('fr');await expect(b28Exact(page,2)).toHaveValue('en');
+
+    const jsonFile=join(work,'shown-language-results.json');
+    await application.evaluate(({BrowserWindow},filename)=>{
+      const qa=globalThis.__desktopQA;qa.b28Download={state:'waiting'};
+      BrowserWindow.getAllWindows()[0].webContents.session.once('will-download',(_event,item)=>{
+        item.setSavePath(filename);qa.b28Download={state:'started',filename:item.getFilename(),url:item.getURL(),save_path:item.getSavePath()};
+        item.once('done',(_event,state)=>{qa.b28Download.state=state});
+      });
+    },jsonFile);
+    await page.getByRole('button',{name:'Export shown results (JSON)',exact:true}).click();
+    await expect.poll(()=>application.evaluate(()=>globalThis.__desktopQA.b28Download.state)).toBe('completed');expect(existsSync(jsonFile)).toBe(true);
+    const downloaded=JSON.parse(readFileSync(jsonFile,'utf8'));expect(downloaded).toEqual(mixed);expect(downloaded.result.hits).toHaveLength(25);expect(downloaded.result.total).toBe(40);
+    const downloadProof=await application.evaluate(()=>globalThis.__desktopQA.b28Download);expect(downloadProof.filename).toBe('corpus-search-r1-0.json');expect(downloadProof.save_path).toBe(jsonFile);
+    await page.getByRole('button',{name:'Play word intervals',exact:true}).first().click();await expect(page.locator('#search-audio')).toHaveAttribute('src',/revision=1$/);await expect(page.locator('#search-audio-basis')).toContainText('observed word intervals');await expect.poll(()=>page.locator('#search-audio').evaluate(audio=>audio.currentTime)).toBeGreaterThan(1.05);await page.locator('#search-audio').evaluate(audio=>audio.pause());
+
+    await page.getByLabel('Exact token sequence',{exact:true}).fill(b28LiteralToken+'\n\nnext');await b28ChooseExact(page,1,b28CustomLanguage);const literal=await b28Search(page,1);
+    expect(literal.result.query.terms).toEqual([{text:b28LiteralToken,language:b28CustomLanguage},{text:'next',language:'en'}]);expect(literal.result.hits[0].matched[0].language).toBe(b28CustomLanguage);
+    expect(await page.locator('#search-term-languages .search-term-text').first().textContent()).toBe(b28LiteralToken);
+    await page.getByLabel('Exact token sequence',{exact:true}).fill('next\n'+b28LiteralToken);expect((await b28Search(page,0)).result.query.terms).toEqual([{text:'next',language:b28CustomLanguage},{text:b28LiteralToken,language:'en'}]);
+    await page.getByLabel('Exact token sequence',{exact:true}).fill(b28LiteralToken+'\nnext');await b28Exact(page,1).fill(b28CustomLanguage.normalize('NFC'));await b28Search(page,0);
+    await b28Exact(page,1).fill('');const submissions=await page.evaluate(()=>window.__b28Searches.length);await page.locator('.search-term-languages>summary').click();await page.getByRole('button',{name:'Search corpus',exact:true}).click();
+    await expect(page.locator('.search-term-languages')).toHaveAttribute('open','');await expect(b28Exact(page,1)).toBeFocused();expect(await b28Exact(page,1).evaluate(input=>input.validity.valueMissing)).toBe(true);expect(await page.evaluate(()=>window.__b28Searches.length)).toBe(submissions);
+    await b28Language(page,1).selectOption('any');expect((await b28Search(page,1)).result.query.terms[0].language).toBeNull();
+
+    const zipFile=join(work,'complete-language-package.zip');await queue(application,'save',[zipFile]);await page.locator('#export-package').click();await expect.poll(()=>existsSync(zipFile)).toBe(true);expect(readFileSync(zipFile).subarray(0,2).toString()).toBe('PK');
+    const zipHashes=JSON.parse(execFileSync('python',['-c','import sys,zipfile,hashlib,json;z=zipfile.ZipFile(sys.argv[1]);print(json.dumps({n:hashlib.sha256(z.read(n)).hexdigest() for n in ["xmlfiles/interview.xml","Audio/preview.wav","Other/preserved.bin"]}))',zipFile],{encoding:'utf8',windowsHide:true}));
+    for(const name of Object.keys(zipHashes))expect(zipHashes[name]).toBe(createHash('sha256').update(readFileSync(join(source,name))).digest('hex'));
+    await page.getByLabel('Exact token sequence',{exact:true}).fill('molo\nsawubona');await b28ChooseExact(page,1,'xh');await b28ChooseExact(page,2,'zu');const greeting=await b28Search(page,1);
+    expect(greeting.result.query.terms).toEqual([{text:'molo',language:'xh'},{text:'sawubona',language:'zu'}]);expect(greeting.result.hits[0].token_ids).toEqual(['greeting1','greeting2']);
+    await page.getByRole('button',{name:'Open matched tokens',exact:true}).click();await expect(page.locator('[data-token="greeting1"]')).toHaveClass(/selected/);await expect(page.locator('[data-token="greeting2"]')).toHaveClass(/selected/);await page.getByRole('button',{name:'Corpus search',exact:true}).click();
+    await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1440,1000));await settleLayout(page);const currentProperties=(await paneGeometry(application,page)).properties.width;
+    if(Math.abs(currentProperties-304)>1)await dragSplitter(page,'#properties-resizer',currentProperties-304,0);nearPixels((await paneGeometry(application,page)).properties.width,304);
+    // Inspector changes rebuild the reading surface. Manually return to the
+    // selected evidence for these presentation captures; this is not a claim
+    // that search tab changes automatically preserve the transcript viewport.
+    await page.locator('[data-token="greeting1"]').evaluate(element=>element.scrollIntoView({block:'center'}));await settleLayout(page);await expect(page.locator('[data-token="greeting1"]')).toBeInViewport();await expect(page.locator('[data-token="greeting2"]')).toBeInViewport();
+    for(const theme of ['light','dark']){
+      if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toggle-theme').click();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      await page.locator('.search-term-languages').scrollIntoViewIfNeeded();await settleLayout(page);await captureNative(application,join(evidence,`electron-b28-language-transition-${theme}.png`));
+    }
+    expect(readFileSync(join(source,'xmlfiles/interview.xml'))).toEqual(sourceXML);expect((await head(page)).revision).toEqual(before);expect(errors).toEqual([]);
+    const appVersion=await application.evaluate(({app})=>app.getVersion());await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
+    writeFileSync(join(evidence,'b28-search-evidence.json'),JSON.stringify({platform:process.platform,app_version:appVersion,origin:'workbench://app/',fixture:'SYNTHETIC 40 eight-token fr/en utterances plus fr/fr, Unicode and xh/zu greeting controls',global_default:true,per_term_any:true,per_term_exact:true,literal_unicode_spaces:true,positional_bindings:true,tab_state_retained:true,collapsed_required_field_revealed:true,native_json_download:downloadProof,native_json_file:jsonFile,result_hash:downloaded.result_hash,binding:downloaded.result.binding,observed_audio:true,native_complete_zip:zipFile,zip_artifact_hashes:zipHashes,typical_language_transition:greeting.result.query.terms,typical_hit_selected:true,typical_hit_manually_scrolled_before_capture:true,unchanged_saved_revision:before.id,source_unchanged:true,native_dirty_search_close_choice:1,sidecar_shutdown:true,page_errors:errors},null,2));
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});
+
+test('packaged eight-term languages keep scrolling and audio through resize and persist theme panes and inline drafts on relaunch',async()=>{
+  const work=workspace('b28-search-panes'),source=b28Package(join(work,'source-package')),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','b28-panes-preview'],{windowsHide:true});
+  let application,page;const geometry=[],errors=[];
+  try{
+    ({application,page}=await launch(profile,store,'b28-panes-preview'));await ready(page);page.on('pageerror',error=>errors.push(error.message));await b28ObserveSearch(page);
+    const before=(await head(page)).revision;await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill(b28Words.join('\n'));await page.locator('.search-term-languages>summary').click();
+    for(let position=1;position<=8;position++)await b28ChooseExact(page,position,position%2?'fr':'en');await page.getByRole('combobox',{name:'Page size',exact:true}).selectOption('25');const result=await b28Search(page,40);
+    expect(result.result.query.terms).toEqual(b28Words.map((text,index)=>({text,language:index%2?'en':'fr'})));await expect(page.locator('.search-hit')).toHaveCount(25);
+    await page.locator('#properties-resizer').focus();await page.keyboard.press('Home');await settleLayout(page);nearPixels((await paneGeometry(application,page)).properties.width,260);
+    await page.locator('#search-term-languages .search-term-language').last().scrollIntoViewIfNeeded();
+    const controlBounds=()=>page.locator('#search-term-languages').evaluate(element=>{
+      const pane=element.closest('.inspector').getBoundingClientRect();
+      return [...element.querySelectorAll('select,input,code')].every(control=>{
+        const boxes=control.tagName==='CODE'?(()=>{const range=document.createRange();range.selectNodeContents(control);return [...range.getClientRects()]})():[control.getBoundingClientRect()];
+        return boxes.every(r=>r.left>=pane.left&&r.right<=pane.right&&r.left>=0&&r.right<=innerWidth);
+      });
+    });
+    expect(await controlBounds()).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+    await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1.25);window.setSize(1000,700)});await settleLayout(page);await page.locator('#search-term-languages .search-term-language').last().scrollIntoViewIfNeeded();expect(await controlBounds()).toBe(true);
+    geometry.push({stage:'eight terms at minimum native window and zoom125',...await paneGeometry(application,page)});await captureNative(application,join(evidence,'electron-b28-eight-terms-minimum-zoom125.png'));
+    await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1);window.setContentSize(1440,1000)});await settleLayout(page);
+    for(const theme of ['light','dark']){
+      if(await page.locator('html').getAttribute('data-theme')!==theme)await page.locator('#toggle-theme').click();await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      await page.locator('.search-term-languages>summary').scrollIntoViewIfNeeded();await captureNative(application,join(evidence,`electron-b28-eight-terms-${theme}-native.png`));
+    }
+    const textarea=page.getByLabel('Exact token sequence',{exact:true});await textarea.scrollIntoViewIfNeeded();const outerScroll=await textarea.evaluate(element=>{element.scrollTop=0;return element.closest('.inspector').scrollTop}),textareaBox=await textarea.boundingBox();
+    await page.mouse.move(textareaBox.x+textareaBox.width/2,textareaBox.y+textareaBox.height/2);await page.mouse.wheel(0,48);await expect.poll(()=>textarea.evaluate(element=>element.scrollTop)).toBeGreaterThan(0);nearPixels(await page.locator('.inspector').evaluate(element=>element.scrollTop),outerScroll);
+    await page.locator('.inspector').evaluate(element=>element.scrollTop=0);const inspectorBox=await page.locator('.inspector').boundingBox();await page.mouse.move(inspectorBox.x+inspectorBox.width-12,inspectorBox.y+inspectorBox.height/2);await page.mouse.wheel(0,120);await expect.poll(()=>page.locator('.inspector').evaluate(element=>element.scrollTop)).toBeGreaterThan(0);
+    const scrollbarEdge=await page.evaluate(()=>{const pane=document.querySelector('.inspector'),r=pane.getBoundingClientRect(),hit=document.elementFromPoint(r.right-3,r.y+r.height/2);return {inspector:!!hit?.closest('.inspector'),splitter:!!hit?.closest('#properties-resizer')}});expect(scrollbarEdge).toEqual({inspector:true,splitter:false});
+    await page.getByRole('button',{name:'Play word intervals',exact:true}).first().click();await expect(page.locator('#search-audio')).toHaveAttribute('src',/revision=1$/);await page.locator('#search-audio').evaluate(audio=>{audio.playbackRate=.25;window.__b28Audio=audio});await expect.poll(()=>page.locator('#search-audio').evaluate(audio=>audio.currentTime)).toBeGreaterThan(1.01);
+    const audioSource=await page.locator('#search-audio').getAttribute('src'),propertiesBefore=(await paneGeometry(application,page)).properties.width;await dragSplitter(page,'#properties-resizer',-40,0);nearPixels((await paneGeometry(application,page)).properties.width,propertiesBefore+40);
+    const recordingBefore=(await paneGeometry(application,page)).recording.height;await dragSplitter(page,'#timeline-resizer',0,-24);nearPixels((await paneGeometry(application,page)).recording.height,recordingBefore+24);
+    expect(await page.evaluate(()=>window.__b28Audio===document.querySelector('#search-audio')&&!window.__b28Audio.paused)).toBe(true);expect(await page.locator('#search-audio').getAttribute('src')).toBe(audioSource);await page.locator('#search-audio').evaluate(audio=>audio.pause());
+    await page.getByRole('button',{name:'Next page',exact:true}).click();await expect(page.locator('.search-hit')).toHaveCount(15);await page.getByRole('button',{name:'Previous page',exact:true}).click();await expect(page.locator('.search-hit')).toHaveCount(25);
+    await page.locator('#navigation-resizer').focus();await page.keyboard.press('ArrowRight');await settleLayout(page);const persisted=await paneGeometry(application,page);geometry.push({stage:'eight-term results after native pane drag',...persisted});
+    await page.getByRole('button',{name:'Token',exact:true}).click();await page.locator('[data-token="w2"]').scrollIntoViewIfNeeded();await draft(page,'SYNTHETIC e\u0301 retained language draft');
+    const retained=await records(page);expect(retained).toHaveLength(1);expect(retained[0].command).toBeNull();expect(Object.values(JSON.parse(readFileSync(join(profile,'drafts/correction-journal.json'),'utf8')))).toEqual(retained);expect((await head(page)).revision).toEqual(before);
+    await page.getByRole('button',{name:'Corpus search',exact:true}).click();await expect(b28Exact(page,1)).toHaveValue('fr');await expect(b28Exact(page,8)).toHaveValue('en');await captureNative(application,join(evidence,'electron-b28-draft-before-relaunch-native.png'));
+    await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
+    ({application,page}=await launch(profile,store,'b28-panes-preview'));await ready(page);await settleLayout(page);page.on('pageerror',error=>errors.push(error.message));
+    await expect(page.locator('html')).toHaveAttribute('data-theme','dark');const restored=await paneGeometry(application,page);geometry.push({stage:'reopened persisted theme panes and journal',...restored});expect(restored.preferred).toEqual(persisted.preferred);for(const side of ['navigation','properties'])nearPixels(restored[side].width,persisted[side].width);nearPixels(restored.recording.height,persisted.recording.height);
+    await expect(page.getByRole('button',{name:'Recover correction',exact:true})).toBeVisible();expect(await records(page)).toEqual(retained);expect((await head(page)).revision).toEqual(before);await page.getByRole('button',{name:'Recover correction',exact:true}).click();await expect(page.getByLabel('Proposed correction')).toHaveValue('SYNTHETIC e\u0301 retained language draft');
+    await page.getByRole('button',{name:'Corpus search',exact:true}).click();const reopenedSearch={tokens:await page.getByLabel('Exact token sequence',{exact:true}).inputValue(),language:await page.getByLabel('Language / variety filter',{exact:true}).inputValue(),term_rows:await page.locator('#search-term-languages .search-term-language').count()};
+    await captureNative(application,join(evidence,'electron-b28-draft-after-relaunch-native.png'));const recovered=await records(page);expect(recovered).toEqual([{...retained[0],id:expect.any(String),updated:expect.any(Number)}]);
+    await expect.poll(()=>Object.values(JSON.parse(readFileSync(join(profile,'drafts/correction-journal.json'),'utf8')))).toEqual(recovered);expect((await head(page)).revision).toEqual(before);expect(errors).toEqual([]);
+    await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
+    writeFileSync(join(evidence,'b28-panes-relaunch-evidence.json'),JSON.stringify({platform:process.platform,eight_literal_terms:true,real_40_hit_results:true,term_controls_fit_minimum_pane:true,native_zoom125_minimum:true,nested_textarea_wheel:true,inspector_wheel:true,scrollbar_edge_clear_of_splitter:true,pane_drag_preserves_search_audio:true,pagination:true,tab_overrides_retained:true,persisted_dark_theme:true,persisted_pane_preferences:true,persisted_native_inline_draft:true,recovered_replacement:retained[0].replacement,reopened_search_form:reopenedSearch,search_query_persisted:reopenedSearch.tokens===b28Words.join('\n'),unchanged_saved_revision:before.id,normal_shutdown_cleanup:true,geometry,page_errors:errors},null,2));
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});

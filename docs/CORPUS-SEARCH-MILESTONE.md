@@ -14,6 +14,7 @@ plan; full TEITOK/CWB/CQP parity remains open.
 - [x] Optional derived CWB index and real CQP comparison for the selected grammar.
 - [x] Independent native, HTTP, browser and adapter fault tests.
 - [x] Bounded exact label/variety constraints on existing whole-token spans.
+- [x] Ordered per-term language defaults and exact overrides for language transitions.
 - [ ] Original TEITOK index rebuilding, arbitrary CQP, regex and general multi-layer joins.
 - [ ] Bulk authoring from hit sets, durable worker jobs and production operations.
 
@@ -87,6 +88,97 @@ their historical provenance but require a new query for action resolution under
 engine 2. Corpus snapshots, revision history and imported-index status do not
 change. The optional CQP adapter rejects span constraints as native-only before
 external execution; general CQP joins remain unqualified.
+
+## Per-term language filter increment (B28)
+
+This local source increment starts from integrated main
+`14a209f5e6fa2028695bebae2801d490d1b7390e` on KhanCreate. It adds the next bounded
+B28 language-transition control without a release or deployment.
+
+The **Language / variety filter** remains the global default. Expand
+**Per-term language filters** to choose, for each numbered token:
+
+- **Use default** applies the current global value, or no language constraint when
+  the global field is empty.
+- **Any language** removes that term's constraint even when a global default exists.
+- **Exact custom value** applies that term's own nonempty, case-sensitive value.
+  Spaces and Unicode code points are preserved; values are never trimmed,
+  normalized or mapped to an external language code.
+
+Rows follow the order of nonempty token lines. Editing a term keeps its position's
+choice; removing trailing terms discards their rows, and newly added positions
+start with Use default. Blank lines do not create terms. The form exposes at most
+eight rows, matching the existing query bound. Exact custom fields require a
+nonempty value before submission, matching the engine's existing language bound.
+Choose Any language when no constraint is wanted.
+
+For example, two exact token lines can now emit the existing schema-1 terms:
+
+```json
+{"terms": [{"text": "left", "language": "isiXhosa"},
+           {"text": "right", "language": "isiZulu"}]}
+```
+
+The UI resolves choices into `terms[].language` at submission. No UI mode is added
+to the persisted query, and there is no schema, engine-version or authority change.
+The native engine still compares each term against the same exact revision's
+projected effective token language, retaining the explicit/inherited source in hit
+evidence. Existing reading, document and whole-token span constraints compose
+with the ordered language filters.
+
+Changing any term choice or value follows the existing query invalidation path:
+audio stops and clears, hit/page actions disable, and late query or hit responses
+cannot act on obsolete input. Page requests, historical inspection, playback and
+JSON downloads retain the resolved languages and exact evidence/result bindings.
+Current stale-head rejection and authoring-draft protections still apply.
+
+Local verification on 13 October 2026 used Windows x86-64, pinned Rust 1.90.0,
+Node 24.18.0, Python 3.14.6 and isolated Chrome 155.0.8059.40. The Browser plugin
+was unavailable; QA used the repository's existing Playwright 1.56.1 workflow,
+fresh synthetic authorities and the newly compiled backend on `127.0.0.1:18912`.
+Existing authoring authorities, browser profiles and retained worktrees were not
+used as test storage. Build outputs and dependency/advisory caches live in this
+task's separate `build-assets` directory; lockfiles and dependencies are unchanged.
+
+| Local check | Result |
+| --- | --- |
+| `cargo fmt --all --check` | Pass |
+| `cargo clippy --locked --offline --all-targets -- -D warnings` | Pass |
+| `cargo test --locked --offline` | 205 passed, including 3 new language contracts |
+| `npm run build --prefix ui` | TypeScript and Vite pass |
+| `node node_modules/@playwright/test/cli.js test search-languages.spec.ts` from `ui` | 7 focused journeys pass |
+| `node node_modules/@playwright/test/cli.js test` from `ui` | 86 pass in 149.8 seconds; zero skipped, flaky or unexpected results |
+| `npm run test:desktop` | 17 unit tests pass |
+| `python -m unittest discover -s tests -p 'test_cqp_literal_adapter.py' -v` | 18 pass with `WB_NATIVE_BINARY` set to the fresh backend |
+| `npm audit --prefix ui --audit-level=low` | Zero vulnerabilities |
+| `cargo audit --deny warnings` using cargo-audit 0.22.2 and a fresh advisory cache | Pass, 81 locked crate dependencies |
+| `git diff --check` | Pass |
+
+The hand-labelled native fixture covers ordered isiXhosa/isiZulu values (`xh` and
+`zu`), English, inherited/explicit/unknown/empty token language evidence, literal
+custom labels, pagination, altered query proofs, language-only edits, stale
+current results and unchanged historical media/XML/index exports. The browser
+journeys exercise real global/default/Any/exact hit sets, Unicode and whitespace,
+required custom values (including reopening a collapsed panel), keyboard access,
+term order/removal, the eight-term limit, pagination, delayed searches and hit
+resolution, history/export/audio and protected authoring drafts.
+
+Visual QA passes for light/dark desktop at 1440 x 1000 and mobile at 390 x 844,
+including eight long Unicode token rows. Page identity, meaningful content,
+framework-overlay absence, relevant console health and target interactions pass.
+Five synthetic screenshots are retained outside the repository in this task's
+`corpus-b28-browser-qa` directory. An independent UI review found no blocking
+query/proof/guard regressions.
+
+At the 13 October source checkpoint, hosted CI, Linux/ARM64, packaged Electron
+journeys, real CWB interoperability, private corpus evaluation, physical Pi and
+power-loss qualification had not been rerun. The [14 October packaged Windows
+follow-up](ELECTRON-DESKTOP.md#b28-packaged-windows-qualification---14-october-2026)
+records the subsequent actual Electron qualification. Full CQP parity,
+regex, general multilayer queries, bulk edits and production operations remain
+open. That checkpoint published no PR, release, merge or deployment; the later
+draft PR and exact-head hosted checks are reported in the scoped pull request.
+`release/ghcr-0.2.0-dev.8` remains untouched.
 
 ## Query and projection bounds
 
