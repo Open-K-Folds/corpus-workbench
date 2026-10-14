@@ -170,11 +170,14 @@ Five synthetic screenshots are retained outside the repository in this task's
 `corpus-b28-browser-qa` directory. An independent UI review found no blocking
 query/proof/guard regressions.
 
-This is local source qualification. Hosted CI, Linux/ARM64, packaged Electron
+At the 13 October source checkpoint, hosted CI, Linux/ARM64, packaged Electron
 journeys, real CWB interoperability, private corpus evaluation, physical Pi and
-power-loss qualification were not rerun for this increment. Full CQP parity,
+power-loss qualification had not been rerun. The [14 October packaged Windows
+follow-up](ELECTRON-DESKTOP.md#b28-packaged-windows-qualification---14-october-2026)
+records the subsequent actual Electron qualification. Full CQP parity,
 regex, general multilayer queries, bulk edits and production operations remain
-open. No PR, release, merge or deployment was published, and
+open. That checkpoint published no PR, release, merge or deployment; the later
+draft PR and exact-head hosted checks are reported in the scoped pull request.
 `release/ghcr-0.2.0-dev.8` remains untouched.
 
 ## Query and projection bounds

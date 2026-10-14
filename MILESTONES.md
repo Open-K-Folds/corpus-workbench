@@ -28,6 +28,7 @@ The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 
 - [x] Bounded revision-bound corpus concordance, observed audio, historical inspection, draft-safe navigation and optional derived literal CWB/CQP qualification; [scope and evidence](docs/CORPUS-SEARCH-MILESTONE.md).
 - [x] First bounded annotation-layer join: exact text/language plus one existing whole-token span label or variety, qualified matched evidence and historical exports; [scope and limits](docs/CORPUS-SEARCH-MILESTONE.md#bounded-span-constraint-increment).
 - [x] B28 per-term language transitions: global default plus ordered Use default / Any language / Exact custom value overrides, preserving revision-bound evidence and search guards; [scope and local verification](docs/CORPUS-SEARCH-MILESTONE.md#per-term-language-filter-increment-b28).
+- [x] Packaged Windows Electron B28 search, resizing/scrolling, native JSON/ZIP export and pane/theme/inline-draft relaunch qualification with nine synthetic journeys; [evidence and installation limits](docs/ELECTRON-DESKTOP.md#b28-packaged-windows-qualification---14-october-2026).
 - [ ] Physical Pi/resource/power-loss qualification and production risk/operations acceptance.
 - [ ] Full TEITOK/CWB/CQP parity and arbitrary-schema/structural editing; external changes beyond the bounded token return grammar.
 - [ ] Native durable job/outbox/worker fencing, shared assertions, ontology/model recipes and permanent rights-withdrawal lifecycle.

@@ -163,3 +163,97 @@ authorities receive an explicit refusal and can still use the existing CLI.
 Opening an authority requires the current schema 2; this preview does not
 convert older authorities. Only inline correction proposals have automatic
 draft recovery; the other forms use the departure prompts described above.
+## B28 packaged Windows qualification - 14 October 2026
+
+The per-term language increment is qualified in an actual unsigned Windows
+x86-64 package with Electron 44.7.0, pinned Node 24.18.0 build tooling and the
+release Rust 1.90.0 sidecar. The first package manifest identifies clean runtime
+source `bcf4d96e1d28c59dc0222b0b78538693fd5d5c27`. The follow-up changes tests and
+milestone evidence; the renderer, authority, dependencies and desktop bridge are
+unchanged. Final clean-package runtime hashes are checked against the tested
+package, so qualification does not substitute a development backend.
+
+`node desktop/build.cjs` builds the release sidecar and TypeScript/Vite assets.
+`node desktop/package.cjs --out release/desktop-b28-20261014` uses a fresh local
+output. Existing pinned desktop dependencies and the Electron archive were
+reused; its SHA-256 matched the installed pinned dependency checksum. Neither
+lockfile nor release version changed. The cached archive's observed SHA-256 is
+`eee30dc8fa1f5ea95490e59f44e46ea68dd24c6e93d22facf70fe5c2d4c2665c`.
+
+Managed sandboxed-tool execution failed Electron's Windows sandbox-readable
+installation ACL check. A byte-identical package was staged under a fresh
+writable temporary directory and tested through native execution outside the
+tool sandbox. No ACL, access setting, Electron sandbox, context-isolation or
+web-security setting was changed. Sandboxed-tool access can trigger this check
+even for a temporary copy; qualification applies to the tested native staging
+location and execution route.
+
+The packaged tests run with `WB_ELECTRON_EXECUTABLE` pointing at that package,
+`WB_BINARY` at the same package's CLI backend, and `WB_DESKTOP_BACKEND` unset.
+`WB_EVIDENCE_DIR` names a fresh synthetic evidence directory outside the source
+checkout. The command is:
+
+```powershell
+node node_modules/@playwright/test/cli.js test --config desktop/playwright.config.mjs
+```
+
+All nine native Electron journeys pass in 67.1 seconds, with no skipped,
+unexpected or flaky results. The seven earlier journeys cover import/open,
+correction/review/export/reopen, process interruption and exact draft recovery,
+audio, startup retry, native journal acknowledgement, pane fitting/persistence,
+interrupted drags and native/nested scrolling. Two new B28 journeys add:
+
+- Real default/Any/exact language-transition queries through `workbench://app/`,
+  literal Unicode/spaces and term order, collapsed required-value validation and
+  retained controls across inspector tabs.
+- A completed Chromium Blob download with the complete exact JSON envelope,
+  native complete ZIP export with unchanged XML/audio/opaque artifact hashes,
+  observed audio and unchanged saved evidence.
+- Eight long literal terms and forty real results at a 260-pixel inspector,
+  the native 1000 x 700 minimum window at 125% zoom, independent nested textarea
+  and inspector scrolling, reachable scrollbar edges, audio through side and
+  recording-pane drags, and exact pagination.
+- Persisted dark theme, preferred pane sizes and acknowledged native inline
+  correction journal across normal shutdown/relaunch. Explicit recovery renews
+  only the draft UUID/timestamp while preserving every bound content field.
+
+Search queries are session-only: tokens, global filter and override rows reset on
+restart. Query changes use the existing native unsaved-state departure prompt;
+tests choose Leave explicitly. Inline correction drafts have durable recovery;
+search fields do not gain a persistence promise. Original saved corpus evidence
+is unchanged throughout the B28 journeys.
+
+Native screenshots cover ordinary two-term synthetic isiXhosa/isiZulu queries in
+light/dark appearance at 1440 x 1000, the eight-term minimum/zoom case and draft
+relaunch. Page identity, meaningful content, overlay absence, relevant console
+health, interaction and visual inspection pass. The Browser plugin was absent;
+QA uses the existing Playwright 1.56.1 Electron route. `npm run test:desktop`
+also passes all seventeen unit tests; syntax and whitespace checks pass. An
+additional focused presentation run passes in 12.4 seconds after explicitly
+scrolling to the selected synthetic greeting tokens for the ordinary screenshots;
+it does not imply automatic transcript viewport retention when switching tabs.
+
+The tested runtime hashes are:
+
+| Artifact | SHA-256 |
+| --- | --- |
+| Windows executable | `b6761e0675053b65155a019c383ff9af4df6bb4dcf0e2158475c256d2daa95c1` |
+| `resources/app.asar` | `49957e26ea5287b650ac3c20f74ff55e9019fd7fb60a4a0857c90e8a6d4508a4` |
+| Packaged release backend | `f2e356e796fc4d4153f6b5ffb7f21a654faebf1453a1f8899046ef05261a33ac` |
+
+This is synthetic local Windows qualification. macOS/Linux desktop packages,
+private corpus accuracy, physical Pi/power-loss, original CWB interoperability,
+signing and production operations remain separate gates. Hosted checks and draft
+PR status are reported for the exact remote head in the scoped pull request.
+No binary release, merge or deployment is performed, and the retained dev.8
+release branch/worktrees/profiles remain intact.
+
+Locally supplied original Omnilingual examples are separate from the public
+practice package. Use a fresh complete-package copy with the full byte-preserved
+ASR artifact under `Raw/`, verified in-package audio and explicit unreviewed
+machine provenance. An existing TEITOK transcript is preferred; otherwise any
+wrapper must be a separately identified, lossless full-text projection. Missing
+timestamps, speaker labels, translations and accuracy measurements stay absent.
+The existing importer preserves raw machine bytes and stores human corrections
+in separate fields. Actual transcript/audio, private provenance and screenshots
+are excluded from public commits, PR evidence and external design services.
