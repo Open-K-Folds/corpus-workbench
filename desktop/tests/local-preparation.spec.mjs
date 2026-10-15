@@ -57,6 +57,7 @@ async function reviews(page,revision){return page.evaluate(async revision=>{cons
 async function ready(page){await expect(page.locator('#save-state')).toContainText('Saved R');await expect(page.locator('[data-token="draft-t000001"] .reading-text')).toBeVisible();await expect.poll(()=>page.locator('#tokens').evaluate(element=>element.inert)).toBe(false)}
 async function openPreparation(page){
   const trigger=page.locator('#desktop-prepare');
+  await expect(trigger).toBeAttached();
   if(!await trigger.isVisible())await page.locator('.desktop-project-switcher > details > summary').click();
   await trigger.click();await expect(page.getByRole('dialog',{name:'Recording + transcript',exact:true})).toBeVisible();
 }

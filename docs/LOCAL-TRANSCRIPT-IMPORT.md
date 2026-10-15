@@ -52,8 +52,9 @@ The documented local chunk wrapper uses these supplied fields:
   `http_status: 200`, `error: null`, a boolean `empty`, and string `text`.
   The empty flag must agree with the text.
 - Optional supplied run fields are `model`, `checkpoint`, `code_version`,
-  `config_version`, `run_id`, `device`, `dtype`, `runtime_image_id` and
-  `run_started_unix` and bounded string-valued `package_versions`. Supported values retain their JSON pointers in provenance;
+  `config_version`, `run_id`, `device`, `dtype`, `runtime_image_id`,
+  `run_started_unix` and bounded string-valued `package_versions`.
+  Supported values retain their JSON pointers in provenance;
   missing values remain unknown.
 
 Chunk text is concatenated in supplied order **without inserting separators**.
