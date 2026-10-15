@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased - Exact-revision review decisions
+
+- Keep rejected and needs-adjudication decisions visible with their rationale,
+  actor, timestamp and explicit full-package solo-review scope.
+- Browse persisted decisions for older named revisions without retargeting the
+  current review form or inheriting approval after edits and restores.
+- Add project/hash-bound native reads, desktop routing, independent loading/retry
+  states and focused synthetic native, browser and Electron coverage.
+
 ## 0.2.0-dev.12 - Electron desktop preview
 
 - Reuse the Rust SQLite/object authority and transcript-first TypeScript editor

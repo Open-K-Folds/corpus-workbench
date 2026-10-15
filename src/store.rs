@@ -210,6 +210,37 @@ impl Store {
         let decision: Option<String> = self.conn.query_row("SELECT decision FROM reviews WHERE project=? AND revision=? AND snapshot_hash=? AND scope='full' ORDER BY id DESC LIMIT 1", params![project,revision.id,revision.snapshot_hash], |r| r.get(0)).optional()?;
         Ok(decision.as_deref() == Some("approved"))
     }
+    /// Read decisions for one authorized, immutable revision, newest first.
+    /// A missing revision selects the current head once; later edits cannot
+    /// mix another revision's decisions into this exact snapshot envelope.
+    pub fn reviews(&self, project: &str, revision: Option<i64>) -> Result<RevisionReviews> {
+        let revision = match revision {
+            Some(id) => self.revision(project, id)?,
+            None => self.head(project)?,
+        };
+        let reviews = self
+            .conn
+            .prepare("SELECT id,revision,snapshot_hash,actor,decision,scope,note,created_at FROM reviews WHERE project=? AND revision=? AND snapshot_hash=? ORDER BY id DESC")?
+            .query_map(params![project, revision.id, revision.snapshot_hash], |row| {
+                Ok(ReviewRecord {
+                    id: row.get(0)?,
+                    revision: row.get(1)?,
+                    snapshot_hash: row.get(2)?,
+                    actor: row.get(3)?,
+                    decision: row.get(4)?,
+                    scope: row.get(5)?,
+                    note: row.get(6)?,
+                    created_at: row.get(7)?,
+                    self_review: true,
+                })
+            })?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
+        Ok(RevisionReviews {
+            revision: revision.id,
+            snapshot_hash: revision.snapshot_hash,
+            reviews,
+        })
+    }
     pub fn view(&self, project: &str, revision: Option<i64>) -> Result<View> {
         let rev = match revision {
             Some(id) => self.revision(project, id)?,

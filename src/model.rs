@@ -220,6 +220,24 @@ pub struct Revision {
     pub created_at: String,
     pub command_id: String,
 }
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ReviewRecord {
+    pub id: i64,
+    pub revision: i64,
+    pub snapshot_hash: String,
+    pub actor: String,
+    pub decision: String,
+    pub scope: String,
+    pub note: String,
+    pub created_at: String,
+    pub self_review: bool,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct RevisionReviews {
+    pub revision: i64,
+    pub snapshot_hash: String,
+    pub reviews: Vec<ReviewRecord>,
+}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct View {
     pub api_version: u32,

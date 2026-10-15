@@ -617,6 +617,10 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
                     (Method::Get, "/api/history") => {
                         Ok(serde_json::to_value(store.history(project)?)?)
                     }
+                    (Method::Get, "/api/reviews") => Ok(serde_json::to_value(store.reviews(
+                        project,
+                        query(&request, "revision").map(|r| r.parse()).transpose()?,
+                    )?)?),
                     (Method::Get, "/api/generations") => {
                         Ok(serde_json::to_value(store.generations(project, false)?)?)
                     }
