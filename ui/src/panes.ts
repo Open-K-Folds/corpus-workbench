@@ -69,6 +69,7 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
   return {navigation,properties};
 }
 export class RecordingPanel {
+  overview(){return this.visual.overview()}
   private visual:AudioView;private lanes:HTMLElement;private view:View|null=null;private doc:Document|null=null;
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
     panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);

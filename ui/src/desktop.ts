@@ -107,7 +107,7 @@ export async function initializeDesktop(host:HTMLElement,start:()=>Promise<void>
       if(state.status==='error'){const retry=document.createElement('button');retry.className='secondary';retry.textContent='Reconnect';retry.onclick=()=>void desktop.retry();status.append(' ',retry)}
     }else void render(state);
   });
-  desktop.onMenu(command=>{if(command==='draft-status')desktop.reportDraft(departure());else if(command==='prepare-recording'){if(!departure().saving)openPreparation(desktop)}else menu(command)});
+  desktop.onMenu(command=>{if(command==='draft-status')desktop.reportDraft(departure());else if(command==='backend-reconnected')menu(command);else if(document.querySelector('#research-overview[open]'))return;else if(command==='prepare-recording'){if(!departure().saving)openPreparation(desktop)}else menu(command)});
   const report=()=>desktop.reportDraft(departure());
   document.addEventListener('input',report);document.addEventListener('change',report);document.addEventListener('click',()=>queueMicrotask(report));
   setInterval(report,250);
