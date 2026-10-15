@@ -9,6 +9,7 @@ export const inspectorViews = [
   {id:'structure',label:'Split / merge'}, {id:'xml',label:'XML'},
   {id:'return',label:'Return copy'},
   {id:'search',label:'Corpus search'},
+  {id:'research',label:'Research handoff'},
 ] as const;
 export type InspectorView = typeof inspectorViews[number]['id'];
 export type ReadingLayer = 'corrected'|'original'|'normalized';

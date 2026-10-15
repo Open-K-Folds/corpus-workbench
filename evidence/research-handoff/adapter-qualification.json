@@ -1,0 +1,83 @@
+{
+  "synthetic_only": true,
+  "semantica_version": "0.6.8",
+  "compiler_commit": "81af6d16c223582d1b6ba54549831bb050b07302",
+  "mapping": "corpus-evidence/2",
+  "nodes_per_generation": 8,
+  "edges_per_generation": 13,
+  "initial_ingestion": true,
+  "native_reopen": true,
+  "retry_reuses_one_generation": true,
+  "correction_stales_prior_default_query": true,
+  "unreviewed_dispatch_denied": true,
+  "stale_completion_denied": true,
+  "reviewed_correction_visible": true,
+  "historical_generation_unchanged": true,
+  "forged_projection_rejected": true,
+  "backup_restore_graph_equal": true,
+  "review_retraction_filters_current": true,
+  "missing_word_times_preserved": true,
+  "r1_generation": "e3d840b772617f9873ae7d8ba5852e025580ff79717c081014bf0413279461ec",
+  "r2_generation": "f09b00ab97679a639e352d5816bd5f395bd298f3bbe60b3b39943b5a88bbb7f6",
+  "audio_artifact_hash": "82afacb2dea93263faeed8a1453136b878428ce70122b039371e6728492e1f9b",
+  "hash_prefixed_relation": true,
+  "raw_artifact_hash": "752747c6f513007390d853f5f916c8e08153f875e2c4c0630840f799858e80c9",
+  "annotation_generations": [
+    "26ea1d4c1d4ef7aae9f4528d8c373e3bb6fe62cfc487d7cefe9f0dd5ee317013",
+    "0e78b082c26dd727001bf5dd7354f26ccca9c827cbd1645fde0989f5bd65e8a8",
+    "2af9fd820edf0a39e4aa203b723030e8da07d0590de4e412961a9d40a8edf85b"
+  ],
+  "annotation_mutations_stale_current": true,
+  "repaired_span_and_relation_in_native_graph": true,
+  "cleared_relation_removes_authored_edge": true,
+  "qualified_identity_generation": {
+    "nodes": 7,
+    "edges": 8,
+    "token_ids_repeat_across_documents": true,
+    "span_ids_repeat_across_sidecars": true,
+    "sidecar_and_transcript_artifacts_bound": true
+  },
+  "structural_generations": [
+    {
+      "nodes": 7,
+      "edges": 13
+    },
+    {
+      "nodes": 8,
+      "edges": 16
+    },
+    {
+      "nodes": 7,
+      "edges": 13
+    }
+  ],
+  "split_merge_exact_native_generations": true,
+  "retired_compiler_graph_unchanged": true,
+  "runtime_preflight": true,
+  "export_verification": {
+    "ok": true,
+    "verified": true,
+    "operation": "verify-package",
+    "format": "open-k-folds/corpus-semantica-handoff",
+    "schema": 1,
+    "generation_id": "94a2662ab27743b10d1c6f9eaea87381330492a321b143515af24c3b9dad5dd2",
+    "revision": 5,
+    "snapshot_hash": "b5ac5eec717f55bd222d7d314daa3a23824a8abe624aad8969742b4430af3172",
+    "node_count": 8,
+    "edge_count": 12,
+    "files_verified": 4,
+    "native_reopen": true,
+    "semantica_version": "0.6.8",
+    "current_at_export": true,
+    "current_eligibility": "not checked; exported snapshot only"
+  },
+  "retained_uncertainty_note_annotation_variety": true,
+  "export_originals_provenance_review_retained": true,
+  "review_recovery_new_exact_generation": true,
+  "recovery_retry_reuses_generation": true,
+  "tampered_export_rejected": true,
+  "external_database": false,
+  "model": null,
+  "real_pilot_ingested": false,
+  "qualification_base_commit": "604ba503cb84c77a5fce26c79577083c8ea17a7c"
+}

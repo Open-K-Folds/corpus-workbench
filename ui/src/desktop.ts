@@ -10,6 +10,18 @@ export interface DesktopState {
   error:string|null;version:string;
 }
 export interface Departure {dirty:boolean;recoverable:boolean;saving:boolean}
+export interface SemanticaGeneration {
+  generation_id:string;revision:number;snapshot_hash:string;recipe_hash?:string;
+  node_count:number;edge_count:number;native_reopen?:boolean;
+  mapping_version?:string;
+}
+export interface SemanticaState {
+  status:string;configured:boolean;
+  runtime?:{semantica_version?:string;compiler_commit?:string}|null;
+  current?:SemanticaGeneration|null;
+  lastAttempt?:{status:string;message?:string;revision?:number;reused?:boolean}|null;
+  export?:{validated:boolean;filename?:string}|null;
+}
 interface DesktopBridge {
   state():Promise<DesktopState>;
   chooseOpen():Promise<unknown>;
@@ -19,6 +31,11 @@ interface DesktopBridge {
   exportRevision(revision:number):Promise<{cancelled?:boolean}>;
   backup():Promise<{cancelled?:boolean}>;
   retry():Promise<unknown>;
+  semanticaState():Promise<SemanticaState>;
+  configureSemantica():Promise<SemanticaState&{cancelled?:boolean}>;
+  runSemantica(basis:{revision:number;snapshot_hash:string}):Promise<SemanticaState>;
+  exportSemantica(basis:{generation_id:string}):Promise<SemanticaState&{cancelled?:boolean}>;
+  revealSemantica():Promise<void>;
   reportDraft(state:Departure):void;
   reportAppearance(theme:'light'|'dark'|'system'):void;
   readDraftJournal():Promise<string|null>;
@@ -29,6 +46,7 @@ interface DesktopBridge {
 declare global {interface Window {workbenchDesktop?:DesktopBridge}}
 export const desktop=window.workbenchDesktop;
 let latest:DesktopState|null=null;
+export const desktopProjectKey=()=>latest?.project?.id;
 
 export function desktopScreen(host:HTMLElement,state:DesktopState){
   latest=state;
@@ -37,6 +55,8 @@ export function desktopScreen(host:HTMLElement,state:DesktopState){
   desktop?.reportAppearance(document.documentElement.dataset.theme==='dark'?'dark':'light');
   const busy=state.status==='loading';
   host.innerHTML=`<main class="desktop-welcome"><div class="welcome-brand">${icon('description')}<span>OPEN-K-FOLDS</span></div><h1>Corpus workbench</h1><p class="welcome-intro">Listen closely. Read in context.<br>Keep every correction connected to its source.</p><div class="welcome-actions"><button id="desktop-import" ${busy?'disabled':''}>${icon('folder_open')}Import TEITOK package</button><button id="desktop-open" class="secondary" ${busy?'disabled':''}>Open existing workbench</button><button id="desktop-demo" class="secondary" ${busy?'disabled':''}>Try a synthetic corpus</button></div><p class="welcome-note">Import creates a working copy. Your source folder stays intact.</p><div id="desktop-status" role="status" class="${state.status==='error'?'notice error':'desktop-status'}">${busy?'Opening your corpus…':esc(state.error??'')}</div>${state.status==='error'?'<button id="desktop-retry" class="secondary">Try again</button>':''}${state.recent.length?`<section class="welcome-recent"><h2>Recent projects</h2>${recentButtons(state)}</section>`:''}<footer>Local evidence · Revision history · Complete package exports<span>${esc(state.version)}</span></footer></main>`;
+  host.querySelector('#desktop-demo')!.textContent='Start a new practice copy';
+  host.querySelector('.welcome-note')!.insertAdjacentHTML('afterend','<p class="welcome-note">Use a complete TEITOK folder with its media and preserved raw drafts. Standalone audio and ASR generation are not imported here. Practice uses generated text and a tone; resume an existing copy from Recent projects.</p>');
   bindActions(host);
 }
 function recentButtons(state:DesktopState){return state.recent.map(p=>`<button class="desktop-recent secondary" data-desktop-project="${esc(p.id)}" ${state.status==='loading'?'disabled':''}><strong>${esc(p.title)}</strong><span>${esc(p.project)}</span>${icon('skip_next')}</button>`).join('')}

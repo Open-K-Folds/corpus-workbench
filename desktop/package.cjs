@@ -33,12 +33,12 @@ async function packageWindows() {
   await fs.access(path.join(resources, 'ui', 'index.html'));
   await require('./icon.cjs').generateIcon(resources);
   const {packager} = await import('@electron/packager');
-  const output = await packager({dir: root, out: outputRoot, name: 'Open-K-Folds Workbench', executableName: 'Open-K-Folds Workbench', icon: path.join(resources, 'icon.ico'), platform: 'win32', arch: 'x64', overwrite: true, asar: true, prune: true, extraResource: ['backend', 'ui', 'demo', 'icon.png'].map(name => path.join(resources, name)), ignore: file => {
+  const output = await packager({dir: root, out: outputRoot, name: 'Open-K-Folds Workbench', executableName: 'Open-K-Folds Workbench', icon: path.join(resources, 'icon.ico'), platform: 'win32', arch: 'x64', overwrite: true, asar: true, prune: true, extraResource: ['backend', 'ui', 'demo', 'semantica', 'icon.png'].map(name => path.join(resources, name)), ignore: file => {
     const relative = file.replaceAll('\\', '/');
     if (!relative || relative === '/package.json') return false;
     if (relative === '/package-lock.json' || relative.startsWith('/node_modules')) return true;
     if (relative === '/desktop') return false;
-    if (relative.startsWith('/desktop/')) return !['backend.cjs', 'main.cjs', 'preload.cjs', 'registry.cjs', 'security.cjs', 'journal.cjs'].includes(relative.slice('/desktop/'.length));
+    if (relative.startsWith('/desktop/')) return !['backend.cjs', 'main.cjs', 'preload.cjs', 'registry.cjs', 'security.cjs', 'journal.cjs', 'semantica.cjs'].includes(relative.slice('/desktop/'.length));
     return true;
   }, win32metadata: {CompanyName: 'Open-K-Folds', FileDescription: 'Transcript-first corpus workbench', ProductName: 'Open-K-Folds Workbench', InternalName: 'Open-K-Folds Workbench'}, appCopyright: 'Open-K-Folds contributors; GPL-3.0-or-later'});
   for (const directory of output) {

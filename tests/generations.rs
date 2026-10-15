@@ -9,11 +9,35 @@ use std::{collections::BTreeMap, fs};
 use tempfile::TempDir;
 
 fn fixture() -> (TempDir, Store, Completion, Vec<u8>) {
+    fixture_with_media(false)
+}
+
+fn fixture_with_media(include_media: bool) -> (TempDir, Store, Completion, Vec<u8>) {
     let tmp = TempDir::new().unwrap();
     let input = tmp.path().join("input");
     fs::create_dir_all(input.join("Resources")).unwrap();
     fs::create_dir_all(input.join("xmlfiles")).unwrap();
     fs::write(input.join("Resources/settings.xml"), "<ttsettings/>").unwrap();
+    if include_media {
+        fs::create_dir_all(input.join("Audio")).unwrap();
+        // A valid, generated mono PCM WAV with two samples. The handoff must
+        // describe this source artifact without copying its media bytes.
+        let mut audio = b"RIFF".to_vec();
+        audio.extend_from_slice(&40_u32.to_le_bytes());
+        audio.extend_from_slice(b"WAVEfmt ");
+        audio.extend_from_slice(&16_u32.to_le_bytes());
+        audio.extend_from_slice(&1_u16.to_le_bytes());
+        audio.extend_from_slice(&1_u16.to_le_bytes());
+        audio.extend_from_slice(&16_000_u32.to_le_bytes());
+        audio.extend_from_slice(&32_000_u32.to_le_bytes());
+        audio.extend_from_slice(&2_u16.to_le_bytes());
+        audio.extend_from_slice(&16_u16.to_le_bytes());
+        audio.extend_from_slice(b"data");
+        audio.extend_from_slice(&4_u32.to_le_bytes());
+        audio.extend_from_slice(&0_i16.to_le_bytes());
+        audio.extend_from_slice(&2_048_i16.to_le_bytes());
+        fs::write(input.join("Audio/synthetic.wav"), audio).unwrap();
+    }
     fs::write(
         input.join("xmlfiles/demo.xml"),
         "<TEI><text><tok id='w-1' form='original'>original</tok></text></TEI>",
@@ -153,6 +177,223 @@ fn complete_export_preserves_generation_contract_receipt_and_graph() {
         broken.import(&out, "p").is_err(),
         "Declared derived objects must be present"
     );
+}
+
+#[test]
+fn handoff_export_preserves_exact_objects_and_declares_only_its_fixed_files() {
+    let (tmp, mut s, mut c, compact_graph) = fixture_with_media(true);
+    let graph: Value = serde_json::from_slice(&compact_graph).unwrap();
+    let mut graph_bytes = b" \r\n\t".to_vec();
+    graph_bytes.extend(serde_json::to_vec_pretty(&graph).unwrap());
+    graph_bytes.extend_from_slice(b"\r\n \t");
+    assert_ne!(graph_bytes, compact_graph);
+    c.graph_hash = package::hash(&graph_bytes);
+    let accepted = s.accept_generation(&c, &graph_bytes, Fault::None).unwrap();
+    let id = accepted["generation_id"].as_str().unwrap();
+    let generation = s.generation("p", id, false).unwrap();
+    let receipt_hash = generation["generation"]["receipt_hash"].as_str().unwrap();
+    let receipt_bytes = s.objects.read_hash(receipt_hash).unwrap();
+    let contract_bytes = s.objects.read_hash(&c.binding.contract_hash).unwrap();
+    let contract: Value = serde_json::from_slice(&contract_bytes).unwrap();
+    assert_eq!(
+        contract["artifact_manifest"]["Audio/synthetic.wav"]["role"],
+        "source-media"
+    );
+
+    let destination = tmp.path().join("handoff");
+    let manifest = s.export_handoff("p", id, &destination).unwrap();
+    let written_manifest: Value =
+        serde_json::from_slice(&fs::read(destination.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(written_manifest, manifest);
+    assert_eq!(manifest["format"], "open-k-folds/corpus-semantica-handoff");
+    assert_eq!(manifest["schema"], 1);
+    assert_eq!(manifest["generation_id"], id);
+    assert_eq!(manifest["project"], c.binding.project);
+    assert_eq!(manifest["revision"], c.binding.revision);
+    assert_eq!(manifest["snapshot_hash"], c.binding.snapshot_hash);
+    assert_eq!(manifest["config_hash"], c.binding.config_hash);
+    assert_eq!(manifest["recipe_hash"], digest(&c.binding.recipe).unwrap());
+    assert_eq!(manifest["contract_hash"], c.binding.contract_hash);
+    assert_eq!(manifest["receipt_hash"], receipt_hash);
+    assert_eq!(manifest["graph_hash"], c.graph_hash);
+    assert_eq!(
+        manifest["mapping_version"],
+        c.binding.recipe.mapping_version
+    );
+    assert_eq!(manifest["adapter_hash"], c.binding.recipe.adapter_hash);
+    assert_eq!(
+        manifest["compiler_version"],
+        c.binding.recipe.compiler_version
+    );
+    assert_eq!(
+        manifest["compiler_commit"],
+        c.binding.recipe.compiler_commit
+    );
+    assert_eq!(
+        manifest["compiler_source_hash"],
+        c.binding.recipe.compiler_source_hash
+    );
+    assert_eq!(manifest["runtime_hash"], c.binding.recipe.runtime_hash);
+    assert_eq!(
+        manifest["recipe"],
+        serde_json::to_value(&c.binding.recipe).unwrap()
+    );
+    assert_eq!(manifest["review"], contract["review"]);
+    assert_eq!(manifest["rights"], contract["rights"]);
+    assert_eq!(manifest["access_policy"], contract["access_policy"]);
+    assert_eq!(manifest["source_artifacts"], contract["artifact_manifest"]);
+    assert_eq!(manifest["node_count"].as_u64(), Some(c.node_count as u64));
+    assert_eq!(manifest["edge_count"].as_u64(), Some(c.edge_count as u64));
+    assert_eq!(manifest["current_at_export"], true);
+
+    let readme = fs::read(destination.join("README.md")).unwrap();
+    assert!(!readme.is_empty());
+    let expected_files = BTreeMap::from([
+        ("README.md", readme),
+        ("completion.json", receipt_bytes),
+        ("contract.json", contract_bytes),
+        ("graph.json", graph_bytes),
+    ]);
+    assert_eq!(manifest["files"].as_object().unwrap().len(), 4);
+    for (name, expected) in expected_files {
+        let actual = fs::read(destination.join(name)).unwrap();
+        assert_eq!(actual, expected, "exact stored bytes for {name}");
+        assert_eq!(manifest["files"][name]["sha256"], package::hash(&actual));
+        assert_eq!(
+            manifest["files"][name]["bytes"].as_u64(),
+            Some(actual.len() as u64)
+        );
+    }
+    let mut paths = walkdir::WalkDir::new(&destination)
+        .into_iter()
+        .skip(1)
+        .map(|entry| {
+            let entry = entry.unwrap();
+            assert!(entry.file_type().is_file(), "no nested folders or links");
+            entry
+                .path()
+                .strip_prefix(&destination)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string()
+        })
+        .collect::<Vec<_>>();
+    paths.sort();
+    assert_eq!(
+        paths,
+        [
+            "README.md",
+            "completion.json",
+            "contract.json",
+            "graph.json",
+            "manifest.json"
+        ]
+    );
+}
+
+#[test]
+fn handoff_export_refuses_stale_or_rejected_generations_before_creating_output() {
+    for decision in [None, Some("rejected"), Some("needs-adjudication")] {
+        let (tmp, mut s, c, bytes) = fixture();
+        let accepted = s.accept_generation(&c, &bytes, Fault::None).unwrap();
+        let id = accepted["generation_id"].as_str().unwrap();
+        if let Some(decision) = decision {
+            s.review(
+                "local-owner",
+                "p",
+                c.binding.revision,
+                &c.binding.snapshot_hash,
+                decision,
+                "Synthetic decision after graph acceptance",
+            )
+            .unwrap();
+        } else {
+            let head = s.head("p").unwrap();
+            s.apply(
+                "local-owner",
+                &Command {
+                    schema: 1,
+                    project: "p".into(),
+                    command_id: "handoff-stale-edit".into(),
+                    base_revision: head.id,
+                    preimage_hash: head.snapshot_hash,
+                    config_version: 1,
+                    label: "Synthetic correction after graph acceptance".into(),
+                    operations: vec![Operation::SetToken {
+                        document: "xmlfiles/demo.xml".into(),
+                        token: "w-1".into(),
+                        fields: BTreeMap::from([("nform".into(), "corrected".into())]),
+                    }],
+                },
+                Fault::None,
+            )
+            .unwrap();
+        }
+        let destination = tmp.path().join("refused-handoff");
+        let error = s.export_handoff("p", id, &destination).unwrap_err();
+        assert!(
+            error.to_string().contains("current approved generation"),
+            "{decision:?}: {error}"
+        );
+        assert!(!destination.exists());
+        assert_eq!(s.generations("p", true).unwrap().len(), 1);
+        assert_eq!(
+            s.generation("p", id, true).unwrap()["graph"],
+            serde_json::from_slice::<Value>(&bytes).unwrap()
+        );
+    }
+}
+
+#[test]
+fn handoff_export_preserves_occupied_directory_and_regular_file() {
+    let (tmp, mut s, c, bytes) = fixture();
+    let accepted = s.accept_generation(&c, &bytes, Fault::None).unwrap();
+    let id = accepted["generation_id"].as_str().unwrap();
+    let directory = tmp.path().join("occupied-directory");
+    fs::create_dir(&directory).unwrap();
+    let sentinel = b"Synthetic existing directory contents\n";
+    fs::write(directory.join("sentinel.txt"), sentinel).unwrap();
+    assert!(s.export_handoff("p", id, &directory).is_err());
+    assert!(directory.is_dir());
+    assert_eq!(fs::read(directory.join("sentinel.txt")).unwrap(), sentinel);
+    assert_eq!(fs::read_dir(&directory).unwrap().count(), 1);
+
+    let file = tmp.path().join("occupied-file");
+    let original = b"Synthetic existing regular file\n";
+    fs::write(&file, original).unwrap();
+    assert!(s.export_handoff("p", id, &file).is_err());
+    assert!(file.is_file());
+    assert_eq!(fs::read(&file).unwrap(), original);
+    assert_eq!(s.generations("p", false).unwrap().len(), 1);
+}
+
+#[test]
+fn handoff_export_cli_prints_the_verified_manifest() {
+    let (tmp, mut s, c, bytes) = fixture();
+    let accepted = s.accept_generation(&c, &bytes, Fault::None).unwrap();
+    let id = accepted["generation_id"].as_str().unwrap();
+    let destination = tmp.path().join("cli-handoff");
+    let result = std::process::Command::new(env!("CARGO_BIN_EXE_corpus-workbench"))
+        .arg("export-handoff")
+        .arg("--store")
+        .arg(&s.root)
+        .args(["--project", "p", "--generation", id, "--out"])
+        .arg(&destination)
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let printed: Value = serde_json::from_slice(&result.stdout).unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&fs::read(destination.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(printed, manifest);
+    assert_eq!(manifest["generation_id"], id);
+    assert_eq!(manifest["format"], "open-k-folds/corpus-semantica-handoff");
+    assert_eq!(fs::read(destination.join("graph.json")).unwrap(), bytes);
 }
 
 #[test]

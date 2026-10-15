@@ -4,10 +4,45 @@ use crate::{
     store::{Fault, Store},
 };
 use anyhow::{ensure, Context, Result};
-use rusqlite::{params, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs::{self, OpenOptions},
+    io::Write,
+    path::Path,
+};
+
+const HANDOFF_README: &str = "# Corpus Semantica handoff\n\n\
+This package contains an accepted authored evidence graph and its exact immutable\n\
+completion receipt and approved source contract. It contains no model or ontology\n\
+inference, and exporting it does not run the compiler again.\n\n\
+graph.json, completion.json and contract.json retain their original stored bytes.\n\
+manifest.json records SHA-256 hashes and byte counts for these files and this README.\n\
+The manifest is written last, after the payload files have been verified. An absent\n\
+or invalid manifest means the export is incomplete.\n\n\
+Current approval and generation eligibility were checked by the source authority\n\
+at export. A detached package cannot prove that its source is still current later.\n\
+Verify current eligibility with the source workbench before relying on currentness.\n\n\
+Source artifact references and rights remain in the contract and manifest. No raw\n\
+audio, video, raw machine-output files or complete corpus archive is included. Use the separate\n\
+complete corpus export for preservation and reopening of the authoring project.\n\
+Access remains local-only; public sharing and model-training permission are not\n\
+implied by this export.\n";
+
+fn write_handoff_file(destination: &Path, bytes: &[u8]) -> Result<Value> {
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(destination)?;
+    file.write_all(bytes)?;
+    file.sync_all()?;
+    drop(file);
+    let written = fs::read(destination)?;
+    ensure!(written == bytes, "handoff file verification failed");
+    Ok(json!({"sha256":package::hash(bytes),"bytes":bytes.len()}))
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -66,6 +101,118 @@ fn hash_value(value: &str) -> bool {
 }
 
 impl Store {
+    /// Export only a currently eligible generation, preserving immutable object bytes.
+    /// Failed attempts remain at the reserved destination for explicit inspection.
+    pub fn export_handoff(
+        &self,
+        project: &str,
+        generation_id: &str,
+        destination: &Path,
+    ) -> Result<Value> {
+        ensure!(hash_value(generation_id), "invalid generation id");
+        ensure!(
+            !destination.as_os_str().is_empty(),
+            "handoff destination required"
+        );
+        let entry = self
+            .generations(project, false)?
+            .into_iter()
+            .find(|entry| entry["generation_id"] == generation_id)
+            .context("handoff requires a current approved generation")?;
+        let receipt_hash = entry["receipt_hash"]
+            .as_str()
+            .context("generation receipt hash")?;
+        let graph_hash = entry["graph_hash"]
+            .as_str()
+            .context("generation graph hash")?;
+        let receipt_bytes = self.objects.read_hash(receipt_hash)?;
+        let completion: Completion = serde_json::from_slice(&receipt_bytes)?;
+        let binding = &completion.binding;
+        ensure!(
+            binding.project == project
+                && digest(binding)? == generation_id
+                && binding.revision == entry["revision"]
+                && binding.snapshot_hash == entry["snapshot_hash"]
+                && completion.graph_hash == graph_hash
+                && digest(&binding.recipe)? == entry["recipe_hash"],
+            "generation export binding mismatch"
+        );
+        let graph_bytes = self.objects.read_hash(graph_hash)?;
+        let contract_bytes = self.objects.read_hash(&binding.contract_hash)?;
+        let contract: Value = serde_json::from_slice(&contract_bytes)?;
+        // Reserve precisely the requested directory. Never overwrite an existing
+        // directory, file or link, and never remove a failed export automatically.
+        fs::create_dir(destination).with_context(|| {
+            format!(
+                "handoff destination must be a new directory: {}",
+                destination.display()
+            )
+        })?;
+        (|| -> Result<Value> {
+            let mut files = BTreeMap::new();
+            for (name, bytes) in [
+                ("graph.json", graph_bytes.as_slice()),
+                ("completion.json", receipt_bytes.as_slice()),
+                ("contract.json", contract_bytes.as_slice()),
+                ("README.md", HANDOFF_README.as_bytes()),
+            ] {
+                files.insert(name, write_handoff_file(&destination.join(name), bytes)?);
+            }
+            // Keep the brief final eligibility check and completion marker in one
+            // writer-lock interval so an edit or review cannot race the marker.
+            let guard = Transaction::new_unchecked(&self.conn, TransactionBehavior::Immediate)?;
+            let head = self.head(project)?;
+            // The unchanged immutable snapshot retains the mapping/validation
+            // eligibility checked above; only head and latest review can change.
+            ensure!(
+                head.id == binding.revision
+                    && head.snapshot_hash == binding.snapshot_hash
+                    && self.approved(project, &head)?,
+                "handoff generation became stale or unapproved during export"
+            );
+            let manifest = json!({
+                "format":"open-k-folds/corpus-semantica-handoff",
+                "schema":1,
+                "generation_id":generation_id,
+                "project":project,
+                "revision":binding.revision,
+                "snapshot_hash":binding.snapshot_hash,
+                "config_hash":binding.config_hash,
+                "recipe_hash":entry["recipe_hash"],
+                "contract_hash":binding.contract_hash,
+                "receipt_hash":receipt_hash,
+                "graph_hash":graph_hash,
+                "mapping_version":binding.recipe.mapping_version,
+                "adapter_hash":binding.recipe.adapter_hash,
+                "compiler_version":binding.recipe.compiler_version,
+                "compiler_commit":binding.recipe.compiler_commit,
+                "compiler_source_hash":binding.recipe.compiler_source_hash,
+                "runtime_hash":binding.recipe.runtime_hash,
+                "recipe":binding.recipe,
+                "review":contract["review"],
+                "rights":contract["rights"],
+                "access_policy":contract["access_policy"],
+                "source_artifacts":contract["artifact_manifest"],
+                "node_count":completion.node_count,
+                "edge_count":completion.edge_count,
+                "current_at_export":true,
+                "files":files,
+            });
+            write_handoff_file(
+                &destination.join("manifest.json"),
+                &serde_json::to_vec_pretty(&manifest)?,
+            )?;
+            guard.commit()?;
+            Ok(manifest)
+        })()
+        .with_context(|| {
+            format!(
+                "handoff export failed; partial directory preserved at {}",
+                destination.display()
+            )
+        })
+    }
+
     pub fn accept_generation(
         &mut self,
         completion: &Completion,
