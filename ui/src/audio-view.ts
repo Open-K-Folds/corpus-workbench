@@ -44,6 +44,7 @@ export class AudioView {
     document.addEventListener('visibilitychange',()=>{this.draw();this.animate()});this.reduced.addEventListener('change',()=>this.animate());
     this.draw();
   }
+  overview(){return {state:this.state,analysis:this.analysis}}
   private available(){return !this.audio.hidden&&!!this.audio.getAttribute('src')&&!this.audio.error&&Number.isFinite(this.audio.duration)&&this.audio.duration>0}
   private async startLive(){
     if(!this.available())return;
@@ -57,9 +58,9 @@ export class AudioView {
   async update(view:View,media:string|undefined){
     const file=media?view.snapshot.files[media]:undefined,hash=file?.sha256??'';if(hash===this.mediaHash)return;this.mediaHash=hash;
     const epoch=++this.epoch;this.abort?.abort();this.worker?.terminate();this.worker=null;this.abort=new AbortController();const signal=this.abort.signal;
-    this.analysis=null;this.baseKey='';this.state=media?'loading':'empty';this.message=media?'Preparing audio views…':'No packaged recording';this.draw();
+    this.analysis=null;this.baseKey='';this.state=media?'loading':'empty';this.message=media?'Preparing audio views…':'No packaged recording';this.draw();this.panel.dispatchEvent(new Event('wb-audio-analysis',{bubbles:true}));
     if(!media||!file)return;
-    const unavailable=(message:string)=>{if(epoch!==this.epoch)return;this.state='unavailable';this.message=message;this.draw()};
+    const unavailable=(message:string)=>{if(epoch!==this.epoch)return;this.state='unavailable';this.message=message;this.draw();this.panel.dispatchEvent(new Event('wb-audio-analysis',{bubbles:true}));};
     if(file.bytes>MAX_ANALYSIS_BYTES){unavailable('Overview unavailable above 32 MiB · playback and live Spectrum available');return}
     try{
       // Metadata bounds compressed long recordings before allocating decoded PCM.
@@ -91,7 +92,7 @@ export class AudioView {
         worker.postMessage({id:epoch,channels,sampleRate:decoded.sampleRate},channels.map(channel=>channel.buffer));
       });
       worker.terminate();if(this.worker===worker)this.worker=null;if(epoch!==this.epoch)return;
-      this.analysis=result;this.state='ready';this.message='';this.baseKey='';this.draw();
+      this.analysis=result;this.state='ready';this.message='';this.baseKey='';this.draw();this.panel.dispatchEvent(new Event('wb-audio-analysis',{bubbles:true}));
     }catch{unavailable('Audio overview unavailable · use recording playback')}
     finally{if(epoch===this.epoch){this.worker?.terminate();this.worker=null}}
   }

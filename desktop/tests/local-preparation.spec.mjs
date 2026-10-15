@@ -147,7 +147,13 @@ test('native recording and UTF-8 transcript preparation reaches reviewed actual 
     // Source-preparation provenance describes the imported draft; current human
     // approval is a separate exact-revision review record, never a rewritten source.
     await openResearch(page);if(await page.locator('#research-skip-guide').isVisible())await page.locator('#research-skip-guide').click();
-    await page.locator('#research-run').click();await expect(page.locator('#research-status')).toContainText('Validated graph for R2',{timeout:240000});
+    await page.locator('#research-run').click();
+    await expect(page.locator('#open-overview')).toBeEnabled();await page.locator('#open-overview').click();
+    await expect(page.locator('#research-overview')).toBeVisible();await expect(page.locator('#overview-basis')).toContainText('Saved R2');
+    await expect(page.locator('#overview-open-review')).toBeDisabled();await expect(page.locator('#overview-open-handoff')).toBeDisabled();
+    await expect(page.locator('#overview-runtime')).toContainText(/Running|Checking|Verifying|Verified|Accepted/,{timeout:30000});
+    await capture(application,page,'overview-native-active-handoff.png');await page.locator('#overview-close').click();
+    await expect(page.locator('#research-status')).toContainText('Validated graph for R2',{timeout:240000});
     const generation=await handoff(page);expect(generation.current.native_reopen).toBe(true);expect(generation.current.node_count).toBe(12);expect(generation.current.edge_count).toBe(11);
     const destination=join(work,'portable-exports');mkdirSync(destination);await queue(application,'open',destination);await page.locator('#research-export').click();await expect(page.locator('#research-export-status')).toContainText('Exported and reopened successfully',{timeout:240000});
     const exported=await handoff(page),output=join(destination,exported.export.filename),portable=await verifyPortable(output);
