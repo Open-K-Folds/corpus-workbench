@@ -42,7 +42,7 @@ async function performResearch(action:()=>Promise<unknown>){
   const state=departure();if(state.dirty||state.saving||transcript.busy())throw new Error('Save or discard all authoring drafts and resolve pending saves before a research handoff.');
   saving=true;const unlock=lockAuthoring(true);
   try{await action();const latest=await loadView();const changed=latest.revision.id!==view.revision.id||latest.revision.snapshot_hash!==view.revision.snapshot_hash||latest.approved!==view.approved;view=latest;if(changed)render();}
-  finally{saving=false;unlock();}
+  finally{saving=false;unlock();if(el('message').textContent==='Wait for the current save or local handoff to finish. Recording controls remain available.')message('');}
 }
 function message(text:string,isError=false){el('message').textContent=text;el('message').className=isError?'notice error':'notice';}
 function currentDoc():Document{return view.documents.find(d=>d.path===docPath)??view.documents[0]}
