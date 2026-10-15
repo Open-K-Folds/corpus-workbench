@@ -1,0 +1,27 @@
+.review-panel{min-width:0}
+.review-panel #review-current-status{font-size:12px;font-weight:600;margin-bottom:5px}
+.review-panel .revision-basis{display:block;margin:12px 0;padding:9px 10px;border-left-width:2px}
+.review-panel .revision-basis strong{display:block;font-size:11px;overflow-wrap:anywhere}
+.review-panel .revision-basis details{margin-top:4px;font-size:10px}
+.review-panel .revision-basis code{display:block;font-size:9px;margin-top:6px;overflow-wrap:anywhere}
+.review-validation{margin:14px 0;font-size:11px}
+.review-validation summary{color:var(--ink);cursor:pointer}
+.review-validation ul{padding-left:17px;font-size:11px;overflow-wrap:anywhere}
+.review-panel #review-form{border-block:1px solid var(--border);padding:12px 0;margin:12px 0}
+.review-panel textarea{display:block;width:100%;box-sizing:border-box;resize:vertical;min-height:60px;max-height:240px;font:inherit;line-height:1.5;padding:7px 8px;border:1px solid var(--border);border-radius:4px}
+.review-history-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:17px 0 10px}
+.review-history-heading h3{margin:0}.review-history-heading>span{font-size:10px}
+.review-panel #review-history-revision{width:100%;min-width:0;text-overflow:ellipsis}
+.review-panel #review-revisions-status:empty{display:none}
+.review-history-context{font-size:10px!important;color:var(--muted);overflow-wrap:anywhere;margin:10px 0}
+.review-records{list-style:none;margin:0;padding:0}
+.review-records>li{border-top:1px solid var(--border);padding:12px 0;min-width:0}
+.review-earlier{font-size:11px;margin-bottom:8px}.review-earlier summary{cursor:pointer}.review-earlier>.review-records{margin-top:8px}
+.review-record-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11px}
+.review-latest{font-size:9px;color:var(--muted);border:1px solid var(--border);border-radius:3px;padding:1px 5px;flex:none}
+.review-panel .review-record-meta{font-size:10px;color:var(--muted);line-height:1.6;margin:5px 0;overflow-wrap:anywhere}
+.review-panel .review-rationale{font-size:11px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;margin:7px 0 0}
+.review-panel #retry-review-history,.review-panel #retry-review-revisions{margin:0 0 10px}
+.review-contract{margin-top:16px;border-top:1px solid var(--border);padding-top:12px;font-size:11px}
+.review-contract button{margin-top:10px}
+.review-contract pre:empty{display:none}

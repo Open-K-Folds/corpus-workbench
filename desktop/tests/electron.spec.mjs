@@ -252,6 +252,58 @@ test('stable desktop origin recovers backward Unicode draft and identical respon
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
 });
 
+test('native review decision history keeps exact metadata through relaunch and historical browsing',async()=>{
+  const work=workspace('review-history'),source=createPackage(join(work,'source-package'),'SYNTHETIC native review history'),store=join(work,'authority'),profile=join(work,'desktop-profile');
+  execFileSync(binary,['import','--store',store,'--package',source,'--project','review-history'],{windowsHide:true});
+  let application,page;const errors=[];
+  const reviews=revision=>page.evaluate(async revision=>{const response=await fetch(`/api/reviews?revision=${revision}`);if(!response.ok)throw new Error(await response.text());return response.json()},revision);
+  const openReview=async()=>{await page.getByRole('button',{name:'Review',exact:true}).click();await expect(page.locator('#review-form')).toBeVisible()};
+  const record=async(decision,note)=>{
+    await page.locator('#review-form').getByRole('combobox',{name:'Decision',exact:true}).selectOption(decision);await page.getByLabel('Review rationale',{exact:true}).fill(note);
+    const posted=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/review'&&response.request().method()==='POST');
+    await page.getByRole('button',{name:'Record review',exact:true}).click();expect((await posted).ok()).toBe(true);
+    await expect(page.locator('#review-current-status')).toHaveAttribute('data-decision',decision);await expect(page.locator('#review-history')).toContainText(note);
+  };
+  try{
+    ({application,page}=await launch(profile,store,'review-history'));page.on('pageerror',error=>errors.push(error.message));await ready(page);
+    expect(page.url()).toBe('workbench://app/');const original=(await head(page)).revision;
+    expect(await reviews(original.id)).toEqual({revision:original.id,snapshot_hash:original.snapshot_hash,reviews:[]});await openReview();
+    await expect(page.locator('#review-current-status')).toHaveAttribute('data-decision','unreviewed');
+    await record('approved','SYNTHETIC initial solo review');expect((await head(page)).approved).toBe(true);
+    await record('rejected','SYNTHETIC rejection <review> & literal rationale');
+    await record('needs-adjudication','SYNTHETIC unresolved listening judgement');
+    const saved=await reviews(original.id);expect(saved.revision).toBe(original.id);expect(saved.snapshot_hash).toBe(original.snapshot_hash);
+    expect(saved.reviews.map(review=>review.decision)).toEqual(['needs-adjudication','rejected','approved']);
+    expect(saved.reviews.map(review=>review.id)).toEqual([...saved.reviews.map(review=>review.id)].sort((a,b)=>b-a));
+    for(const review of saved.reviews){expect(review).toMatchObject({revision:original.id,snapshot_hash:original.snapshot_hash,actor:'local-owner',scope:'full',self_review:true});expect(review.created_at).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/)}
+    expect((await head(page)).revision).toEqual(original);expect((await head(page)).approved).toBe(false);
+    await quit(application,await sidecars(application));application=null;
+    ({application,page}=await launch(profile,store,'review-history'));page.on('pageerror',error=>errors.push(error.message));await ready(page);
+    expect(page.url()).toBe('workbench://app/');expect(await reviews(original.id)).toEqual(saved);await openReview();
+    await expect(page.locator('#review-current-status')).toHaveAttribute('data-decision','needs-adjudication');
+    await expect(page.locator('#review-history [data-review-id]')).toHaveCount(3);
+    await page.getByText('Earlier decisions (2)',{exact:true}).click();
+    expect(await page.locator('#review-history [data-review-id]').evaluateAll(rows=>rows.map(row=>Number(row.dataset.reviewId)))).toEqual(saved.reviews.map(review=>review.id));
+    for(const review of saved.reviews){const row=page.locator(`#review-history [data-review-id="${review.id}"]`);await expect(row).toContainText(review.note);await expect(row).toContainText(review.actor);await expect(row.locator('time')).toHaveAttribute('datetime',review.created_at)}
+    await page.getByRole('button',{name:'Token',exact:true}).click();await page.locator('[data-token="w2"]').click();
+    await page.getByLabel('Human-corrected reading',{exact:true}).fill('SYNTHETIC revised evidence');await page.getByRole('button',{name:'Save token',exact:true}).click();
+    await expect(page.locator('#save-state')).toContainText(`Saved R${original.id+1}`);const current=(await head(page)).revision;expect((await head(page)).approved).toBe(false);
+    await openReview();await expect(page.locator('#review-current-status')).toHaveAttribute('data-decision','unreviewed');await expect(page.locator('#review-history [data-review-id]')).toHaveCount(0);
+    await expect(page.getByRole('combobox',{name:'Decision history for',exact:true})).toBeEnabled();await page.getByRole('combobox',{name:'Decision history for',exact:true}).selectOption(String(original.id));
+    await expect(page.locator('#review-history [data-review-id]')).toHaveCount(3);await expect(page.getByRole('heading',{name:`Review exact R${current.id}`,exact:true})).toBeVisible();
+    await page.getByText('Earlier decisions (2)',{exact:true}).click();
+    await expect(page.locator('#review-current-status')).toHaveAttribute('data-decision','unreviewed');await expect(page.locator('#compiler-contract')).toBeDisabled();expect(await reviews(original.id)).toEqual(saved);
+    expect(await reviews(current.id)).toEqual({revision:current.id,snapshot_hash:current.snapshot_hash,reviews:[]});
+    await page.getByRole('button',{name:'Dark appearance',exact:true}).click();await page.locator('#review-history').scrollIntoViewIfNeeded();await settleLayout(page);
+    await captureNative(application,join(evidence,'native-review-history-dark.png'));expect(errors).toEqual([]);
+    writeFileSync(join(evidence,'review-history-native-evidence.json'),JSON.stringify({origin:page.url(),fixture:'SYNTHETIC native review history',reviewed_revision:original,latest_first:true,exact_receipts:saved,relaunch_preserves_receipts:true,edited_revision:current,edited_revision_unreviewed:true,historical_browsing_preserves_current_review:true,page_errors:errors},null,2));
+    await quit(application,await sidecars(application));application=null;
+  }catch(error){
+    if(application&&page&&!page.isClosed()){writeFileSync(join(evidence,'review-history-native-failure.json'),JSON.stringify({url:page.url(),state:await state(page),body:await page.locator('body').innerText(),page_errors:errors},null,2));await captureNative(application,join(evidence,'native-review-history-failure.png'))}
+    throw error;
+  }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
+});
+
 test('native audio views analyse packaged PCM and preserve playback and transcript seeking',async()=>{
   const work=workspace('audio-views'),source=createPackage(join(work,'source-package'),'SYNTHETIC audio view qualification'),store=join(work,'authority'),profile=join(work,'desktop-profile');
   execFileSync(binary,['import','--store',store,'--package',source,'--project','audio-views'],{windowsHide:true});

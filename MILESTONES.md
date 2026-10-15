@@ -11,6 +11,7 @@ The complete [approved plan, public edition](docs/APPROVED-PLAN.md) contains 34 
 - [x] Complete-package lossless import, immutable source objects and revision-safe native SQLite authority.
 - [x] Supported lexical XML corrections, custom language values, discontinuous spans/relations and Unicode/reference/time validation.
 - [x] Exact review, diff, named history, per-edit undo/redo, restore and approval invalidation on change.
+- [x] Inspectable exact-revision review decisions, rationale and read-only historical decision records; [bounded B15 follow-through](docs/REVIEW-DECISIONS.md).
 - [x] Usable TypeScript audio/edit/history/review/export flows, tested in a real isolated browser.
 - [x] Complete additive exports and reopen/receipt/history/object validation; verified backup/restore and process crash recovery.
 - [x] Independent review and repair of six demonstrated first-slice defects; additional authored graph topology rejection verified.

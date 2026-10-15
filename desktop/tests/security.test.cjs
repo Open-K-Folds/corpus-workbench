@@ -7,6 +7,9 @@ const {appURL, apiRoute, staticPath, externalURL, revision, recentId, draftState
 test('desktop routes reject foreign origins, unlisted endpoints and mutation methods', () => {
   for (const value of ['https://app/api/view', 'workbench://app.evil/api/view', 'workbench://user@app/api/view', 'file:///api/view', 'workbench://app:8080/api/view']) assert.equal(appURL(value), false, value);
   assert.equal(apiRoute('workbench://app/api/view', 'GET'), true);
+  assert.equal(apiRoute('workbench://app/api/reviews?revision=1', 'GET'), true);
+  assert.equal(apiRoute('workbench://app/api/reviews?revision=1', 'POST'), false);
+  assert.equal(apiRoute('https://app/api/reviews?revision=1', 'GET'), false);
   assert.equal(apiRoute('workbench://app/api/command', 'POST'), true);
   for (const [url, method] of [['workbench://app/api/command','GET'],['workbench://app/api/view','POST'],['workbench://app/api/view','DELETE'],['workbench://app/api/arbitrary','GET'],['https://127.0.0.1/api/view','GET']]) assert.equal(apiRoute(url, method), false);
   assert.equal(apiRoute('workbench://app/api/view?value='+'x'.repeat(8192), 'GET'), false);

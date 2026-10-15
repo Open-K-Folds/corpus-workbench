@@ -1,7 +1,7 @@
 'use strict';
 const path = require('node:path');
 const ORIGIN = 'workbench://app';
-const GET = new Set(['/api/session', '/api/view', '/api/history', '/api/inventory', '/api/teitok-reader', '/api/generations', '/api/generation', '/api/diff', '/api/reading', '/api/xml', '/api/contract', '/api/media', '/api/download']);
+const GET = new Set(['/api/session', '/api/view', '/api/history', '/api/reviews', '/api/inventory', '/api/teitok-reader', '/api/generations', '/api/generation', '/api/diff', '/api/reading', '/api/xml', '/api/contract', '/api/media', '/api/download']);
 const POST = new Set(['/api/command', '/api/preflight', '/api/retokenize-preview', '/api/search', '/api/search/resolve', '/api/return/start', '/api/return/file', '/api/return/finish', '/api/return/cancel', '/api/return/preview', '/api/review', '/api/export']);
 const CSP = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'";
 function appURL(value) {
