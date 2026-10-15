@@ -48,6 +48,8 @@ cargo test --locked
 npm run build --prefix ui
 npm exec --prefix ui -- playwright install chromium
 npm run test:e2e --prefix ui
+python -m unittest discover -s scripts/tests -p 'test_*.py' -v
+npm run test:desktop
 python -m unittest discover -s tests -p 'test_cqp_literal_adapter.py' -v
 npm audit --prefix ui --audit-level=low
 ```

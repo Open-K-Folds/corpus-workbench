@@ -7,13 +7,18 @@ import tempfile
 import wave
 import struct
 import math
+import shutil
 
 spec = importlib.util.spec_from_file_location("handoff", Path(__file__).with_name("semantica-handoff.py"))
 bridge = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(bridge)
 
 
-def verify(binary, compiler_root, output):
+def verify(binary, compiler_root, output, export_directory=None):
+    export_directory = export_directory or output.with_name(output.stem + "-handoff")
+    if export_directory.exists():
+        raise ValueError("Retained handoff output exists; choose a new --export-dir")
+    runtime_check = bridge.check_runtime(compiler_root)
     with tempfile.TemporaryDirectory(prefix="semantica-qa-", dir=output.parent) as temp:
         root = Path(temp)
         package = root / "package"
@@ -22,14 +27,30 @@ def verify(binary, compiler_root, output):
         (package / "Annotations").mkdir()
         (package / "Raw").mkdir()
         (package / "Audio").mkdir()
+        (package / "Workbench").mkdir()
         audio=package / "Audio/synthetic.wav"
         with wave.open(str(audio),"wb") as wav:
             wav.setnchannels(1);wav.setsampwidth(2);wav.setframerate(16000)
             wav.writeframes(b"".join(struct.pack("<h",int(1000*math.sin(2*math.pi*220*i/16000))) for i in range(128000)))
         (package / "Resources/settings.xml").write_text("<ttsettings unknown='preserve'/>")
-        (package / "Raw/asr.raw.json").write_text('{"text":"immutable synthetic draft","word_times":null}')
-        (package / "xmlfiles/demo.xml").write_text("<TEI><teiHeader><media url='synthetic.wav'/></teiHeader><text><body><tok id='outside' form='untimed'>untimed</tok><u id='u-1' start='0' end='4'><tok id='w-1' form='e😀' relation_target='#w-3' relation_type='context'>e😀</tok><tok id='w-2' form='mixed'>mixed</tok></u><u id='u-2' start='2' end='6'><tok id='w-3' form='speech'>speech</tok></u></body></text></TEI>", encoding="utf-8")
-        (package / "Annotations/review_demo.xml").write_text("<spanGrp><span id='span-1' corresp='#w-1 #w-3' label='synthetic discontinuous'>e speech</span></spanGrp>")
+        raw_provenance = {"text": "immutable synthetic draft", "word_times": None,
+                          "model": None, "checkpoint": None, "confidence": None,
+                          "run_id": "SYNTHETIC retained run", "segmentation": "utterance bounds only"}
+        (package / "Raw/asr.raw.json").write_bytes(bridge.encoded(raw_provenance))
+        provenance_note = "SYNTHETIC supplied draft; model, checkpoint, device and dtype unknown; no measured confidence or word times"
+        definitions = {"version": 1, "language_values": {"synthetic-mixed": "Synthetic variety; exact attribution uncertain"},
+                       "language_default": None, "layers": [
+                           {"id": "utterance", "parent": None, "alignment": "interval", "overlap": True, "containment": False, "coverage": False},
+                           {"id": "token", "parent": "utterance", "alignment": "optional_interval", "overlap": True, "containment": True, "coverage": False},
+                           {"id": "language", "parent": "token", "alignment": "unaligned", "overlap": True, "containment": False, "coverage": False}],
+                       "rights": "restricted-local-research; redistribution and training not granted",
+                       "machine_draft_provenance": provenance_note}
+        (package / "Workbench/definitions.json").write_bytes(bridge.encoded(definitions))
+        uncertainty = {"variety": "synthetic-mixed", "note": "SYNTHETIC uncertain language judgement; no measured confidence",
+                       "annotation": "SYNTHETIC uncertain hearing; human interpretation remains a proposal"}
+        (package / "xmlfiles/demo.xml").write_text("<TEI><teiHeader><media url='synthetic.wav'/></teiHeader><text><body><tok id='outside' form='untimed'>untimed</tok><u id='u-1' start='0' end='4'><tok id='w-1' form='e😀' variety='synthetic-mixed' note='SYNTHETIC uncertain language judgement; no measured confidence' annotation='SYNTHETIC uncertain hearing; human interpretation remains a proposal' relation_target='#w-3' relation_type='context'>e😀</tok><tok id='w-2' form='mixed'>mixed</tok></u><u id='u-2' start='2' end='6'><tok id='w-3' form='speech'>speech</tok></u></body></text></TEI>", encoding="utf-8")
+        span_uncertainty = "SYNTHETIC uncertain speaker or meaning; authored interpretation, not a measured score"
+        (package / "Annotations/review_demo.xml").write_text(f"<spanGrp><span id='span-1' corresp='#w-1 #w-3' label='synthetic discontinuous' note='{span_uncertainty}'>e speech</span></spanGrp>")
         store = root / "authority"
         def core(*args, authority=store):
             return bridge.core(binary, authority, "synthetic", *args)
@@ -76,6 +97,9 @@ def verify(binary, compiler_root, output):
         assert corrected["properties"]["content"] == "heard 😀"
         assert corrected["properties"]["source"]["original"] == "e😀"
         assert corrected["properties"]["source"]["normalized"] is None
+        assert all(corrected["properties"]["source"]["attrs"][key] == value for key, value in uncertainty.items())
+        assert corrected["properties"]["source"]["language_effective"] == uncertainty["variety"]
+        assert graph2["contract"]["definitions"]["machine_draft_provenance"] == provenance_note
         assert len(core("generations")) == 1 and len(core("generations", "--historical", "yes")) == 2
         assert bridge.digest(graph1["contract"]) == graph1["receipt"]["binding"]["contract_hash"]
         assert graph1["graph"] == core("generation", "--id", r1["generation_id"], "--historical", "yes")["graph"]
@@ -201,6 +225,48 @@ def verify(binary, compiler_root, output):
         merged=next(n for n in merged_graph["graph"]["nodes"] if n["properties"]["anchor"]["external_id"]=="merged")
         assert merged["properties"]["source"]["normalized"]=="A🙂BC" and merged["properties"]["source"]["original"]=="é🙂x"
         assert len(core("generations","--historical","yes",authority=structural_store))==3
+        # Explicit retraction and recovery retain authored uncertainty. The next
+        # review creates a new exact contract; it never upgrades an uncertain
+        # judgement into an inferred or measured confidence value.
+        current_revision = core("view")["revision"]
+        core("review", "--revision", current_revision["id"], "--decision", "rejected", "--note", "SYNTHETIC retained uncertainty requires another preservation review")
+        assert core("generations") == []
+        expect_rejection(lambda: core("export-handoff", "--generation", previous["generation_id"], "--out", root / "rejected-handoff"), "current approved generation")
+        assert not (root / "rejected-handoff").exists()
+        core("review", "--revision", current_revision["id"], "--decision", "approved", "--note", "SYNTHETIC exact preservation re-review; uncertainty remains authored and unmeasured")
+        recovered = bridge.ingest(binary, store, "synthetic", current_revision["id"], compiler_root, root / "review-recovery")
+        assert recovered["generation_id"] != previous["generation_id"]
+        retry = bridge.ingest(binary, store, "synthetic", current_revision["id"], compiler_root, root / "recovery-retry-not-created")
+        assert retry["reused"] and retry["generation_id"] == recovered["generation_id"]
+        assert not (root / "recovery-retry-not-created").exists()
+        exported = core("export-handoff", "--generation", recovered["generation_id"], "--out", export_directory)
+        proof = bridge.verify_package(export_directory, compiler_root)
+        assert proof["native_reopen"] and proof["generation_id"] == recovered["generation_id"]
+        assert proof["node_count"] == 8 and proof["edge_count"] == 12
+        assert proof["current_eligibility"] == "not checked; exported snapshot only"
+        exported_contract = json.loads((export_directory / "contract.json").read_text(encoding="utf-8"))
+        exported_graph = json.loads((export_directory / "graph.json").read_text(encoding="utf-8"))
+        exported_token = next(node for node in exported_graph["nodes"] if node["properties"]["anchor"]["external_id"] == "w-1")
+        exported_span = next(node for node in exported_graph["nodes"] if node["properties"]["anchor"]["kind"] == "span")
+        assert exported_token["properties"]["source"]["original"] == "e😀"
+        assert exported_token["properties"]["content"] == "heard 😀"
+        assert all(exported_token["properties"]["source"]["attrs"][key] == value for key, value in uncertainty.items())
+        assert exported_token["properties"]["source"]["start_us"] is None
+        assert exported_token["properties"]["source"]["end_us"] is None
+        assert exported_span["properties"]["source"]["fields"]["note"] == span_uncertainty
+        assert exported_contract["definitions"]["machine_draft_provenance"] == provenance_note
+        assert exported["review"] == exported_contract["review"]
+        assert exported["review"]["decision"] == "approved" and exported["review"]["self_review"]
+        assert exported["review"]["revision"] == current_revision["id"]
+        assert exported["source_artifacts"] == exported_contract["artifact_manifest"]
+        for path in ["Raw/asr.raw.json", "Audio/synthetic.wav", "Workbench/definitions.json"]:
+            assert exported["source_artifacts"][path] == original_contract["artifact_manifest"][path]
+        assert {file.name for file in export_directory.iterdir()} == {*bridge.PACKAGE_FILES, "manifest.json"}
+        tampered = root / "tampered-handoff"
+        shutil.copytree(export_directory, tampered)
+        with (tampered / "README.md").open("ab") as stream:
+            stream.write(b"\nSYNTHETIC tampering must fail checksum verification.\n")
+        expect_rejection(lambda: bridge.verify_package(tampered, compiler_root), "checksum")
         evidence = {"synthetic_only":True,"semantica_version":"0.6.8","compiler_commit":bridge.compiler_identity(compiler_root)[0],
                     "mapping":"corpus-evidence/2","nodes_per_generation":r2["node_count"],"edges_per_generation":r2["edge_count"],
                     "initial_ingestion":True,"native_reopen":True,"retry_reuses_one_generation":True,"correction_stales_prior_default_query":True,
@@ -212,6 +278,10 @@ def verify(binary, compiler_root, output):
                     "repaired_span_and_relation_in_native_graph":True,"cleared_relation_removes_authored_edge":True,
                     "qualified_identity_generation":{"nodes":7,"edges":8,"token_ids_repeat_across_documents":True,"span_ids_repeat_across_sidecars":True,"sidecar_and_transcript_artifacts_bound":True},
                     "structural_generations":[{"nodes":g["node_count"],"edges":g["edge_count"]} for g in structural_generations],"split_merge_exact_native_generations":True,"retired_compiler_graph_unchanged":True,
+                    "runtime_preflight":runtime_check["ready"],"exported_package":str(export_directory),
+                    "export_verification":proof,"retained_uncertainty_note_annotation_variety":True,
+                    "export_originals_provenance_review_retained":True,"review_recovery_new_exact_generation":True,
+                    "recovery_retry_reuses_generation":True,"tampered_export_rejected":True,
                     "external_database":False,"model":None,"real_pilot_ingested":False}
         output.write_text(json.dumps(evidence,indent=2)+"\n",encoding="utf-8")
         return evidence
@@ -222,5 +292,6 @@ if __name__ == "__main__":
     parser.add_argument("--binary",type=Path,required=True)
     parser.add_argument("--compiler-root",type=Path,required=True)
     parser.add_argument("--evidence",type=Path,required=True)
+    parser.add_argument("--export-dir",type=Path)
     args = parser.parse_args()
-    print(json.dumps(verify(args.binary.resolve(), args.compiler_root.resolve(), args.evidence.resolve())))
+    print(json.dumps(verify(args.binary.resolve(), args.compiler_root.resolve(), args.evidence.resolve(), args.export_dir.resolve() if args.export_dir else None)))

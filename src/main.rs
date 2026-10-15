@@ -136,6 +136,13 @@ fn main() -> Result<()> {
         "accept-generation" => { let mut s=Store::open(&root)?; let bytes=fs::read(option(&args,"--receipt",""))?; ensure!(bytes.len()<=1_048_576,"completion size limit"); let c:Completion=serde_json::from_slice(&bytes)?; ensure!(c.binding.project==project,"project scope denied"); let graph=fs::read(option(&args,"--graph",""))?; println!("{}",s.accept_generation(&c,&graph,Fault::None)?); }
         "generations" => println!("{}",serde_json::to_string(&Store::open(&root)?.generations(&project,option(&args,"--historical","no")=="yes")?)?),
         "generation" => println!("{}",Store::open(&root)?.generation(&project,&option(&args,"--id",""),option(&args,"--historical","no")=="yes")?),
+        "export-handoff" => {
+            ensure!(root.join("ledger.sqlite").is_file(), "existing authority required");
+            let generation = option(&args,"--generation","");
+            let destination = option(&args,"--out","");
+            ensure!(!generation.is_empty() && !destination.is_empty(), "handoff export requires --generation HASH and --out NEW_DIRECTORY");
+            println!("{}",Store::open(&root)?.export_handoff(&project,&generation,Path::new(&destination))?);
+        }
         "apply" => { let mut s=Store::open(&root)?; let c:Command=serde_json::from_slice(&fs::read(option(&args,"--command",""))?)?; let fault=match option(&args,"--fault","none").as_str() { "after-stage"=>Fault::AfterStage,"before-commit"=>Fault::BeforeCommit,"after-commit"=>Fault::AfterCommit,_=>Fault::None }; let r=s.apply("local-owner",&c,fault)?; println!("{}",serde_json::to_string(&r)?); }
         "projects" => println!("{}", json!({"projects": projects_readonly(&root)?})),
         "serve" => {
@@ -153,7 +160,7 @@ fn main() -> Result<()> {
                 parent_stdin: option(&args, "--parent-stdin", "no") == "yes",
             })?;
         }
-        _ => println!("corpus-workbench import|serve|projects|view|export|backup|check|health|apply|review|search|search-projection|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist --runtime-dir .runtime. Desktop sidecar: --desktop yes --port 0 --runtime-dir PRIVATE_DIRECTORY --parent-stdin yes; emits private workbench-ready JSON on stdout. Projects: read-only discovery of an existing schema-2 authority. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Search/search-projection require --request FILE with exact revision and snapshot hash. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. No remote or archive imports.")
+        _ => println!("corpus-workbench import|serve|projects|view|export|backup|check|health|apply|review|search|search-projection|inventory|preflight|retokenize-preview|teitok-reader-preview|return-stage|return-preview|contract|accept-generation|generations|generation|export-handoff --store PATH --project ID\nImport: --package DIRECTORY. Export/backup: --out NEW_DIRECTORY. Serve: --port 18910 --ui ui/dist --runtime-dir .runtime. Desktop sidecar: --desktop yes --port 0 --runtime-dir PRIVATE_DIRECTORY --parent-stdin yes; emits private workbench-ready JSON on stdout. Projects: read-only discovery of an existing schema-2 authority. View/check/backup: --readonly-backup yes requires a closed schema-2 backup. Health: --port PORT. Container serving: --container-network yes. Review/contract require --revision ID. Search/search-projection require --request FILE with exact revision and snapshot hash. Compiler completion: --receipt FILE --graph FILE. Generation: --id HASH; --historical yes is explicit stale access. Export-handoff: --generation HASH --out NEW_DIRECTORY; current approved generation only, exact immutable graph/receipt/contract bytes, no raw media. No remote or archive imports.")
     }
     Ok(())
 }

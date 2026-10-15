@@ -20,6 +20,8 @@ async function build() {
   if (path.relative(resources, uiOutput) !== 'ui') throw new Error('Invalid generated UI output path');
   await fs.rm(uiOutput, {recursive: true, force: true});
   await fs.cp(path.join(root, 'ui', 'dist'), uiOutput, {recursive: true});
+  await fs.mkdir(path.join(resources, 'semantica'), {recursive: true});
+  await fs.copyFile(path.join(root, 'scripts', 'semantica-handoff.py'), path.join(resources, 'semantica', 'semantica-handoff.py'));
   const demo = path.join(resources, 'demo');
   await fs.cp(path.join(root, 'fixtures', 'synthetic'), demo, {recursive: true});
   await fs.mkdir(path.join(demo, 'Audio'), {recursive: true});

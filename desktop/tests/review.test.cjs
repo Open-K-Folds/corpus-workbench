@@ -40,7 +40,7 @@ function mainHarness() {
     // Departure status has already been delivered by the renderer in this test.
     setTimeout: fn => { queueMicrotask(fn); return 0; }, clearTimeout() {},
     __dirname: path.resolve(__dirname, '..'),
-    require: name => name === 'electron' ? electron : ['./backend.cjs', './registry.cjs', './journal.cjs'].includes(name) ? {} : name === './security.cjs' ? require('../security.cjs') : require(name),
+    require: name => name === 'electron' ? electron : ['./backend.cjs', './registry.cjs', './journal.cjs', './semantica.cjs'].includes(name) ? {} : name === './security.cjs' ? require('../security.cjs') : require(name),
     testBackend: backend, testWindow: window, testRegistry: registry, testOriginal: original,
   });
   const source = fs.readFileSync(path.join(__dirname, '..', 'main.cjs'), 'utf8');

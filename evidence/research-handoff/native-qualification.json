@@ -1,0 +1,134 @@
+{
+  "synthetic_only": true,
+  "url": "workbench://app/",
+  "baseline": "before-*.png from supplied prior bundle",
+  "executable_sha256": "b6761e0675053b65155a019c383ff9af4df6bb4dcf0e2158475c256d2daa95c1",
+  "viewport_sizes": [
+    [
+      1440,
+      1000
+    ],
+    [
+      1100,
+      760
+    ]
+  ],
+  "original_revision": {
+    "actor": "local-owner",
+    "command_id": "import-baf3673b-3874-4217-a332-f706cbac50bd",
+    "created_at": "2026-10-15T13:14:46.850Z",
+    "id": 1,
+    "label": "Imported protected package",
+    "parent": null,
+    "snapshot_hash": "0004cec00cde9f1865b5d1b38f3e0b30d562f4ea5d4eea37510c068436a5c47b"
+  },
+  "successor_revision": {
+    "actor": "local-owner",
+    "command_id": "cmd-dedf01db-d317-4f19-84bf-9bc70c5988d1",
+    "created_at": "2026-10-15T13:16:31.194Z",
+    "id": 2,
+    "label": "Correct w1",
+    "parent": 1,
+    "snapshot_hash": "58d5e5e51c57b09d374d403ed8b49b6fe57cfc8b901fea5724a7c86961975574"
+  },
+  "first_generation": {
+    "status": "current",
+    "configured": true,
+    "runtime": {
+      "semantica_version": "0.6.8",
+      "compiler_commit": "81af6d16c223582d1b6ba54549831bb050b07302",
+      "mapping_version": "corpus-evidence/2",
+      "python": "3.13.14"
+    },
+    "lastAttempt": {
+      "status": "current",
+      "revision": 1,
+      "reused": false
+    },
+    "current": {
+      "generation_id": "958c7f2fb241e24c897442153755c1c70034e0d765f686fa6d42254706a0bce2",
+      "revision": 1,
+      "snapshot_hash": "0004cec00cde9f1865b5d1b38f3e0b30d562f4ea5d4eea37510c068436a5c47b",
+      "recipe_hash": "bd2f08577140f37e2d484485becd596a7c1d0d6dc4c3fc1ee35c6cdfba5d6bce",
+      "node_count": 63,
+      "edge_count": 113,
+      "native_reopen": true
+    }
+  },
+  "current_successor": {
+    "status": "current",
+    "configured": true,
+    "runtime": {
+      "semantica_version": "0.6.8",
+      "compiler_commit": "81af6d16c223582d1b6ba54549831bb050b07302",
+      "mapping_version": "corpus-evidence/2",
+      "python": "3.13.14"
+    },
+    "lastAttempt": {
+      "status": "current",
+      "revision": 2,
+      "reused": false
+    },
+    "current": {
+      "generation_id": "6dc0932d8caf437a45a9492c859f3ffd8fc267ed1aaf475f258bab68c74fb0f2",
+      "revision": 2,
+      "snapshot_hash": "58d5e5e51c57b09d374d403ed8b49b6fe57cfc8b901fea5724a7c86961975574",
+      "recipe_hash": "bd2f08577140f37e2d484485becd596a7c1d0d6dc4c3fc1ee35c6cdfba5d6bce",
+      "node_count": 63,
+      "edge_count": 113,
+      "native_reopen": true
+    }
+  },
+  "retry_reused": true,
+  "export_reopened_independently": [
+    {
+      "ok": true,
+      "verified": true,
+      "operation": "verify-package",
+      "format": "open-k-folds/corpus-semantica-handoff",
+      "schema": 1,
+      "generation_id": "958c7f2fb241e24c897442153755c1c70034e0d765f686fa6d42254706a0bce2",
+      "revision": 1,
+      "snapshot_hash": "0004cec00cde9f1865b5d1b38f3e0b30d562f4ea5d4eea37510c068436a5c47b",
+      "node_count": 63,
+      "edge_count": 113,
+      "files_verified": 4,
+      "native_reopen": true,
+      "semantica_version": "0.6.8",
+      "current_at_export": true,
+      "current_eligibility": "not checked; exported snapshot only"
+    },
+    {
+      "ok": true,
+      "verified": true,
+      "operation": "verify-package",
+      "format": "open-k-folds/corpus-semantica-handoff",
+      "schema": 1,
+      "generation_id": "958c7f2fb241e24c897442153755c1c70034e0d765f686fa6d42254706a0bce2",
+      "revision": 1,
+      "snapshot_hash": "0004cec00cde9f1865b5d1b38f3e0b30d562f4ea5d4eea37510c068436a5c47b",
+      "node_count": 63,
+      "edge_count": 113,
+      "files_verified": 4,
+      "native_reopen": true,
+      "semantica_version": "0.6.8",
+      "current_at_export": true,
+      "current_eligibility": "not checked; exported snapshot only"
+    }
+  ],
+  "relaunch_preserves_runtime_and_generation": true,
+  "edit_invalidates_current": true,
+  "rejection_invalidates_current": true,
+  "uncertainty_note_preserved": true,
+  "source_artifacts_unchanged": {
+    "transcript": "85d28f1504d01f8883037e447155ea978b8161d19dedd26a4aca95c953a955f1",
+    "raw": "df3d1793d1b0e558c4dd1a79ed8d185fd94d96c339664977ac6b3e31217d5910",
+    "audio": "e0c3c1f01f9dadf7c390d4545527d0b22f3f36ea8008af5152dba84b25e5e214"
+  },
+  "only_file_dialogs_mocked": true,
+  "dialogs": [],
+  "page_errors": [],
+  "console_errors": [],
+  "qualification_base_commit": "604ba503cb84c77a5fce26c79577083c8ea17a7c",
+  "scope": "Actual local Electron/bridge/compiler/ContextGraph; file dialogs substituted; synthetic fixtures only"
+}

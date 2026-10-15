@@ -7,6 +7,7 @@ const {Readable} = require('node:stream');
 const {Backend, runCLI} = require('./backend.cjs');
 const {Registry} = require('./registry.cjs');
 const {Journal} = require('./journal.cjs');
+const {SemanticaController} = require('./semantica.cjs');
 const security = require('./security.cjs');
 
 protocol.registerSchemesAsPrivileged([{scheme: 'workbench', privileges: {standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true}}]);
@@ -18,7 +19,7 @@ if (process.env.WB_DESKTOP_USER_DATA) {
 const resources = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'desktop', 'resources');
 const binary = process.env.WB_DESKTOP_BACKEND || (app.isPackaged ? path.join(process.resourcesPath, 'backend', 'corpus-workbench.exe') : path.join(resources, 'backend', process.platform === 'win32' ? 'corpus-workbench.exe' : 'corpus-workbench'));
 const ui = path.join(resources, 'ui');
-let window, backend, registry, journal, current = null, status = 'idle', error = null, busy = false, quitting = false, quitRequested = false, permitUnload = false;
+let window, backend, registry, journal, semantica, current = null, status = 'idle', error = null, busy = false, quitting = false, quitRequested = false, permitUnload = false;
 let drafts = {dirty: false, recoverable: false, saving: false};
 const publicState = () => ({status, project: current ? {id: current.id, project: current.project, title: current.title} : null, recent: registry?.publicRecent() ?? [], error, version: app.getVersion()});
 const sendState = () => {if (window && !window.isDestroyed()) window.webContents.send('workbench:state', publicState());};
@@ -129,11 +130,55 @@ async function backup() {
     return {cancelled: false, filename: path.basename(picked.filePath)};
   });
 }
+function handoffProject() {
+  if (!current || status !== 'ready') throw new Error('Open a corpus before a research handoff');
+  return {store: current.store, project: current.project};
+}
+async function cleanHandoff() {
+  await refreshDrafts();
+  if (drafts.dirty) throw new Error('Save or discard authoring drafts before a research handoff');
+  return handoffProject();
+}
+async function configureSemantica() {
+  return operation(async () => {
+    const active = await cleanHandoff();
+    const python = await dialog.showOpenDialog(window, {title: 'Choose the installed Semantica Python runtime', buttonLabel: 'Choose Python', properties: ['openFile'], ...(process.platform === 'win32' ? {filters: [{name: 'Python executable', extensions: ['exe']}]} : {})});
+    if (python.canceled || !python.filePaths.length) return {...await semantica.state(active), cancelled: true};
+    const compiler = await dialog.showOpenDialog(window, {title: 'Choose the compatible clean semantic compiler checkout', buttonLabel: 'Choose compiler', properties: ['openDirectory'], message: 'The installed Semantica 0.6.8 runtime and compiler are checked locally. Nothing is installed or uploaded.'});
+    if (compiler.canceled || !compiler.filePaths.length) return {...await semantica.state(active), cancelled: true};
+    await semantica.configure({python: python.filePaths[0], compilerRoot: compiler.filePaths[0]});
+    return semantica.state(active);
+  });
+}
+async function runSemantica(basis) {
+  if (!basis || Object.keys(basis).sort().join(',') !== 'revision,snapshot_hash') throw new Error('Invalid handoff basis');
+  security.revision(basis.revision);
+  if (typeof basis.snapshot_hash !== 'string' || !/^[a-f0-9]{64}$/.test(basis.snapshot_hash)) throw new Error('Invalid snapshot identity');
+  return operation(async () => semantica.run(await cleanHandoff(), basis));
+}
+async function exportSemantica(basis) {
+  if (!basis || Object.keys(basis).join(',') !== 'generation_id' || typeof basis.generation_id !== 'string' || !/^[a-f0-9]{64}$/.test(basis.generation_id)) throw new Error('Invalid generation identity');
+  return operation(async () => {
+    const active = await cleanHandoff();
+    const picked = await dialog.showOpenDialog(window, {title: 'Choose where to save the validated graph package', buttonLabel: 'Save new handoff folder here', properties: ['openDirectory', 'createDirectory'], message: 'A new folder is created. Existing files are never overwritten. Original corpus media is exported separately.'});
+    if (picked.canceled || !picked.filePaths.length) return {...await semantica.state(active), cancelled: true};
+    const result = await semantica.export(active, basis.generation_id, picked.filePaths[0]);
+    const {output, ...publicResult} = result;
+    if (!output || !result.export?.validated) throw new Error('The exported package did not pass Semantica verification');
+    return publicResult;
+  });
+}
+async function revealSemantica() {
+  const active = handoffProject();
+  const output = await semantica.exportedPath(active);
+  const failure = await shell.openPath(output);
+  if (failure) throw new Error('The exported folder could not be opened');
+}
 async function requestQuit() {
   if (quitting || quitRequested) return;
   quitRequested = true;
   try {
-    if (busy) {await dialog.showMessageBox(window, {type: 'info', title: 'Corpus operation in progress', message: 'Wait for the current import, export or backup to finish before closing.', buttons: ['Keep open'], noLink: true}); return;}
+    if (busy) {await dialog.showMessageBox(window, {type: 'info', title: 'Corpus operation in progress', message: 'Wait for the current corpus operation or local handoff to finish before closing.', buttons: ['Keep open'], noLink: true}); return;}
     if (!await canLeave('closing the workbench')) return;
     quitting = true;
     const cleanupErrors = [];
@@ -145,7 +190,7 @@ async function requestQuit() {
   } finally {quitRequested = false;}
 }
 function installIPC() {
-  const handlers = {state: () => publicState(), chooseOpen, importPackage, createDemo: () => operation(() => importDirectory(path.join(resources, 'demo'), 'Synthetic practice corpus')), openRecent: id => operation(async () => {const entry = registry.get(security.recentId(id)); if (!entry) throw new Error('Project is no longer in the recent list'); return switchProject(entry);}), exportRevision, backup, retry: () => operation(async () => {
+  const handlers = {state: () => publicState(), semanticaState: () => semantica.state(handoffProject()), configureSemantica, runSemantica, exportSemantica, revealSemantica, chooseOpen, importPackage, createDemo: () => operation(() => importDirectory(path.join(resources, 'demo'), 'Synthetic practice corpus')), openRecent: id => operation(async () => {const entry = registry.get(security.recentId(id)); if (!entry) throw new Error('Project is no longer in the recent list'); return switchProject(entry);}), exportRevision, backup, retry: () => operation(async () => {
     if (!current) return publicState();
     status = 'loading'; error = null; sendState();
     try {await backend.stop(); await backend.start(current.store, current.project); status = 'ready'; sendState(); sendMenu('backend-reconnected');}
@@ -154,7 +199,7 @@ function installIPC() {
   }), readDraftJournal: () => journal.read(), persistDraftJournal: raw => journal.write(raw), reportDraft: value => {drafts = security.draftState(value); return true;}, reportAppearance: value => {if (!['light', 'dark', 'system'].includes(value)) throw new Error('Invalid appearance'); nativeTheme.themeSource = value; window.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151c25' : '#f5f6f8'); return true;}};
   for (const [name, handler] of Object.entries(handlers)) ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
     if (!security.trustedSender(event, window)) throw new Error('Desktop command denied');
-    const expected = ['openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal'].includes(name) ? 1 : 0;
+    const expected = ['openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal', 'runSemantica', 'exportSemantica'].includes(name) ? 1 : 0;
     if (args.length !== expected) throw new Error('Invalid desktop command arguments');
     return handler(...args);
   });
@@ -165,7 +210,7 @@ function installMenu() {
     {label: '&File', submenu: [{label: 'Open corpus authority…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Import corpus package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Create verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
     {label: '&Edit', submenu: [{role: 'undo'}, {role: 'redo'}, {type: 'separator'}, {role: 'cut'}, {role: 'copy'}, {role: 'paste'}, {role: 'selectAll'}, {type: 'separator'}, {label: 'Search corpus', accelerator: 'CmdOrCtrl+F', click: () => sendMenu('search')}]},
     {label: '&View', submenu: [{label: 'Revision history', accelerator: 'CmdOrCtrl+H', click: () => sendMenu('history')}, {label: 'Toggle inspector', accelerator: 'CmdOrCtrl+Shift+I', click: () => sendMenu('toggle-inspector')}, {label: 'Toggle recording', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenu('toggle-recording')}, {type: 'separator'}, {label: 'Reload workbench', accelerator: 'CmdOrCtrl+R', click: () => native(async () => {if (await canLeave('reloading')) {permitUnload = true; window.reload();}})}, {role: 'resetZoom'}, {role: 'zoomIn'}, {role: 'zoomOut'}, {role: 'togglefullscreen'}]},
-    {label: '&Help', submenu: [{label: 'About Open-K-Folds Workbench', click: () => native(() => dialog.showMessageBox(window, {type: 'info', title: 'Open-K-Folds Workbench', message: `Open-K-Folds Workbench ${app.getVersion()}`, detail: 'Local transcript authoring, immutable revisions and reviewed evidence. GPL-3.0-or-later.\nYour corpus stays on this computer.', buttons: ['Close']}))}]},
+    {label: '&Help', submenu: [{label: 'Corpus workflow and research handoff', click: () => sendMenu('research')}, {label: 'About Open-K-Folds Workbench', click: () => native(() => dialog.showMessageBox(window, {type: 'info', title: 'Open-K-Folds Workbench', message: `Open-K-Folds Workbench ${app.getVersion()}`, detail: 'Local transcript authoring, immutable revisions and reviewed evidence. GPL-3.0-or-later.\nYour corpus stays on this computer.', buttons: ['Close']}))}]},
   ]));
 }
 function responseError(message, code) { return new Response(JSON.stringify({error: message}), {status: code, headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Security-Policy': security.CSP}}); }
@@ -202,6 +247,7 @@ async function main() {
   const profile = app.getPath('userData');
   registry = new Registry(profile);
   journal = new Journal(profile);
+  semantica = new SemanticaController({profileRoot: profile, binary, adapter: app.isPackaged ? path.join(resources, 'semantica', 'semantica-handoff.py') : path.join(app.getAppPath(), 'scripts', 'semantica-handoff.py')});
   try {await registry.load();} catch (failure) {status = 'error'; error = failure.message;}
   backend = new Backend(binary, ui, path.join(profile, 'runtime'));
   backend.on('interrupted', message => {if (!quitting) {status = 'error'; error = message; sendState();}});

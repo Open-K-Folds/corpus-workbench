@@ -4,6 +4,7 @@ import {el,esc,field,formValues,seconds} from './dom';
 import {tokenInspector,annotationInspector} from './inspector';
 import {historyInspector} from './history';
 import {reviewInspector} from './review';
+import {researchInspector} from './research';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
@@ -36,7 +37,13 @@ if(desktop){
   document.addEventListener('input',event=>{const form=(event.target as HTMLElement).closest('form');if(form&&form.dataset.dirty===undefined)form.dataset.desktopDirty='true'});
   document.addEventListener('reset',event=>{const form=event.target as HTMLFormElement;delete form.dataset.desktopDirty});
 }
-function lockAuthoring(){const controls=[...document.querySelectorAll<HTMLInputElement>('button,input,select,textarea')].map(e=>[e,e.disabled] as const);controls.forEach(([e])=>e.disabled=true);return ()=>controls.forEach(([e,disabled])=>e.disabled=disabled);}
+function lockAuthoring(keepPlayback=false){const controls=[...document.querySelectorAll<HTMLInputElement>('button,input,select,textarea')].filter(e=>!keepPlayback||!e.closest('#recording-pane')).map(e=>[e,e.disabled] as const);controls.forEach(([e])=>e.disabled=true);return ()=>controls.forEach(([e,disabled])=>e.disabled=disabled);}
+async function performResearch(action:()=>Promise<unknown>){
+  const state=departure();if(state.dirty||state.saving||transcript.busy())throw new Error('Save or discard all authoring drafts and resolve pending saves before a research handoff.');
+  saving=true;const unlock=lockAuthoring(true);
+  try{await action();const latest=await loadView();const changed=latest.revision.id!==view.revision.id||latest.revision.snapshot_hash!==view.revision.snapshot_hash||latest.approved!==view.approved;view=latest;if(changed)render();}
+  finally{saving=false;unlock();if(el('message').textContent==='Wait for the current save or local handoff to finish. Recording controls remain available.')message('');}
+}
 function message(text:string,isError=false){el('message').textContent=text;el('message').className=isError?'notice error':'notice';}
 function currentDoc():Document{return view.documents.find(d=>d.path===docPath)??view.documents[0]}
 async function start(){
@@ -75,6 +82,8 @@ function shell(){app.innerHTML=`<a class="skip-link" href="#tokens">Skip to tran
   buttonGroup(document.querySelector('.navigation-modes')!);buttonGroup(el('document-tabs'));scrollIndicators(app);
   el<HTMLInputElement>('show-interlinear').onchange=e=>transcript.setInterlinear((e.target as HTMLInputElement).checked);
   el('native-problems').onclick=()=>{tab='review';showProperties();void renderInspector()};
+  document.querySelector('header')!.insertAdjacentHTML('beforeend','<button id="open-research" class="secondary">Research handoff</button>');
+  el('open-research').onclick=()=>{tab='research';showProperties();void renderInspector()};
   el('jump-source').onclick=()=>{if(!transcript.location(el<HTMLInputElement>('source-location').value.trim()))message('No such source ID in this document. Display wrapping does not create line IDs.',true)};
   el('copy-citation').onclick=async()=>{const citation=transcript.citation();const url=new URL(location.origin+location.pathname);url.hash=new URLSearchParams({loc:JSON.stringify(citation)}).toString();try{await navigator.clipboard.writeText(url.href);message(`Copied ${currentDoc().title} · ${citation.anchor??'document'} · R${citation.revision}. The link needs an authenticated local session.`)}catch{message('Clipboard access is unavailable. Select a source ID and use Go to inspect its location.',true)}};
   el('navigate-documents').onclick=()=>{navigationMode='documents';renderNavigation()};
@@ -157,6 +166,7 @@ async function renderInspector(committedRender=false){if((saving&&!committedRend
   if(tab==='history'){try{const panel=await historyInspector(view,save);if(epoch!==inspectorEpoch)return;content.append(panel);if(redoRevision!==null){const button=document.createElement('button');button.textContent=`Redo state R${redoRevision}`;button.onclick=()=>void save([{kind:'restore',revision:redoRevision!}],`Redo R${redoRevision}`);content.prepend(button)}}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
   if(tab==='definitions'){content.innerHTML=`<h2>Language definitions</h2><p class="muted">Project labels need no external code. These definitions are versioned with the evidence.</p><form id="definition-form">${field('value','Value')}${field('description','Description')}<button>Save definition</button></form><ul>${Object.entries(view.snapshot.config.language_values).map(([v,d])=>`<li><strong>${esc(v)}</strong> — ${esc(d)}</li>`).join('')}</ul><label>Inherited project default<select id="language-default"><option value="">Unknown / no default</option>${Object.entries(view.snapshot.config.language_values).map(([v,d])=>`<option value="${esc(v)}" ${v===view.snapshot.config.language_default?'selected':''}>${esc(d||v)}</option>`).join('')}</select></label><button id="save-default" class="secondary">Save default</button><details><summary>Layer constraints and schema</summary><pre>${esc(JSON.stringify(view.snapshot.config.layers,null,2))}</pre></details>`;el<HTMLFormElement>('definition-form').onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await save([{kind:'define_language',value:v.value,description:v.description}],`Define language: ${v.value}`)};el('save-default').onclick=()=>void save([{kind:'set_language_default',value:el<HTMLSelectElement>('language-default').value||null}],'Set project language default');try{const panel=await teitokReaderInspector(view,save);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
   if(tab==='review'){content.append(reviewInspector(view));el<HTMLFormElement>('review-form').onsubmit=async e=>{e.preventDefault();if(saving||pendingWrite)return;if(transcript.dirty()||draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'))){message('Save or discard annotation drafts and structural drafts before recording review. Token drafts must also be saved or reset.',true);return;}const basis=view;const v=formValues(e.currentTarget as HTMLFormElement);saving=true;++inspectorEpoch;const unlock=lockAuthoring();try{await api('/api/review',{revision:basis.revision.id,snapshot_hash:basis.revision.snapshot_hash,decision:v.decision,note:v.note});view=await loadView();message(`Review recorded for R${basis.revision.id}.`);render()}catch(e){message(String(e),true)}finally{saving=false;unlock()}};el('compiler-contract').onclick=async()=>{try{el('contract-preview').textContent=JSON.stringify(await api('/api/contract'),null,2)}catch(e){message(String(e),true)}};}
+  if(tab==='research')content.append(researchInspector(view,{dirty:()=>{const state=departure();return state.dirty||state.saving||transcript.busy()},perform:performResearch,go:(next,source)=>{tab=next;if(next==='source')sourcePath=source??doc.path;showProperties();void renderInspector()}}));
   if(tab==='structure'){
     const key=JSON.stringify([doc.path,selected]);let draft=structuralDrafts.get(key);
     if(!draft){try{const basis=view;draft=await retokenizationInspector(basis,doc,selected,save,()=>{el('save-state').textContent='Unsaved structural draft - saved head R'+view.revision.id});if(epoch!==inspectorEpoch)return;structuralDrafts.set(key,draft);}catch(e){if(epoch===inspectorEpoch)message(String(e),true);return;}}
@@ -179,6 +189,7 @@ async function followCitation(){const value=new URLSearchParams(location.hash.sl
 function desktopMenu(command:string){
   if(command==='backend-reconnected'){void resumeSession().catch(error=>message('Session reconnection failed: '+String(error),true));return}
   if(!view||!document.querySelector('.workspace'))return;
+  if(saving&&command!=='toggle-recording'){message('Wait for the current save or local handoff to finish. Recording controls remain available.');return}
   if(command==='save'){
     const correction=document.querySelector<HTMLButtonElement>('#retry-draft:not([hidden]),#accept-draft');
     if(correction&&!correction.disabled){correction.click();return}
@@ -191,6 +202,7 @@ function desktopMenu(command:string){
   if(command==='search'){tab='search';showProperties();void renderInspector()}
   if(command==='export')el('export-package').click();
   if(command==='history'){tab='history';showProperties();void renderInspector()}
+  if(command==='research'){tab='research';showProperties();void renderInspector()}
   if(command==='toggle-inspector')el('toggle-properties').click();
   if(command==='toggle-recording')el('timeline-toggle').click();
 }

@@ -46,6 +46,10 @@ async function head(page){return page.evaluate(async()=>{const response=await fe
 async function records(page){return page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem('wb-correction-v1:journal')??'{}')))}
 async function ready(page){await expect(page.locator('#save-state')).not.toBeEmpty();await expect(page.locator('[data-token="w1"]')).toBeVisible()}
 async function draft(page,replacement,token='w2',backward=false){
+  // Discarding a recovered draft clears its journal before its asynchronous
+  // saved-reading projection finishes. Wait for the usable transcript surface.
+  await expect.poll(()=>page.locator('#tokens').evaluate(surface=>surface.inert)).toBe(false);
+  await expect(page.locator(`[data-token="${token}"] .reading-text`)).toBeVisible();
   await page.locator('#tokens').focus();
   await page.evaluate(({token,backward})=>{const node=document.querySelector(`[data-token="${token}"] .reading-text`).firstChild;const end=node.textContent.length;window.getSelection().setBaseAndExtent(node,backward?end:0,node,backward?0:end)},{token,backward});
   await expect(page.locator('.selection-tools')).toBeVisible();
