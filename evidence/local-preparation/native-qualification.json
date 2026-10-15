@@ -1,0 +1,219 @@
+{
+  "schema": 1,
+  "synthetic_only": true,
+  "core_product_commit": "7bc207cd40aa71b1d03a268cbe9c546640bf0fb3",
+  "chunk_product_commit": "14edff6828725fc709ed850169bd34fc05964287",
+  "chunk_core_resources_identical": true,
+  "browser_plugin": "not available; existing Playwright Electron workflow used",
+  "native_file_dialogs_only_substituted": true,
+  "source_hashes": {
+    "audio": "ce2a2aee8d4c4ffbcf2fc659bc73a1be8486e5a16ade352eb261e28eef6a13d1",
+    "raw": "887a0c2b35a5e1d525f60a6000c951b4027c7621769a063129ae907a10efd3b0"
+  },
+  "product_files_sha256": {
+    "resources/app/desktop/main.cjs": "904e1d58cd6b80c86e30164eb891dd56eb243e7d4e125ba743d90f696eca4dc2",
+    "resources/app/desktop/preload.cjs": "88b9eacdb188e8470f6296ca40fe0725484c3c507e84b1e269427dc3367fd56e",
+    "resources/app/desktop/preparation.cjs": "02f46e6552b425a97a37e55847e83276bfd21eeb54c320de83fc7e32718fa26a",
+    "resources/app/desktop/preparation-format.cjs": "9697511cf05cdce73713daeee4b7ba665bf9b4781cd73138fd2c7288fb644c61",
+    "resources/app/desktop/semantica.cjs": "14c5cd03a53050b95b0fca13965c0d3f1df4afcd6671ef4f97004010fbaf8ec9",
+    "resources/backend/corpus-workbench.exe": "8b5659d085f7e6ab4bc42ee171a6cc0c4094ff5195ac50bb1bd312c0a50d293b",
+    "resources/semantica/semantica-handoff.py": "fd4ad70292bfe34f0051c5a09bedaa8ff33322edd88c67acb19df7024e192d44",
+    "resources/ui/index.html": "ce12a117be14616cd948184c7f291eeac71e27503cf85c3161ef4f1f9f9b1a0e",
+    "resources/ui/assets/audio-analysis.worker-CqcDVNB6.js": "878af180e88568f8b65d24938c5f495e8555176fb7b97a4f0475e1085d38d10f",
+    "resources/ui/assets/index-Bz5Ri4pt.js": "94e337c9cda8bfa9279df72a8f812c922696d0baa0f059c1e7a003cdc91d005c",
+    "resources/ui/assets/index-q-Pul8Im.css": "f00af50dbae787ad17ee66890a3c5cbd9cfbbd0057d83fb4c0d5e7542fa107c6"
+  },
+  "imported_revision": {
+    "actor": "local-owner",
+    "command_id": "import-3a2f22c5-c6da-4e52-83a0-0e36a39853b6",
+    "created_at": "2026-10-15T14:25:56.664Z",
+    "id": 1,
+    "label": "Imported protected package",
+    "parent": null,
+    "snapshot_hash": "9c1ea31a4c9592bf227ba64b81726deb62259188f9f4eea0458c570f807f8d40"
+  },
+  "approved_revision": {
+    "actor": "local-owner",
+    "command_id": "cmd-39615562-8687-4a94-ae4c-7d3632eaddc0",
+    "created_at": "2026-10-15T14:25:57.805Z",
+    "id": 2,
+    "label": "SYNTHETIC human listening correction",
+    "parent": 1,
+    "snapshot_hash": "5e34ae0bb6e3b182ca0abfbe5295e541784e6abafc2957085efd2c2a3624c315"
+  },
+  "source_provenance": {
+    "format": "open-k-folds/local-transcript-preparation",
+    "schema": 1,
+    "adapter": "local-transcript/1",
+    "input_format": "utf8-text",
+    "source_contract": "utf8-text/1",
+    "status": "unreviewed-supplied-transcript",
+    "sources": {
+      "audio": {
+        "path": "Audio/recording.wav",
+        "name": "SYNTHETIC-tone.wav",
+        "sha256": "ce2a2aee8d4c4ffbcf2fc659bc73a1be8486e5a16ade352eb261e28eef6a13d1",
+        "bytes": 128044
+      },
+      "transcript": {
+        "path": "Raw/transcript.raw.txt",
+        "name": "SYNTHETIC-mixed.txt",
+        "sha256": "887a0c2b35a5e1d525f60a6000c951b4027c7621769a063129ae907a10efd3b0",
+        "bytes": 78
+      }
+    },
+    "asr": {
+      "supplied": {
+        "model": null,
+        "checkpoint": null,
+        "code_version": null,
+        "config_version": null,
+        "run_id": null,
+        "device": null,
+        "dtype": null,
+        "runtime_image_id": null,
+        "run_started_unix": null,
+        "package_versions": null
+      },
+      "missing": "Unknown; never inferred from filenames, spelling, recording duration or current runtime.",
+      "word_times": null,
+      "confidence": null,
+      "speaker_assignment": null,
+      "language_assignment": null,
+      "time_base": null,
+      "segmentation": null
+    },
+    "projection": {
+      "path": "xmlfiles/transcript.xml",
+      "sha256": "dd8ca869c92269150418673eab26666da866c9e1592931b434cbc0edd8b09945",
+      "bytes": 1015,
+      "tokenization": "New local IDs for maximal Unicode non-whitespace spans; no normalization, trimming, punctuation rewrite or alignment.",
+      "text_assembly": "Exact decoded source text.",
+      "timing": "Absent.",
+      "chunks": null,
+      "word_times": null,
+      "human_corrections": null,
+      "normalized_forms": null
+    },
+    "rights": "restricted-local-research; redistribution and training not granted",
+    "review": {
+      "approved": false,
+      "decision": null
+    },
+    "recording": {
+      "container": "wav",
+      "mime_type": "audio/wav",
+      "validation": "Bounded container header checks only; no decoding, duration or speech claim."
+    }
+  },
+  "review": {
+    "reviews": [
+      {
+        "actor": "local-owner",
+        "created_at": "2026-10-15T14:25:59.281Z",
+        "decision": "approved",
+        "id": 1,
+        "note": "SYNTHETIC explicit full-package mechanics review. Unknown timing, origin and confidence stay unknown; uncertainty note retained.",
+        "revision": 2,
+        "scope": "full",
+        "self_review": true,
+        "snapshot_hash": "5e34ae0bb6e3b182ca0abfbe5295e541784e6abafc2957085efd2c2a3624c315"
+      }
+    ],
+    "revision": 2,
+    "snapshot_hash": "5e34ae0bb6e3b182ca0abfbe5295e541784e6abafc2957085efd2c2a3624c315"
+  },
+  "generation": {
+    "status": "current",
+    "configured": true,
+    "runtime": {
+      "semantica_version": "0.6.8",
+      "compiler_commit": "81af6d16c223582d1b6ba54549831bb050b07302",
+      "mapping_version": "corpus-evidence/2",
+      "python": "3.13.14"
+    },
+    "lastAttempt": {
+      "status": "current",
+      "revision": 2,
+      "reused": false
+    },
+    "current": {
+      "generation_id": "b00d769a6f41ac1563cbab23ede154011825f4477b04d7cd279190f881f348db",
+      "revision": 2,
+      "snapshot_hash": "5e34ae0bb6e3b182ca0abfbe5295e541784e6abafc2957085efd2c2a3624c315",
+      "recipe_hash": "bd2f08577140f37e2d484485becd596a7c1d0d6dc4c3fc1ee35c6cdfba5d6bce",
+      "mapping_version": "corpus-evidence/2",
+      "node_count": 12,
+      "edge_count": 11,
+      "native_reopen": true
+    }
+  },
+  "portable": {
+    "ok": true,
+    "verified": true,
+    "operation": "verify-package",
+    "format": "open-k-folds/corpus-semantica-handoff",
+    "schema": 1,
+    "generation_id": "b00d769a6f41ac1563cbab23ede154011825f4477b04d7cd279190f881f348db",
+    "revision": 2,
+    "snapshot_hash": "5e34ae0bb6e3b182ca0abfbe5295e541784e6abafc2957085efd2c2a3624c315",
+    "node_count": 12,
+    "edge_count": 11,
+    "files_verified": 4,
+    "native_reopen": true,
+    "semantica_version": "0.6.8",
+    "current_at_export": true,
+    "current_eligibility": "not checked; exported snapshot only"
+  },
+  "duplicate_preserves_authority_revision_review": true,
+  "cancel_and_invalid_create_no_authority": true,
+  "unapproved_contract_denied": true,
+  "actual_audio_playback": true,
+  "all_word_times_null": true,
+  "raw_sources_unchanged": true,
+  "chunk_case": {
+    "synthetic_only": true,
+    "source_audio_sha256": "ce2a2aee8d4c4ffbcf2fc659bc73a1be8486e5a16ade352eb261e28eef6a13d1",
+    "source_raw_sha256": "e9194fd322045636474cd561835136d2eb4886383e459a97d26cb8416c8a0e93",
+    "revision": {
+      "actor": "local-owner",
+      "command_id": "import-8e63e689-b2eb-499a-998e-7c43b2b11dbd",
+      "created_at": "2026-10-15T14:20:51.331Z",
+      "id": 1,
+      "label": "Imported protected package",
+      "parent": null,
+      "snapshot_hash": "e8959cd89dd0f4049ea0230d5d6c451105a0505a740068882dbbc731b2095034"
+    },
+    "supplied_chunk_bounds": [
+      {
+        "attrs": {
+          "end": "2.000000",
+          "id": "chunk-000001",
+          "start": "0.000000"
+        },
+        "end_us": 2000000,
+        "id": "chunk-000001",
+        "start_us": 0
+      },
+      {
+        "attrs": {
+          "end": "4.000000",
+          "id": "chunk-000002",
+          "start": "2.000000"
+        },
+        "end_us": 4000000,
+        "id": "chunk-000002",
+        "start_us": 2000000
+      }
+    ],
+    "word_times_absent": true,
+    "language_and_normalization_unknown": true,
+    "explicit_review_not_granted": true,
+    "listening_uses_supplied_chunk_not_word_timing": true,
+    "page_errors": [],
+    "console_errors": []
+  },
+  "page_errors": [],
+  "console_errors": [],
+  "limits": "Synthetic mechanics qualification; no recognition, forced alignment or linguistic accuracy measurement. Portable reopen checks the exported snapshot, not future live-authority eligibility."
+}

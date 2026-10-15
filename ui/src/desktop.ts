@@ -2,6 +2,7 @@ import {esc} from './dom';
 import {icon} from './icons';
 import {initializeNativeDrafts,nativeDraftsReady} from './draft-storage';
 import './desktop.css';
+import {openPreparation,type PreparationBridge} from './preparation';
 
 export interface DesktopState {
   status:'idle'|'loading'|'ready'|'error';
@@ -22,7 +23,7 @@ export interface SemanticaState {
   lastAttempt?:{status:string;message?:string;revision?:number;reused?:boolean}|null;
   export?:{validated:boolean;filename?:string}|null;
 }
-interface DesktopBridge {
+interface DesktopBridge extends PreparationBridge {
   state():Promise<DesktopState>;
   chooseOpen():Promise<unknown>;
   importPackage():Promise<unknown>;
@@ -56,13 +57,16 @@ export function desktopScreen(host:HTMLElement,state:DesktopState){
   const busy=state.status==='loading';
   host.innerHTML=`<main class="desktop-welcome"><div class="welcome-brand">${icon('description')}<span>OPEN-K-FOLDS</span></div><h1>Corpus workbench</h1><p class="welcome-intro">Listen closely. Read in context.<br>Keep every correction connected to its source.</p><div class="welcome-actions"><button id="desktop-import" ${busy?'disabled':''}>${icon('folder_open')}Import TEITOK package</button><button id="desktop-open" class="secondary" ${busy?'disabled':''}>Open existing workbench</button><button id="desktop-demo" class="secondary" ${busy?'disabled':''}>Try a synthetic corpus</button></div><p class="welcome-note">Import creates a working copy. Your source folder stays intact.</p><div id="desktop-status" role="status" class="${state.status==='error'?'notice error':'desktop-status'}">${busy?'Opening your corpus…':esc(state.error??'')}</div>${state.status==='error'?'<button id="desktop-retry" class="secondary">Try again</button>':''}${state.recent.length?`<section class="welcome-recent"><h2>Recent projects</h2>${recentButtons(state)}</section>`:''}<footer>Local evidence · Revision history · Complete package exports<span>${esc(state.version)}</span></footer></main>`;
   host.querySelector('#desktop-demo')!.textContent='Start a new practice copy';
-  host.querySelector('.welcome-note')!.insertAdjacentHTML('afterend','<p class="welcome-note">Use a complete TEITOK folder with its media and preserved raw drafts. Standalone audio and ASR generation are not imported here. Practice uses generated text and a tone; resume an existing copy from Recent projects.</p>');
+  const prepare=document.createElement('button');prepare.id='desktop-prepare';prepare.textContent='Recording + transcript';prepare.disabled=busy;host.querySelector('.welcome-actions')!.prepend(prepare);
+  host.querySelector('#desktop-import')!.classList.add('secondary');
+  host.querySelector('.welcome-note')!.insertAdjacentHTML('afterend','<p class="welcome-note">Start with a recording and an existing UTF-8 text or supported Omnilingual JSON transcript, or import a complete TEITOK folder. Practice uses generated text and a tone; resume a copy from Recent projects.</p>');
   bindActions(host);
 }
 function recentButtons(state:DesktopState){return state.recent.map(p=>`<button class="desktop-recent secondary" data-desktop-project="${esc(p.id)}" ${state.status==='loading'?'disabled':''}><strong>${esc(p.title)}</strong><span>${esc(p.project)}</span>${icon('skip_next')}</button>`).join('')}
 function bindActions(host:HTMLElement){
   const action=(selector:string,run:()=>Promise<unknown>)=>{const button=host.querySelector<HTMLButtonElement>(selector);if(button)button.onclick=()=>void run().catch(error=>{const status=document.getElementById('desktop-status')??document.getElementById('message');if(status){status.textContent=String(error);status.className='notice error'}})};
   action('#desktop-open',()=>desktop!.chooseOpen());action('#desktop-import',()=>desktop!.importPackage());action('#desktop-demo',()=>desktop!.createDemo());action('#desktop-retry',()=>desktop!.retry());
+  host.querySelector<HTMLButtonElement>('#desktop-prepare')?.addEventListener('click',()=>openPreparation(desktop!));
   host.querySelectorAll<HTMLButtonElement>('[data-desktop-project]').forEach(b=>b.onclick=()=>void desktop!.openRecent(b.dataset.desktopProject!).catch(error=>{const status=document.getElementById('message')??document.getElementById('desktop-status');if(status)status.textContent=String(error)}));
 }
 export function desktopNavigation(host:HTMLElement){
@@ -71,6 +75,7 @@ export function desktopNavigation(host:HTMLElement){
   const region=document.createElement('section');region.className='desktop-project-switcher';region.setAttribute('aria-label','Local projects');
   region.innerHTML=`<details><summary>${icon('folder_open')}<span>${esc(latest.project?.title??'Local projects')}</span>${icon('expand_more')}</summary><div class="desktop-project-actions"><button id="desktop-import" class="secondary">Import package</button><button id="desktop-open" class="secondary">Open workbench</button><button id="desktop-backup" class="secondary">Save authority backup</button></div>${recentButtons(latest)}</details>`;
   host.prepend(region);bindActions(region);
+  const prepare=document.createElement('button');prepare.id='desktop-prepare';prepare.className='secondary';prepare.textContent='Recording + transcript';prepare.onclick=()=>openPreparation(desktop!);region.querySelector('.desktop-project-actions')!.prepend(prepare);
   region.querySelector<HTMLButtonElement>('#desktop-backup')!.onclick=async()=>{const status=document.getElementById('message')!;try{status.className='notice';status.textContent='Preparing a verified authority backup…';const result=await desktop.backup();status.textContent=result?.cancelled?'Backup cancelled.':'Verified authority backup saved.'}catch(error){status.className='notice error';status.textContent=String(error)}};
 }
 export async function initializeDesktop(host:HTMLElement,start:()=>Promise<void>,departure:()=>Departure,menu:(command:string)=>void){
@@ -102,7 +107,7 @@ export async function initializeDesktop(host:HTMLElement,start:()=>Promise<void>
       if(state.status==='error'){const retry=document.createElement('button');retry.className='secondary';retry.textContent='Reconnect';retry.onclick=()=>void desktop.retry();status.append(' ',retry)}
     }else void render(state);
   });
-  desktop.onMenu(command=>{if(command==='draft-status')desktop.reportDraft(departure());else menu(command)});
+  desktop.onMenu(command=>{if(command==='draft-status')desktop.reportDraft(departure());else if(command==='prepare-recording'){if(!departure().saving)openPreparation(desktop)}else menu(command)});
   const report=()=>desktop.reportDraft(departure());
   document.addEventListener('input',report);document.addEventListener('change',report);document.addEventListener('click',()=>queueMicrotask(report));
   setInterval(report,250);

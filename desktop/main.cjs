@@ -8,6 +8,7 @@ const {Backend, runCLI} = require('./backend.cjs');
 const {Registry} = require('./registry.cjs');
 const {Journal} = require('./journal.cjs');
 const {SemanticaController} = require('./semantica.cjs');
+const {PreparationController} = require('./preparation.cjs');
 const security = require('./security.cjs');
 
 protocol.registerSchemesAsPrivileged([{scheme: 'workbench', privileges: {standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true}}]);
@@ -19,7 +20,7 @@ if (process.env.WB_DESKTOP_USER_DATA) {
 const resources = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'desktop', 'resources');
 const binary = process.env.WB_DESKTOP_BACKEND || (app.isPackaged ? path.join(process.resourcesPath, 'backend', 'corpus-workbench.exe') : path.join(resources, 'backend', process.platform === 'win32' ? 'corpus-workbench.exe' : 'corpus-workbench'));
 const ui = path.join(resources, 'ui');
-let window, backend, registry, journal, semantica, current = null, status = 'idle', error = null, busy = false, quitting = false, quitRequested = false, permitUnload = false;
+let window, backend, registry, journal, semantica, preparation, current = null, status = 'idle', error = null, busy = false, quitting = false, quitRequested = false, permitUnload = false;
 let drafts = {dirty: false, recoverable: false, saving: false};
 const publicState = () => ({status, project: current ? {id: current.id, project: current.project, title: current.title} : null, recent: registry?.publicRecent() ?? [], error, version: app.getVersion()});
 const sendState = () => {if (window && !window.isDestroyed()) window.webContents.send('workbench:state', publicState());};
@@ -121,6 +122,26 @@ async function exportRevision(value) {
     return {cancelled: false, filename: path.basename(destination), revision};
   });
 }
+async function previewPreparation(options) {
+  if (!options || Object.keys(options).sort().join(',') !== 'format,title' || !['utf8-text', 'omnilingual-json'].includes(options.format) || typeof options.title !== 'string' || options.title.length > 160) throw new Error('Choose a supported transcript format and a title of at most 160 characters');
+  return operation(async () => {
+    const audio = await dialog.showOpenDialog(window, {title: 'Choose the source recording', buttonLabel: 'Choose recording', properties: ['openFile'], filters: [{name: 'Audio recording', extensions: ['wav', 'mp3', 'flac', 'ogg', 'm4a', 'aac', 'opus', 'webm']}]});
+    if (audio.canceled || !audio.filePaths.length) return null;
+    const transcript = await dialog.showOpenDialog(window, {title: 'Choose the existing raw transcript', buttonLabel: 'Preview transcript', properties: ['openFile'], filters: [{name: options.format === 'utf8-text' ? 'UTF-8 plain text' : 'Supported Omnilingual JSON', extensions: options.format === 'utf8-text' ? ['txt'] : ['json']}]});
+    if (transcript.canceled || !transcript.filePaths.length) return null;
+    return preparation.preview({audioPath: audio.filePaths[0], transcriptPath: transcript.filePaths[0], format: options.format, title: options.title});
+  });
+}
+async function commitPreparation(token) {
+  return operation(async () => {
+    if (!await canLeave('importing a recording and transcript')) return {cancelled: true};
+    const result = await preparation.commit(token);
+    const opened = await switchProject(result.entry, {initial: true});
+    if (opened.status !== 'ready' || opened.project?.id !== result.entry.id) throw new Error(error || 'The prepared authority was saved, but could not be opened. Retry to reopen the same working copy.');
+    permitUnload = true; window.reload();
+    return {cancelled: false, reused: result.reused};
+  });
+}
 async function backup() {
   return operation(async () => {
     if (!current || status !== 'ready') throw new Error('Open a corpus before creating a backup');
@@ -190,7 +211,7 @@ async function requestQuit() {
   } finally {quitRequested = false;}
 }
 function installIPC() {
-  const handlers = {state: () => publicState(), semanticaState: () => semantica.state(handoffProject()), configureSemantica, runSemantica, exportSemantica, revealSemantica, chooseOpen, importPackage, createDemo: () => operation(() => importDirectory(path.join(resources, 'demo'), 'Synthetic practice corpus')), openRecent: id => operation(async () => {const entry = registry.get(security.recentId(id)); if (!entry) throw new Error('Project is no longer in the recent list'); return switchProject(entry);}), exportRevision, backup, retry: () => operation(async () => {
+  const handlers = {state: () => publicState(), previewPreparation, commitPreparation, cancelPreparation: token => operation(() => preparation.cancel(token)), semanticaState: () => semantica.state(handoffProject()), configureSemantica, runSemantica, exportSemantica, revealSemantica, chooseOpen, importPackage, createDemo: () => operation(() => importDirectory(path.join(resources, 'demo'), 'Synthetic practice corpus')), openRecent: id => operation(async () => {const entry = registry.get(security.recentId(id)); if (!entry) throw new Error('Project is no longer in the recent list'); return switchProject(entry);}), exportRevision, backup, retry: () => operation(async () => {
     if (!current) return publicState();
     status = 'loading'; error = null; sendState();
     try {await backend.stop(); await backend.start(current.store, current.project); status = 'ready'; sendState(); sendMenu('backend-reconnected');}
@@ -199,7 +220,7 @@ function installIPC() {
   }), readDraftJournal: () => journal.read(), persistDraftJournal: raw => journal.write(raw), reportDraft: value => {drafts = security.draftState(value); return true;}, reportAppearance: value => {if (!['light', 'dark', 'system'].includes(value)) throw new Error('Invalid appearance'); nativeTheme.themeSource = value; window.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151c25' : '#f5f6f8'); return true;}};
   for (const [name, handler] of Object.entries(handlers)) ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
     if (!security.trustedSender(event, window)) throw new Error('Desktop command denied');
-    const expected = ['openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal', 'runSemantica', 'exportSemantica'].includes(name) ? 1 : 0;
+    const expected = ['openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal', 'runSemantica', 'exportSemantica', 'previewPreparation', 'commitPreparation', 'cancelPreparation'].includes(name) ? 1 : 0;
     if (args.length !== expected) throw new Error('Invalid desktop command arguments');
     return handler(...args);
   });
@@ -207,7 +228,7 @@ function installIPC() {
 function installMenu() {
   const native = action => void action().catch(failure => dialog.showMessageBox(window, {type: 'error', title: 'Corpus workbench', message: failure.message}));
   Menu.setApplicationMenu(Menu.buildFromTemplate([
-    {label: '&File', submenu: [{label: 'Open corpus authority…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Import corpus package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Create verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
+    {label: '&File', submenu: [{label: 'Open corpus authority…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Recording + transcript…', click: () => sendMenu('prepare-recording')}, {label: 'Import corpus package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Create verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
     {label: '&Edit', submenu: [{role: 'undo'}, {role: 'redo'}, {type: 'separator'}, {role: 'cut'}, {role: 'copy'}, {role: 'paste'}, {role: 'selectAll'}, {type: 'separator'}, {label: 'Search corpus', accelerator: 'CmdOrCtrl+F', click: () => sendMenu('search')}]},
     {label: '&View', submenu: [{label: 'Revision history', accelerator: 'CmdOrCtrl+H', click: () => sendMenu('history')}, {label: 'Toggle inspector', accelerator: 'CmdOrCtrl+Shift+I', click: () => sendMenu('toggle-inspector')}, {label: 'Toggle recording', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenu('toggle-recording')}, {type: 'separator'}, {label: 'Reload workbench', accelerator: 'CmdOrCtrl+R', click: () => native(async () => {if (await canLeave('reloading')) {permitUnload = true; window.reload();}})}, {role: 'resetZoom'}, {role: 'zoomIn'}, {role: 'zoomOut'}, {role: 'togglefullscreen'}]},
     {label: '&Help', submenu: [{label: 'Corpus workflow and research handoff', click: () => sendMenu('research')}, {label: 'About Open-K-Folds Workbench', click: () => native(() => dialog.showMessageBox(window, {type: 'info', title: 'Open-K-Folds Workbench', message: `Open-K-Folds Workbench ${app.getVersion()}`, detail: 'Local transcript authoring, immutable revisions and reviewed evidence. GPL-3.0-or-later.\nYour corpus stays on this computer.', buttons: ['Close']}))}]},
@@ -246,6 +267,7 @@ async function main() {
   nativeTheme.themeSource = 'light';
   const profile = app.getPath('userData');
   registry = new Registry(profile);
+  preparation = new PreparationController({profile, binary, runCLI, registry});
   journal = new Journal(profile);
   semantica = new SemanticaController({profileRoot: profile, binary, adapter: app.isPackaged ? path.join(resources, 'semantica', 'semantica-handoff.py') : path.join(app.getAppPath(), 'scripts', 'semantica-handoff.py')});
   try {await registry.load();} catch (failure) {status = 'error'; error = failure.message;}
