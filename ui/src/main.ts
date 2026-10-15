@@ -188,6 +188,7 @@ function renderDocumentTabs(){if(!openDocuments.includes(docPath))openDocuments.
 async function followCitation(){const value=new URLSearchParams(location.hash.slice(1)).get('loc');if(!value)return;try{const citation=JSON.parse(value);if(citation.project!==view.snapshot.project||citation.revision!==view.revision.id){message(`Citation refers to ${citation.project} R${citation.revision}. Current saved head is R${view.revision.id}; inspect that exact revision in History before resolving it.`,true);return}if(!view.documents.some(d=>d.path===citation.document))throw new Error('Citation document is unavailable');switchDocument(citation.document);await transcript.render();if(citation.anchor&&!transcript.location(citation.anchor))message('Citation anchor is unavailable; no replacement location was guessed.',true)}catch(e){message('Could not resolve citation: '+String(e),true)}}
 function desktopMenu(command:string){
   if(command==='backend-reconnected'){void resumeSession().catch(error=>message('Session reconnection failed: '+String(error),true));return}
+  if(document.querySelector('#preparation-dialog[open]'))return;
   if(!view||!document.querySelector('.workspace'))return;
   if(saving&&command!=='toggle-recording'){message('Wait for the current save or local handoff to finish. Recording controls remain available.');return}
   if(command==='save'){

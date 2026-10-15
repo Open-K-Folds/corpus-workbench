@@ -38,7 +38,7 @@ async function packageWindows() {
     if (!relative || relative === '/package.json') return false;
     if (relative === '/package-lock.json' || relative.startsWith('/node_modules')) return true;
     if (relative === '/desktop') return false;
-    if (relative.startsWith('/desktop/')) return !['backend.cjs', 'main.cjs', 'preload.cjs', 'registry.cjs', 'security.cjs', 'journal.cjs', 'semantica.cjs'].includes(relative.slice('/desktop/'.length));
+    if (relative.startsWith('/desktop/')) return !['backend.cjs', 'main.cjs', 'preload.cjs', 'registry.cjs', 'security.cjs', 'journal.cjs', 'semantica.cjs', 'preparation.cjs', 'preparation-format.cjs'].includes(relative.slice('/desktop/'.length));
     return true;
   }, win32metadata: {CompanyName: 'Open-K-Folds', FileDescription: 'Transcript-first corpus workbench', ProductName: 'Open-K-Folds Workbench', InternalName: 'Open-K-Folds Workbench'}, appCopyright: 'Open-K-Folds contributors; GPL-3.0-or-later'});
   for (const directory of output) {
