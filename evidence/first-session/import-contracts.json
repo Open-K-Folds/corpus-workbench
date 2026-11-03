@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "adapter": "local-transcript/1",
+  "synthetic_only": true,
+  "native_authority": true,
+  "actual_asr_or_semantica_executed": false,
+  "cases": [
+    {
+      "case": "plain",
+      "tokens": 9,
+      "supplied_chunks": 0,
+      "raw_sha256": "dff6f14f53404d97c7bf7482b809429b67ac8fcd7dcd9143c561634dd8f2793b",
+      "audio_sha256": "b028df264f47f72517608cd50bc0f82fea64993ddfb9f8e4f45b369d1dfa7973",
+      "raw_bytes_exact": true,
+      "source_files_unchanged": true,
+      "lexical_reading_exact": true,
+      "token_times_absent": true,
+      "unapproved_on_import_and_reimport": true,
+      "duplicate_project_refused": true,
+      "correction_preserves_original": true,
+      "complete_export_verified": true
+    },
+    {
+      "case": "server-json",
+      "tokens": 6,
+      "supplied_chunks": 0,
+      "raw_sha256": "22756b9afc6ac0840ba964199751b069904c117157148c246ec2e012b6e72a2c",
+      "audio_sha256": "b028df264f47f72517608cd50bc0f82fea64993ddfb9f8e4f45b369d1dfa7973",
+      "raw_bytes_exact": true,
+      "source_files_unchanged": true,
+      "lexical_reading_exact": true,
+      "token_times_absent": true,
+      "unapproved_on_import_and_reimport": true,
+      "duplicate_project_refused": true,
+      "correction_preserves_original": true,
+      "complete_export_verified": true
+    },
+    {
+      "case": "chunk-json",
+      "tokens": 5,
+      "supplied_chunks": 2,
+      "raw_sha256": "d79c50e3ed44ba36a9903672036eed7166911c2519a5dd210474b7ecbb39666d",
+      "audio_sha256": "b028df264f47f72517608cd50bc0f82fea64993ddfb9f8e4f45b369d1dfa7973",
+      "raw_bytes_exact": true,
+      "source_files_unchanged": true,
+      "lexical_reading_exact": true,
+      "token_times_absent": true,
+      "unapproved_on_import_and_reimport": true,
+      "duplicate_project_refused": true,
+      "correction_preserves_original": true,
+      "complete_export_verified": true
+    }
+  ],
+  "controller": {
+    "cancel_before_import": true,
+    "frozen_preview_bytes": true,
+    "concurrent_commit_refused": true,
+    "duplicate_reuses_authority": true,
+    "human_correction_retained": true,
+    "restart_reuses_authority": true,
+    "native_response_loss_recovered_once": true
+  }
+}

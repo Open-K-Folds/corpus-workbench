@@ -1,0 +1,28 @@
+{
+  "native_session": {
+    "exit_code": 0,
+    "wall_seconds": 135.37,
+    "peak_sampled_tree_rss_bytes": 1424240640,
+    "peak_sampled_tree_private_bytes": 3330392064,
+    "peak_sampled_process_count": 15,
+    "samples": 509,
+    "sampled_cpu_seconds": 91.422,
+    "sampled_read_bytes": 1020885416,
+    "sampled_write_bytes": 15717181,
+    "sampling_seconds": 0.25,
+    "limitations": "Sampled process-tree sums; short-lived children may be missed; shared RSS may be counted more than once; I/O counters are not disk allocation."
+  },
+  "import_contracts": {
+    "exit_code": 0,
+    "wall_seconds": 5.322,
+    "peak_sampled_tree_rss_bytes": 83836928,
+    "peak_sampled_tree_private_bytes": 72503296,
+    "peak_sampled_process_count": 3,
+    "samples": 21,
+    "sampled_cpu_seconds": 1.125,
+    "sampled_read_bytes": 3867257,
+    "sampled_write_bytes": 1130616,
+    "sampling_seconds": 0.25,
+    "limitations": "Sampled process-tree sums; short-lived children may be missed; shared RSS may be counted more than once; I/O counters are not disk allocation."
+  }
+}

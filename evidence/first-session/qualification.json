@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "qualified_at_utc": "2026-11-03",
+  "synthetic_only": true,
+  "repository": "https://github.com/Open-K-Folds/corpus-workbench",
+  "base_main": "d54ad436d0f57bab489bad8c527299f7800dc9c9",
+  "build_source": "a816c7f8a6af0d117d48a75e10c245a6dade4586",
+  "build_source_tree": "725d5fb837b50136beac140ac8881cc78e14cb03",
+  "build_matches_base_tree": true,
+  "product_resource_hashes_match_manifest": 11,
+  "launcher": {
+    "archive_and_manifest_and_all_product_hashes_verified": true,
+    "product_files": 99,
+    "archive_sha256": "5fe479cfd29f1c7fbe4df18e18c7ee520f2ae8cbc766d188bc42867252453f03",
+    "manifest_sha256": "130b4555f594105a0cce8df7bb7a4f7bc27a1995e041cf9ee8bedc86ec0572b5",
+    "existing_partial_temp_cache": "Preserved; launcher staged a fresh verified sibling cache. Native session used that sibling. Persistent research profile was not launched."
+  },
+  "environment": {
+    "platform": "Windows x86-64",
+    "electron": "44.7.0",
+    "node": "24.18.0",
+    "playwright": "1.56.1",
+    "python_semantica": "3.13.14",
+    "python_boundary_tests": "3.14.6",
+    "semantica": "0.6.8",
+    "compiler_commit": "81af6d16c223582d1b6ba54549831bb050b07302",
+    "compiler_tracked_status_clean": true,
+    "browser_plugin": "Unavailable; existing Playwright Electron route used",
+    "viewport": [
+      1440,
+      1000
+    ]
+  },
+  "results": {
+    "native_session": {
+      "startTime": "2026-11-03T17:25:30.881Z",
+      "duration": 133027.304,
+      "expected": 2,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "desktop_unit": {
+      "passed": 66,
+      "failed": 0,
+      "skipped": 0,
+      "duration_ms": 1479.2397
+    },
+    "python_package_boundary": {
+      "passed": 21,
+      "failed": 0,
+      "duration_seconds": 0.599
+    },
+    "import_contracts": {
+      "passed_input_shapes": 3,
+      "controller_contracts_passed": true
+    },
+    "protected_existing_files_unchanged": 12,
+    "human_language_review": "Not performed; automated approval used an explicit synthetic mechanics-only rationale",
+    "research_acceptance": "Not performed"
+  },
+  "qa_checks": {
+    "page_identity": true,
+    "meaningful_content": true,
+    "framework_overlay_absent": true,
+    "page_and_console_errors_absent": true,
+    "screenshots_visually_inspected": true,
+    "interaction_state_checks": true
+  },
+  "execution_notes": [
+    "Initial managed-sandbox desktop run passed 37/66; filesystem atomic-rename restrictions blocked tests. Native complete run passed 66/66 after reusing the existing UI test dependencies.",
+    "Initial Python boundary run was denied access to temporary fixtures; native run passed 21/21.",
+    "Playwright launcher printed color-environment and shell-argument deprecation warnings. No renderer page/console errors occurred.",
+    "No Rust/UI build, dependency install, Docker/WSL storage change, research-data migration or personal OpenKnowledge operation was performed.",
+    "Resource readings sample each owned process tree every 0.25 seconds; they are observations of this run, not a performance budget or small-device benchmark."
+  ],
+  "remaining_gaps": [
+    "Human listening and linguistic/research acceptance",
+    "Native file picker interaction (selection only substituted)",
+    "Other operating systems, minimum/mobile viewport, Raspberry Pi/4 GiB performance and physical power loss",
+    "Full native Rust/browser/container suites and fresh hosted CI were not rerun for this documentation/test-only change",
+    "Unsigned existing local build; compiler/runtime remain separately supplied",
+    "Detached exports cannot check later changes or approval withdrawal in the original authority"
+  ]
+}

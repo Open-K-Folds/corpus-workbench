@@ -1,6 +1,6 @@
 import {test,expect,_electron as electron} from '@playwright/test';
 import {execFile} from 'node:child_process';
-import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
+import {cpSync,existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
@@ -164,8 +164,19 @@ test('native recording and UTF-8 transcript preparation reaches reviewed actual 
     await capture(application,page,'preparation-reviewed-handoff-light.png');await page.getByRole('button',{name:'Dark appearance',exact:true}).click();await capture(application,page,'preparation-reviewed-handoff-dark.png');
     await preview(application,page,audio,raw,'utf8-text','SYNTHETIC alternate display title');await expect(page.locator('#preparation-preview')).toContainText('Existing working copy found');await expect(page.locator('#preparation-confirm')).toHaveText('Open existing copy');await capture(application,page,'preparation-duplicate-dark.png');await confirm(page);
     const duplicate=await head(page),duplicateState=await desktopState(page);expect(duplicateState.project.id).toBe(state.project.id);expect(duplicate.revision).toEqual(approved.revision);expect(duplicate.approved).toBe(true);expect(await reviews(page,2)).toEqual(reviewRecords);expect(duplicate.documents[0].tokens[0].corrected).toBe('Molweni');expect(directories(join(profile,'projects'))).toHaveLength(1);expect(directories(join(profile,'preparation/receipts'))).toHaveLength(1);expect((await handoff(page)).current.generation_id).toBe(generation.current.generation_id);
+    // A first session must survive closing the app, with its exact review and
+    // correction history intact. Reopening does not grant a new approval.
+    await application.close();application=null;
+    ({application,page}=await launch(profile,errors,consoleErrors));await ready(page);
+    const reopened=await head(page);expect(reopened.revision).toEqual(approved.revision);expect(reopened.approved).toBe(true);expect(reopened.documents[0].tokens[0].corrected).toBe('Molweni');expect(await reviews(page,2)).toEqual(reviewRecords);
+    await openResearch(page);expect((await handoff(page)).current.generation_id).toBe(generation.current.generation_id);expect((await handoff(page)).current.native_reopen).toBe(true);
+    await capture(application,page,'preparation-reopened-handoff.png');
+    // Consume a copied package at a new path in a fresh Python process. This
+    // checks exported-snapshot portability, not later live approval eligibility.
+    const relocated=join(work,'relocated-consumer','handoff');cpSync(output,relocated,{recursive:true,errorOnExist:true,force:false});
+    const relocatedPortable=await verifyPortable(relocated);expect(relocatedPortable).toMatchObject({ok:true,verified:true,native_reopen:true,files_verified:4,generation_id:generation.current.generation_id,node_count:12,edge_count:11});
     expect(sha(readFileSync(audio))).toBe(sourceHashes.audio);expect(sha(readFileSync(raw))).toBe(sourceHashes.raw);expect(errors).toEqual([]);expect(consoleErrors).toEqual([]);
-    writeFileSync(join(evidence,'local-preparation-native-evidence.json'),JSON.stringify({synthetic_only:true,url:page.url(),product_files_sha256:productHashes(),source_hashes:sourceHashes,imported_revision:imported.revision,approved_revision:approved.revision,source_provenance:complete.provenance,review:reviewRecords,generation,portable,duplicate_preserves_authority_revision_review:true,cancel_and_invalid_create_no_authority:true,unapproved_contract_denied:true,actual_audio_playback:true,all_word_times_null:true,raw_sources_unchanged:true,only_file_dialogs_substituted:true,page_errors:errors,console_errors:consoleErrors},null,2));
+    writeFileSync(join(evidence,'local-preparation-native-evidence.json'),JSON.stringify({synthetic_only:true,url:page.url(),product_files_sha256:productHashes(),source_hashes:sourceHashes,imported_revision:imported.revision,approved_revision:approved.revision,source_provenance:complete.provenance,review:reviewRecords,generation,portable,relocated_portable:relocatedPortable,relaunch_preserves_revision_correction_review_and_generation:true,duplicate_preserves_authority_revision_review:true,cancel_and_invalid_create_no_authority:true,unapproved_contract_denied:true,actual_audio_playback:true,all_word_times_null:true,raw_sources_unchanged:true,only_file_dialogs_substituted:true,page_errors:errors,console_errors:consoleErrors},null,2));
   }catch(error){await failureEvidence(application,page,'local-preparation',errors,consoleErrors);throw error}
   finally{if(application)await application.close()}
 });
