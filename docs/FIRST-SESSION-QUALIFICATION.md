@@ -8,10 +8,12 @@ research acceptance were not performed.
 
 Main was independently rechecked at `d54ad436d0f57bab489bad8c527299f7800dc9c9`.
 The existing clean desktop build is `a816c7f8a6af0d117d48a75e10c245a6dade4586`;
-both identify tree `725d5fb837b50136beac140ac8881cc78e14cb03`. No product code,
-dependencies or binaries changed for this qualification. The scoped changes add
-relaunch/relocation assertions and reconcile first-run instructions that omitted
-the existing recording importer and desktop research handoff.
+both identify tree `725d5fb837b50136beac140ac8881cc78e14cb03`. The installed-runtime
+qualification reused that product without rebuilding it. The initial scoped
+changes add relaunch/relocation assertions and reconcile first-run instructions
+that omitted the existing recording importer and desktop research handoff. A
+subsequent hosted audit required the narrow build-tool patch described below;
+the installed desktop binary and research data remain unchanged.
 
 ## Results and evidence
 
@@ -77,9 +79,11 @@ The importer-contract run took 5.32 seconds with a sampled resident peak of
 lived child processes. I/O counters are not allocated disk space; these are local
 observations, not a memory ceiling or a 4 GiB-device qualification.
 
-No Rust/UI build, dependency installation, Docker/WSL storage change or cleanup
-was performed. Existing pinned dependencies and the launcher archive were reused.
-Synthetic native evidence occupied about 18 MiB outside the checkout.
+During the installed-runtime qualification, no Rust/UI build, dependency
+installation, Docker/WSL storage change or cleanup was performed. Existing pinned
+dependencies and the launcher archive were reused. Synthetic native evidence
+occupied about 18 MiB outside the checkout. The hosted-audit follow-up uses fresh
+UI dependencies and a small UI build, with no Rust build or desktop repackaging.
 
 Follow [FIRST-RESEARCH-SESSION.md](FIRST-RESEARCH-SESSION.md) for the exact native
 test environment and command. The additional focused commands, run natively from
@@ -107,3 +111,44 @@ qualified here. Full Rust/browser/container suites and new hosted CI were not
 rerun locally for this documentation/test-only change. The existing local package
 is unsigned and the compiler/runtime remain separately supplied. A detached
 portable graph verifies its exported snapshot, not later authority eligibility.
+
+## Hosted audit follow-up
+
+The first draft head, `b9a143d22d862267e838d4ad2ec8941c7b009232`, completed all four
+push/PR workflows: both container workflows succeeded and both corpus workflows
+failed at the UI dependency audit. Ten of twelve jobs succeeded; the two browser
+jobs stopped at `npm audit --prefix ui --audit-level=low`, so their browser tests
+and later Cargo audit did not run. This was a real failure, not a flaky browser
+assertion. See the [PR corpus run](https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41685266789).
+
+The locked Vite 7.3.6 build tool was affected by upstream advisories. Its
+[7.3.7 patch release](https://github.com/vitejs/vite/releases/tag/v7.3.7) includes
+the fixes identified by the audit; upstream lists 7.3.7 as patched for the
+[custom-middleware issue](https://github.com/vitejs/vite/security/advisories/GHSA-9jrq-w75r-8gcw)
+and [non-Windows file-serving issue](https://github.com/vitejs/vite/security/advisories/GHSA-rq7h-c2jc-7f22).
+Only the exact Vite pin and its lock entry change; no transitive dependency
+versions change. No audit rule is relaxed or skipped.
+
+A fresh UI-only dependency directory preserves the earlier shared dependency
+installation. The patched lock audit reports zero vulnerabilities; typechecking
+and the production UI build pass. All generated JavaScript, CSS, worker and font
+assets are byte-identical to the verified installed desktop assets. The focused
+import, decision-history, research-handoff and live-overview browser run passes
+all 33 cases with zero skips, failures or flaky results in 74.86 seconds including
+runner overhead (71.95 seconds reported by Playwright). It uses the existing
+packaged backend and installed Chrome; mocked desktop-bridge cases remain
+control-plane checks, distinct from actual Semantica execution. These checks and
+subsequent hosted results qualify the source follow-up separately from the
+retained installed-runtime evidence above. See the
+[build-tool follow-up evidence](../evidence/first-session/ui-build-tool-followup.json).
+Exact final-head
+hosted results are recorded in the PR and local delivery result, avoiding another
+source commit just to record its own checks.
+
+The recovered program cache contains 100 files, including its manifest, totalling
+395,861,075 bytes (377.5 MiB of logical file lengths). The existing pinned ZIP is
+165,953,003 bytes and was reused. Each later recovery while the default cache is
+still incomplete can retain another program copy of roughly this size in the
+system temporary directory. Actual allocated disk space can differ. The original
+launcher, incomplete cache, research profile and data were preserved; no cleanup
+or launcher replacement was performed.

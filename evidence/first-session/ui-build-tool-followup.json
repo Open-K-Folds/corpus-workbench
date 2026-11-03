@@ -1,0 +1,241 @@
+{
+  "schema": 1,
+  "date_utc": "2026-11-03",
+  "synthetic_only": true,
+  "initial_head": "b9a143d22d862267e838d4ad2ec8941c7b009232",
+  "initial_hosted_results": {
+    "head": "b9a143d22d862267e838d4ad2ec8941c7b009232",
+    "runs": [
+      {
+        "id": 41685266853,
+        "name": "container-contracts",
+        "event": "pull_request",
+        "head_sha": "b9a143d22d862267e838d4ad2ec8941c7b009232",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41685266853"
+      },
+      {
+        "id": 41685266789,
+        "name": "corpus-contracts",
+        "event": "pull_request",
+        "head_sha": "b9a143d22d862267e838d4ad2ec8941c7b009232",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41685266789"
+      },
+      {
+        "id": 41685172469,
+        "name": "corpus-contracts",
+        "event": "push",
+        "head_sha": "b9a143d22d862267e838d4ad2ec8941c7b009232",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41685172469"
+      },
+      {
+        "id": 41685172576,
+        "name": "container-contracts",
+        "event": "push",
+        "head_sha": "b9a143d22d862267e838d4ad2ec8941c7b009232",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41685172576"
+      }
+    ],
+    "jobs": [
+      {
+        "run_id": 41685266853,
+        "jobs": [
+          {
+            "id": 126089221749,
+            "name": "native-container (ubuntu-24.04-arm, arm64, aarch64)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126089222316,
+            "name": "native-container (ubuntu-24.04, amd64, x86_64)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          }
+        ]
+      },
+      {
+        "run_id": 41685266789,
+        "jobs": [
+          {
+            "id": 126089221896,
+            "name": "native (ubuntu-24.04-arm)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126089222221,
+            "name": "native (ubuntu-24.04)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126089222281,
+            "name": "native (windows-2025)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126089222289,
+            "name": "browser",
+            "status": "completed",
+            "conclusion": "failure",
+            "failed_steps": [
+              "Run npm audit --prefix ui --audit-level=low"
+            ]
+          }
+        ]
+      },
+      {
+        "run_id": 41685172469,
+        "jobs": [
+          {
+            "id": 126088890396,
+            "name": "browser",
+            "status": "completed",
+            "conclusion": "failure",
+            "failed_steps": [
+              "Run npm audit --prefix ui --audit-level=low"
+            ]
+          },
+          {
+            "id": 126088891095,
+            "name": "native (ubuntu-24.04-arm)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126088891236,
+            "name": "native (ubuntu-24.04)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126088891341,
+            "name": "native (windows-2025)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          }
+        ]
+      },
+      {
+        "run_id": 41685172576,
+        "jobs": [
+          {
+            "id": 126088890830,
+            "name": "native-container (ubuntu-24.04, amd64, x86_64)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          },
+          {
+            "id": 126088891257,
+            "name": "native-container (ubuntu-24.04-arm, arm64, aarch64)",
+            "status": "completed",
+            "conclusion": "success",
+            "failed_steps": []
+          }
+        ]
+      }
+    ]
+  },
+  "repair": {
+    "dependency": "vite",
+    "from": "7.3.6",
+    "to": "7.3.7",
+    "transitive_dependency_versions_changed": false,
+    "audit_policy_relaxed": false,
+    "product_source_changed": false,
+    "existing_desktop_binary_rebuilt_or_replaced": false,
+    "upstream_release": "https://github.com/vitejs/vite/releases/tag/v7.3.7"
+  },
+  "lock_audit": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {},
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies": {
+        "prod": 1,
+        "dev": 68,
+        "optional": 53,
+        "peer": 0,
+        "peerOptional": 0,
+        "total": 68
+      }
+    }
+  },
+  "ui_build": {
+    "typecheck": "passed",
+    "production_build": "passed",
+    "all_generated_assets_byte_identical_to_verified_desktop": true,
+    "assets_sha256": {
+      "audio-analysis.worker-CqcDVNB6.js": "878af180e88568f8b65d24938c5f495e8555176fb7b97a4f0475e1085d38d10f",
+      "index-Dl5SKO4C.js": "a2ae90d6031690b243562a970180e3a835a84f399cc0cd15a0150da431af94ab",
+      "index-QCGw6UYi.css": "9b0ba94a11e7040f1a0be9c7dda9c595aa6500ed8d0a81e8e5823d81c7f681e8",
+      "material-symbols-subset-D5SXA43T.woff2": "cdb0714c84d116b6cee39d4d9f3f468c6abdf18f29a72eef0aaac00d9a96a2f5"
+    }
+  },
+  "focused_browser": {
+    "stats": {
+      "startTime": "2026-11-03T17:38:14.618Z",
+      "duration": 71952.807,
+      "expected": 33,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "resources": {
+      "exit_code": 0,
+      "wall_seconds": 74.864,
+      "peak_sampled_tree_rss_bytes": 1269063680,
+      "peak_sampled_tree_private_bytes": 976510976,
+      "peak_sampled_process_count": 16,
+      "samples": 251,
+      "sampled_cpu_seconds": 139.0,
+      "sampled_read_bytes": 373669822,
+      "sampled_write_bytes": 251480736,
+      "sampling_seconds": 0.25,
+      "limitations": "Sampled process-tree sums; short-lived children may be missed; shared RSS may be counted more than once; I/O counters are not disk allocation."
+    },
+    "files": [
+      "local-preparation.spec.ts",
+      "review-history.spec.ts",
+      "research-handoff.spec.ts",
+      "live-overview.spec.ts"
+    ],
+    "browser": "Installed Chrome selected through WB_CHROME",
+    "backend": "Existing verified packaged backend; no Rust build",
+    "desktop_bridge_cases": "Doubles qualify UI control flow; actual Semantica evidence remains in native-session.json"
+  },
+  "launcher_recovery_disk_observation": {
+    "verified_sibling_files_including_manifest": 100,
+    "verified_sibling_logical_file_bytes": 395861075,
+    "existing_archive_bytes": 165953003,
+    "repeated_recovery_can_retain_another_program_copy": true,
+    "allocated_disk_clusters_measured": false,
+    "cleanup_or_original_launcher_modification": false
+  },
+  "final_hosted_results": "Recorded against the final head in PR 19 and the local delivery result, without a further source-only evidence commit"
+}

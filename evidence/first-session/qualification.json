@@ -81,5 +81,6 @@
     "Full native Rust/browser/container suites and fresh hosted CI were not rerun for this documentation/test-only change",
     "Unsigned existing local build; compiler/runtime remain separately supplied",
     "Detached exports cannot check later changes or approval withdrawal in the original authority"
-  ]
+  ],
+  "phase": "Installed-runtime qualification before the separately documented hosted Vite audit follow-up"
 }
