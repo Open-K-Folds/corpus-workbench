@@ -12,7 +12,7 @@ both identify tree `725d5fb837b50136beac140ac8881cc78e14cb03`. The installed-run
 qualification reused that product without rebuilding it. The initial scoped
 changes add relaunch/relocation assertions and reconcile first-run instructions
 that omitted the existing recording importer and desktop research handoff. A
-subsequent hosted audit required the narrow build-tool patch described below;
+subsequent hosted audits required the Vite and ZIP dependency patches below;
 the installed desktop binary and research data remain unchanged.
 
 ## Results and evidence
@@ -83,7 +83,8 @@ During the installed-runtime qualification, no Rust/UI build, dependency
 installation, Docker/WSL storage change or cleanup was performed. Existing pinned
 dependencies and the launcher archive were reused. Synthetic native evidence
 occupied about 18 MiB outside the checkout. The hosted-audit follow-up uses fresh
-UI dependencies and a small UI build, with no Rust build or desktop repackaging.
+UI dependencies, a small UI build and a focused debug Rust build in fresh C:
+temporary storage. No release build or desktop repackaging was performed.
 
 Follow [FIRST-RESEARCH-SESSION.md](FIRST-RESEARCH-SESSION.md) for the exact native
 test environment and command. The additional focused commands, run natively from
@@ -152,3 +153,41 @@ still incomplete can retain another program copy of roughly this size in the
 system temporary directory. Actual allocated disk space can differ. The original
 launcher, incomplete cache, research profile and data were preserved; no cleanup
 or launcher replacement was performed.
+
+## ZIP advisory follow-up
+
+After the Vite fix, head `75a7774f43e229f7273262e7b5b3f8cc1dcaad73` completed
+both full 127-case browser suites and both npm audits. All native and container
+jobs passed. Its two browser jobs then failed the later Cargo audit on `zip`
+0.6.6: RUSTSEC-2026-0367, -0368, -0369 and -0429. The earlier npm failure had
+prevented that Cargo step from running. See the
+[PR corpus run](https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41686553114).
+
+The production source uses `zip` only in `package::zip_directory` to write
+complete-package exports; it has no ZIP extraction call sites. Upstream lists
+[9.0.0 as patched](https://rustsec.org/advisories/RUSTSEC-2026-0369), and its
+[Rust 1.88 minimum](https://github.com/zip-rs/zip2/blob/v9.0.0/Cargo.toml) fits the
+existing Rust 1.90 toolchain. The exact pin is now 9.0.0 with default features
+still disabled. The writer uses `SimpleFileOptions` and explicitly records Unix
+creator metadata so existing `0600` archive permissions survive Windows builds.
+No extraction operation or audit suppression is added.
+
+The new regression initially caught the changed Windows creator default: the
+archive reader reported `0664` despite requesting `0600`. Retaining the previous
+Unix creator metadata fixes this. Both focused Rust export tests now pass,
+covering Unicode/binary/empty payloads, stored entries, private permissions and
+refusal to overwrite an existing destination. Rustfmt passes. The existing
+complete authoring browser journey also passes against the patched debug backend.
+Independent Python `zipfile` verification confirms all 25 exported files carry
+Unix `0600` metadata, source audio is unchanged, and native reimport preserves
+the saved Unicode correction. The independently imported authority starts
+unapproved; same-authority review persistence is tested separately above.
+
+Only ZIP's required dependencies change in the Cargo lock: add `equivalent`,
+`indexmap` and `typed-path`; remove now-unused `byteorder` and `crossbeam-utils`.
+The dependency inventory follows the exact locks and retains the older advisory
+database scan explicitly as historical evidence. See
+[ZIP follow-up evidence](../evidence/first-session/zip-audit-followup.json).
+The existing pinned desktop build remains unchanged; this follow-up qualifies
+source and a debug backend, with final exact-head hosted checks recorded in the
+PR and local delivery result.
