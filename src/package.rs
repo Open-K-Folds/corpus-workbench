@@ -1131,8 +1131,9 @@ pub fn zip_directory(dir: &Path, destination: &Path) -> Result<()> {
         .create_new(true)
         .open(destination)?;
     let mut zip = zip::ZipWriter::new(file);
-    let options = zip::write::FileOptions::default()
+    let options = zip::write::SimpleFileOptions::default()
         .compression_method(zip::CompressionMethod::Stored)
+        .system(zip::System::Unix)
         .unix_permissions(0o600);
     for entry in WalkDir::new(dir).follow_links(false) {
         let entry = entry?;

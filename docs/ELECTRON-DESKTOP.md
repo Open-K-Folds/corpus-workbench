@@ -8,8 +8,10 @@ There is no new corpus schema, destructive conversion or parallel authoring stor
 ## Run and build
 
 The local portable Windows package runs by opening `Open-K-Folds Workbench.exe`.
-Keep the complete package folder together. No server, Python, Docker, Node or
-Rust installation is required to run the package. This preview is unsigned.
+Keep the complete package folder together. Base corpus authoring needs no
+separate server, Python, Docker, Node or Rust installation. Optional local
+Semantica handoff needs the separately supplied Python/runtime and compatible
+compiler described in [SEMANTIC-HANDOFF.md](SEMANTIC-HANDOFF.md). This preview is unsigned.
 
 For source development, install the existing Rust/MSVC and Node toolchains, then:
 
@@ -41,8 +43,15 @@ review build from `release/desktop-review/` with a separate QA profile.
 
 ## Desktop workflows
 
-First launch offers **Import TEITOK package**, **Open existing workbench** and
-**Try a synthetic corpus**. Import the complete package folder, including settings,
+First launch offers **Recording + transcript**, **Import TEITOK package**,
+**Open existing workbench** and **Try a synthetic corpus**. For a recording and
+existing UTF-8 text or supported Omnilingual JSON, use **Recording + transcript**,
+inspect its preview, then explicitly choose **Import for review**. This creates
+an unreviewed copy with preserved source bytes; it does not transcribe audio.
+See the [first research session](FIRST-RESEARCH-SESSION.md) and
+[input contract](LOCAL-TRANSCRIPT-IMPORT.md).
+
+For TEITOK, import the complete package folder, including settings,
 XML, sidecars and media. Import creates a fresh managed authority and preserves
 the source folder. Open chooses an existing authority containing `ledger.sqlite`
 and immutable objects; Rust discovers its project IDs read-only. Opening a
@@ -62,8 +71,10 @@ correction previews/history, custom audio/waveform, annotation and token safety,
 revision-bound search, returned-copy reconciliation and exact review use the
 existing domain implementation. **Return copy** chooses the complete exported
 folder and retains its preview/conflict/commit sequence. Approved Semantica
-contracts remain available from Review; the optional separately supplied compiler
-and its CLI integration remain documented in [SEMANTIC-HANDOFF.md](SEMANTIC-HANDOFF.md).
+contracts remain available from Review. The desktop **Research handoff** tool
+configures the separately supplied runtime, runs local Semantica and exports a
+validated graph. Exact saved approval is required before running it; see
+[SEMANTIC-HANDOFF.md](SEMANTIC-HANDOFF.md) for desktop and CLI contracts.
 
 ## Processes and persistence
 
@@ -249,10 +260,10 @@ No binary release, merge or deployment is performed, and the retained dev.8
 release branch/worktrees/profiles remain intact.
 
 Locally supplied original Omnilingual examples are separate from the public
-practice package. Use a fresh complete-package copy with the full byte-preserved
-ASR artifact under `Raw/`, verified in-package audio and explicit unreviewed
-machine provenance. An existing TEITOK transcript is preferred; otherwise any
-wrapper must be a separately identified, lossless full-text projection. Missing
+practice package. **Recording + transcript** now prepares a fresh copy from
+supported existing text/JSON and audio, retaining the byte-preserved source under
+`Raw/`, in-package audio and explicit unreviewed provenance. A complete existing
+TEITOK package can still be imported directly. Missing
 timestamps, speaker labels, translations and accuracy measurements stay absent.
 The existing importer preserves raw machine bytes and stores human corrections
 in separate fields. Actual transcript/audio, private provenance and screenshots

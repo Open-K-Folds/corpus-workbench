@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "date_utc": "2026-11-03",
+  "synthetic_only": true,
+  "previous_head": "75a7774f43e229f7273262e7b5b3f8cc1dcaad73",
+  "previous_hosted_result": {
+    "jobs_passed": 10,
+    "jobs_failed": 2,
+    "browser_tests_passed_each": 127,
+    "npm_audit_passed": true,
+    "failure": "cargo audit --deny warnings: zip 0.6.6",
+    "runs": [
+      {
+        "id": 41686553114,
+        "name": "corpus-contracts",
+        "event": "pull_request",
+        "head_sha": "75a7774f43e229f7273262e7b5b3f8cc1dcaad73",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41686553114"
+      },
+      {
+        "id": 41686553086,
+        "name": "container-contracts",
+        "event": "pull_request",
+        "head_sha": "75a7774f43e229f7273262e7b5b3f8cc1dcaad73",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41686553086"
+      },
+      {
+        "id": 41686543380,
+        "name": "container-contracts",
+        "event": "push",
+        "head_sha": "75a7774f43e229f7273262e7b5b3f8cc1dcaad73",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41686543380"
+      },
+      {
+        "id": 41686543330,
+        "name": "corpus-contracts",
+        "event": "push",
+        "head_sha": "75a7774f43e229f7273262e7b5b3f8cc1dcaad73",
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/Open-K-Folds/corpus-workbench/actions/runs/41686543330"
+      }
+    ]
+  },
+  "advisories": [
+    "RUSTSEC-2026-0367",
+    "RUSTSEC-2026-0368",
+    "RUSTSEC-2026-0369",
+    "RUSTSEC-2026-0429"
+  ],
+  "repair": {
+    "zip": "0.6.6 -> 9.0.0",
+    "default_features": false,
+    "production_use": "ZIP writing only in package::zip_directory; no production extraction calls",
+    "options": "SimpleFileOptions, Stored, Unix creator, unix_permissions(0600)",
+    "minimum_rust_upstream": "1.88",
+    "qualified_existing_toolchain": "1.90.0",
+    "dependencies_added": [
+      "equivalent 1.0.3",
+      "indexmap 2.14.2",
+      "typed-path 0.12.4"
+    ],
+    "dependencies_removed": [
+      "byteorder 1.5.0",
+      "crossbeam-utils 0.8.23"
+    ],
+    "advisory_suppression_or_policy_relaxation": false
+  },
+  "regression_evidence": {
+    "initial_windows_probe": "1 passed, 1 failed: creator default caused requested 0600 to read back as 0664",
+    "prior_installed_export_creator": "Unix (3)",
+    "prior_installed_export_mode": "0600",
+    "fixed_focused_rust_tests": {
+      "passed": 2,
+      "failed": 0
+    },
+    "rustfmt": "passed",
+    "clippy_all_targets_deny_warnings": "passed",
+    "actual_authoring_browser": {
+      "startTime": "2026-11-03T17:53:03.538Z",
+      "duration": 10459.032,
+      "expected": 1,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "actual_authoring_resources": {
+      "exit_code": 0,
+      "wall_seconds": 11.923,
+      "peak_sampled_tree_rss_bytes": 1304637440,
+      "peak_sampled_tree_private_bytes": 1120591872,
+      "peak_sampled_process_count": 13,
+      "samples": 45,
+      "sampled_cpu_seconds": 15.406,
+      "sampled_read_bytes": 87127721,
+      "sampled_write_bytes": 14620637,
+      "sampling_seconds": 0.25,
+      "limitations": "Sampled process-tree sums; short-lived children may be missed; shared RSS may be counted more than once; I/O counters are not disk allocation."
+    },
+    "independent_python_zipfile_and_native_import": {
+      "synthetic_only": true,
+      "python_zipfile_integrity": true,
+      "stored_files": 25,
+      "all_files_unix_0600": true,
+      "source_audio_bytes_unchanged": true,
+      "native_reimport": true,
+      "corrected_reading_preserved": true,
+      "imported_revision": 1,
+      "approved_on_independent_import": false,
+      "backend_sha256": "b6a4a099da03b0b4d5831329accb1bcd1baeb606386f3fff416e355d2920c68e"
+    }
+  },
+  "existing_desktop_package_or_launcher_changed": false,
+  "actual_semantica_note": "Original installed-package Semantica qualification is retained in native-session.json. This source/debug-backend follow-up changes only ZIP export and does not claim a newly packaged native Semantica run.",
+  "final_hosted_result": "Recorded against the final head in PR 19 and the local delivery result after completion"
+}
