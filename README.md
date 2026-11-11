@@ -5,13 +5,21 @@ editor, adding native project import/open, exact-revision saving/export, backups
 stable draft storage and managed process lifecycle. See
 [desktop build, workflows and architecture](docs/ELECTRON-DESKTOP.md).
 
+The latest public prerelease is
+[v0.2.0-dev.11](https://github.com/Open-K-Folds/corpus-workbench/releases/tag/v0.2.0-dev.11),
+with Windows CLI/browser and Linux container packages. Those assets do not include
+the Electron desktop preview. The desktop workflow uses a source build or the
+separately supplied unsigned local Windows delivery. The
+[first-session qualification](docs/FIRST-SESSION-QUALIFICATION.md) identifies the
+installed build tested; later source changes do not update that package.
+
 For a first recording-and-transcript session, follow the
 [first research session guide](docs/FIRST-RESEARCH-SESSION.md): import a copy,
 save a correction, explicitly review its exact revision, then optionally run
 local Semantica and reopen the portable export. The guide distinguishes the
 complete corpus package from the derived graph and explains the human review gate.
 
-Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. **0.1.0-preview.1 is an engineering preview.** Source development is now **0.2.0-dev.11**, including [annotation editing](docs/ANNOTATION-MILESTONE.md), the [reference inventory foundation](docs/REFERENCE-INVENTORY-MILESTONE.md), [bounded split/merge](docs/RETOKENIZATION-MILESTONE.md), a [packaged TEITOK reader](docs/TEITOK-READER-MILESTONE.md), the [detailed authoring experience](docs/AUTHORING-EXPERIENCE.md), a tested [local container workflow](docs/CONTAINERS.md), [dependency/upgrade qualification](docs/RELEASE-QUALIFICATION.md), [one qualified local Trixie runtime](docs/TRIXIE-RUNTIME-MILESTONE.md) and [reviewed TEITOK copy returns](docs/EDITED-PACKAGE-MILESTONE.md) and [bounded corpus concordance](docs/CORPUS-SEARCH-MILESTONE.md) and the [integrated transcript editor](docs/TRANSCRIPT-EDITOR-MILESTONE.md). The full approved migration is still in progress; the published preview stays immutable.
+Native Rust and TypeScript corpus authoring for the Open-K-Folds research-intelligence evidence domain. The maintained source includes [annotation editing](docs/ANNOTATION-MILESTONE.md), the [reference inventory foundation](docs/REFERENCE-INVENTORY-MILESTONE.md), [bounded split/merge](docs/RETOKENIZATION-MILESTONE.md), a [packaged TEITOK reader](docs/TEITOK-READER-MILESTONE.md), the [detailed authoring experience](docs/AUTHORING-EXPERIENCE.md), a tested [local container workflow](docs/CONTAINERS.md), [dependency/upgrade qualification](docs/RELEASE-QUALIFICATION.md), [one qualified local Trixie runtime](docs/TRIXIE-RUNTIME-MILESTONE.md) and [reviewed TEITOK copy returns](docs/EDITED-PACKAGE-MILESTONE.md) and [bounded corpus concordance](docs/CORPUS-SEARCH-MILESTONE.md) and the [integrated transcript editor](docs/TRANSCRIPT-EDITOR-MILESTONE.md). The full approved migration is still in progress; the published preview stays immutable.
 
 Import a complete TEITOK directory, listen to its media, correct tokens, maintain custom language values, create and edit discontinuous spans and relations, compare/undo/restore named revisions, review an exact revision, and export the complete package. SQLite transactions own revisions and review; immutable objects preserve source artifacts. Optional native Semantica generations are derived from approved exact snapshots and excluded from current queries after correction or review rejection.
 
@@ -60,7 +68,7 @@ python -m unittest discover -s tests -p 'test_cqp_literal_adapter.py' -v
 npm audit --prefix ui --audit-level=low
 ```
 
-The suite contains native contract/recovery tests, 75 actual host browser flows and an additional container browser/persistence journey. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI is configured for Windows x86-64, Linux x86-64 and Linux ARM64 plus browser/container QA; configuring it does not prove the new hosted checks ran. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md), [control/player qualification](docs/CONTROLS-MILESTONE.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
+The suite contains native contract/recovery tests, host browser flows and container browser/persistence journeys. Browser QA uses a fresh synthetic package and isolated browser on port 18912; it tests playback, Unicode correction, spans/relations, review, export, conflict, diff, undo/redo/restore and project/session boundaries. Set `WB_CHROME` to an installed browser executable if necessary. CI targets Windows x86-64, Linux x86-64 and Linux ARM64 plus browser/container QA; inspect the run for the exact commit to determine its results. ARM64 CI is not Raspberry Pi validation. See [milestones](MILESTONES.md), [control/player qualification](docs/CONTROLS-MILESTONE.md) and [release policy](docs/RELEASE-POLICY.md) for exact validation evidence and limits.
 
 ## Scope and data rights
 
