@@ -57,6 +57,13 @@
     },
     {
       "ecosystem": "cargo",
+      "name": "cfg_aliases",
+      "version": "0.2.2",
+      "reported_license": "MIT",
+      "registry_checksum": "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527"
+    },
+    {
+      "ecosystem": "cargo",
       "name": "chunked_transfer",
       "version": "1.5.0",
       "reported_license": "MIT OR Apache-2.0",
@@ -233,9 +240,9 @@
     {
       "ecosystem": "cargo",
       "name": "libsqlite3-sys",
-      "version": "0.38.2",
+      "version": "0.39.1",
       "reported_license": "MIT",
-      "registry_checksum": "f1d20bef17f513b9b3004532233187769cd072d790971f4e4da0e346eb6401e8"
+      "registry_checksum": "14a5f01b87b92705d07b433c06f96cbc764637d81a0bffb5734ce17cf0f9a2b3"
     },
     {
       "ecosystem": "cargo",
@@ -257,6 +264,13 @@
       "version": "2.8.3",
       "reported_license": "Unlicense OR MIT",
       "registry_checksum": "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
+    },
+    {
+      "ecosystem": "cargo",
+      "name": "nix",
+      "version": "0.31.4",
+      "reported_license": "MIT",
+      "registry_checksum": "2bc81ce8148d3b4f3274da811f11cdd824ae661ee4ef732cdb229825cf5be7f7"
     },
     {
       "ecosystem": "cargo",
@@ -317,16 +331,16 @@
     {
       "ecosystem": "cargo",
       "name": "rusqlite",
-      "version": "0.40.2",
+      "version": "0.41.1",
       "reported_license": "MIT",
-      "registry_checksum": "23f2a97da3e3873c73cb2a2e71b35c40ff95e0b1eefa8d72d8499a6928c3b5b3"
+      "registry_checksum": "da9bba6f3506135e120a6586df05be18b48d18896600646a4bec8f993d91a594"
     },
     {
       "ecosystem": "cargo",
       "name": "rustix",
-      "version": "1.1.5",
+      "version": "1.1.6",
       "reported_license": "Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT",
-      "registry_checksum": "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+      "registry_checksum": "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
     },
     {
       "ecosystem": "cargo",
@@ -569,9 +583,9 @@
     {
       "ecosystem": "cargo",
       "name": "zip",
-      "version": "9.0.0",
+      "version": "9.0.5",
       "reported_license": "MIT",
-      "registry_checksum": "711e8c9646791c49b7eb799a19c4ae70a9b8372ddc6a1fa4778defd1e2aa5d5e"
+      "registry_checksum": "6e04976da629d3b04204ba8105b396a193af8ad2583b2c79bfb3ab8af580a11e"
     },
     {
       "ecosystem": "npm",
@@ -1052,9 +1066,9 @@
     {
       "ecosystem": "bundled-c",
       "name": "sqlite",
-      "version": "3.53.2",
+      "version": "3.54.1",
       "reported_license": "public domain",
-      "source": "libsqlite3-sys 0.38.2 sqlite3/sqlite3.c"
+      "source": "libsqlite3-sys 0.39.1 sqlite3/sqlite3.c"
     }
   ],
   "optional_runtime": {
@@ -1079,5 +1093,21 @@
     "git_head": "8faa18777374582bb813d54ce3623f4acf1f9e0b",
     "omitted_lzma_removed": true,
     "decision": "docs/ADR-0002-BUILD-TOOL-LICENSE.md"
+  },
+  "audits_2026_11_22": {
+    "cargo_lock_sha256": "c6e03afe348e82b861707c4c5ba00ec3edc788abd8706ebca2b0bc0a1e4f19ec",
+    "cargo_audit": {
+      "tool": "cargo-audit/0.22.2",
+      "command": "cargo audit --deny warnings",
+      "database_commit": "d1fe6ac3eba823a3515e849045f36dc34543885d",
+      "advisory_count": 1560,
+      "vulnerabilities": 0,
+      "warnings": 0
+    },
+    "ui_npm_lock_sha256": "d72121ddc2829c22c36d61e63223228c4633726d587c1496230257109850ab10",
+    "ui_npm_audit": {
+      "command": "npm audit --prefix ui --audit-level=low",
+      "vulnerabilities": 0
+    }
   }
 }

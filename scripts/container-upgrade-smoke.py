@@ -194,7 +194,7 @@ try:
     assert_state(before, old_history)
     engine = json.loads(compose(upgrade, new, restored, 'run', '--rm', '--no-deps',
         'tools', 'check', '--store', restored).stdout)['sqlite_version']
-    assert engine == '3.53.2'
+    assert engine == '3.54.1'
     # Old receipt remains idempotent across the image transition.
     assert http('/api/command', stale)['id'] == 2
     after, current_command = edit(before, 'after-upgrade', 'New version e\u0301\U0001f642')
