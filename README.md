@@ -7,8 +7,10 @@ editor, adding native project import/open, exact-revision saving/export, backups
 stable draft storage and managed process lifecycle. See
 [desktop build, workflows and architecture](docs/ELECTRON-DESKTOP.md).
 
-Open **Reading canvas** beside a transcript title to read edge to edge, scrub
-between turns and select a passage. Choose **Co-analyse** on the selection to
+The workspace opens directly on the transcript. Drag the numbered handle
+beside a turn, use the scrubber below the text, or select words with the
+pointer. The left rail opens the library and analysis tools. Choose
+**Co-analyse** on a selection to
 write a first reading, consult a local model, check its quotations and record
 your assessment at the source anchors. Try the fictional noticeboard conversation
 in the [co-analysis guide](docs/CO-ANALYSIS.md). The interaction draws on

@@ -176,7 +176,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>b.onclick=()=>{if(isInspectorView(b.dataset.tab!)){tab=b.dataset.tab;showProperties();void renderInspector()}});
   el('export-package').onclick=async()=>{try{if(desktop){message('Preparing exact revision export…');const result=await desktop.exportRevision(view.revision.id);message(result.cancelled?'Export cancelled.':`Complete package saved for R${view.revision.id}.`);return}message('Preparing exact revision export…');const r=await api<{revision:number;download:string;job_id:string}>('/api/export',{revision:view.revision.id});message(`Complete export ready for R${r.revision}.`);const a=document.createElement('a');a.href=r.download;a.textContent='Download complete package';a.setAttribute('download','');el('message').append(' ',a)}catch(e){message(String(e),true)}};
   document.addEventListener('keydown',event=>{
-    if(saving||pendingWrite||transcript.busy()||event.isComposing)return;
+    if(saving||pendingWrite||transcript.busy()||event.isComposing||document.querySelector('dialog[open]'))return;
     if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'&&!transcript.activeDraft()){event.preventDefault();readingCanvas?.close(false);showTranscript();settings.open=true;el<HTMLInputElement>('token-query').focus();return}
     if((event.target as HTMLElement).closest('#tokens,[contenteditable]'))return;
     if(event.key==='F3'){event.preventDefault();nextMatch();return}
@@ -481,7 +481,7 @@ function renderDocumentTabs(){if(!openDocuments.includes(docPath))openDocuments.
 async function followCitation(){const value=new URLSearchParams(location.hash.slice(1)).get('loc');if(!value)return;try{const citation=JSON.parse(value);if(citation.project!==view.snapshot.project||citation.revision!==view.revision.id){message(`Citation refers to ${citation.project} R${citation.revision}. Current saved head is R${view.revision.id}; inspect that exact revision in History before resolving it.`,true);return}if(!view.documents.some(d=>d.path===citation.document))throw new Error('Citation document is unavailable');switchDocument(citation.document);await transcript.render();if(citation.anchor&&!transcript.location(citation.anchor))message('Citation anchor is unavailable; no replacement location was guessed.',true)}catch(e){message('Could not resolve citation: '+String(e),true)}}
 function desktopMenu(command:string){
   if(command==='backend-reconnected'){void resumeSession().catch(error=>message('Session reconnection failed: '+String(error),true));return}
-  if(document.querySelector('#preparation-dialog[open],#research-overview[open]'))return;
+  if(document.querySelector('dialog[open]'))return;
   if(!view||!document.querySelector('.workspace'))return;
   if(saving&&command!=='toggle-recording'){message('Wait for the current save or local handoff to finish. Recording controls remain available.');return}
   if(command==='save'){

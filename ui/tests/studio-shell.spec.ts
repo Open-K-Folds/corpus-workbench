@@ -37,6 +37,10 @@ test('small studio keeps activity navigation and saved workspace choice usable',
   await page.keyboard.press('Enter');
   const dialog=page.getByRole('dialog',{name:'Workspace settings'});
   await expect(dialog).toBeVisible();
+  await page.keyboard.press('Alt+1');
+  await page.keyboard.press('Control+k');
+  await expect(page.locator('.workspace')).toHaveAttribute('data-focus','transcript');
+  await expect(page.locator('.reading-settings')).not.toHaveAttribute('open','');
   await dialog.getByRole('radio',{name:'Transcript with library and tools'}).check();
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();

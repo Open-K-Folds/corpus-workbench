@@ -1,13 +1,14 @@
 # Reading a transcript with a model
 
-In the desktop welcome screen, choose **Start a new practice copy**, then open
-**Who gets the notice?** in Documents. You can also import the
+In the desktop welcome screen, choose **Start a new practice copy**. The
+transcript stage opens on **Who gets the notice?**. You can also import the
 [standalone practice package](../fixtures/coanalysis). Two fictional speakers
 describe when they heard about a meeting. The exercise is to distinguish what
 they report from what a researcher might infer about how the notice reached them.
 
-1. Open **Reading canvas** beside the transcript title. Drag the margin to move
-   through the text, or use the source-turn slider and arrow controls. Adjust
+1. Drag the numbered handle beside the current turn to move through the
+   source, or use the slider and arrow controls below the text. **Focus mode**
+   gives the transcript more room. Adjust
    the text size with the **−** and **+** buttons. Drag across “I only heard
    after the meeting.” and choose **Co-analyse**. In the inspector you can see
    the saved excerpt, its revision and its token IDs.
