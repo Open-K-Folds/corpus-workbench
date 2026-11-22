@@ -186,7 +186,6 @@ test('late next-match projection cannot create new authoring controls during a h
     await expect(page.locator('.change-popover')).toBeHidden();
   }finally{
     releaseReading();releaseSave();
-    await page.unrouteAll({behavior:'wait'});
   }
   await expect(page.locator('#save-state')).toContainText('Saved R');
   const after=await head(page);
