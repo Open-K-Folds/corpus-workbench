@@ -25,5 +25,9 @@ for (const width of [390, 1160]) {
       expect(box.x).toBeGreaterThanOrEqual(panel!.x);
       expect(box.x + box.width).toBeLessThanOrEqual(panel!.x + panel!.width);
     }
+    await page.locator('.transcript').click({position:{x:4,y:55}});
+    await expect(replacement).toHaveCount(0);
+    await page.getByRole('button',{name:'Recover correction',exact:true}).click();
+    await expect(replacement).toHaveValue('a newly heard wording for this recording');
   });
 }

@@ -52,12 +52,14 @@ export class Transcript {
       interactingWithSelection=this.surface.contains(target);
       if(this.menu.contains(target)||this.details.contains(target))return;
       if(!interactingWithSelection){this.menu.hidden=true;this.details.hidden=true}
-      if(event.type!=='pointerdown'||this.draft||target.closest('dialog[open]'))return;
+      if(event.type!=='pointerdown'||target.closest('dialog[open]'))return;
       if(interactingWithSelection&&target.closest('.lexeme[data-token],button,input'))return;
       // Keep the passage available throughout a command or form interaction.
       const command=target.closest('button,input,select,textarea,summary,label,a,form,[role=slider],[contenteditable=true],.side-resizer,#timeline-resizer');
       if(command)return;
-      this.clearSelection();
+      if(this.draft) {
+        if((event as PointerEvent).button===0&&!this.composing)void this.dismissDraft();
+      } else this.clearSelection();
     };
     document.addEventListener('pointerdown',trackTarget,true);
     document.addEventListener('focusin',trackTarget);

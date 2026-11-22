@@ -78,7 +78,7 @@ export function bindActivityRail(app:HTMLElement, signal:AbortSignal) {
   }
   document.addEventListener('pointerdown',dismissOutside,{capture:true,signal});
   document.addEventListener('focusin',dismissOutside,{signal});
-  document.addEventListener('keydown',event => {
+  window.addEventListener('keydown',event => {
     if (event.key !== 'Escape' || !overlayOpen()) return;
     event.preventDefault();
     event.stopImmediatePropagation();
