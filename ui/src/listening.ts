@@ -31,7 +31,7 @@ export function suppliedCue(doc:Document, ids:string[], duration:number):CueStat
   return {basis,start,end};
 }
 
-function validInterval(value:{start_us:number|null;end_us:number|null}):value is {start_us:number;end_us:number} {
+export function validInterval(value:{start_us:number|null;end_us:number|null}):value is {start_us:number;end_us:number} {
   return value.start_us !== null && value.end_us !== null && Number.isFinite(value.start_us)
     && Number.isFinite(value.end_us) && value.start_us >= 0 && value.end_us > value.start_us;
 }
