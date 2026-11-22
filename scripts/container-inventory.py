@@ -100,7 +100,8 @@ source_out = out / 'corresponding-source'
 for name in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'Dockerfile', 'compose.yaml', 'LICENSE', 'NOTICE', 'README.md', 'CHANGELOG.md', 'MILESTONES.md'):
     source_out.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, source_out / name)
-for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic', 'fixtures/coanalysis', 'ui/public/third-party/material-symbols'):
+for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic', 'fixtures/coanalysis',
+             'ui/public/third-party/material-symbols', 'ui/public/third-party/jetbrains-mono'):
     shutil.copytree(root / name, source_out / name)
 for name in ('coanalysis-prompt.mjs', 'coanalysis-prompt.d.mts'):
     destination = source_out / 'desktop' / name
