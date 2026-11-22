@@ -190,12 +190,16 @@ test('real Electron imports, corrects, reviews, exports, reopens and protects me
     await expect(page.getByLabel('Human-corrected reading')).toHaveValue('memory-only-form');
     await page.getByRole('button',{name:'Undo unsaved edits',exact:true}).click();
     await queue(application,'open',[secondStore]);await page.locator('#desktop-open').click();
-    await expect.poll(async()=>(await state(page)).project.project).toBe('second-preview');await ready(page);
+    // A project switch reloads the renderer. Its visible content confirms the
+    // destination before evaluating the native bridge in the new document.
     await expect(page.locator('#project-title')).toHaveText('second-preview');
+    await ready(page);
+    expect((await state(page)).project.project).toBe('second-preview');
     await page.locator('.desktop-project-switcher summary').click();
     await page.locator(`[data-desktop-project="${originalId}"]`).click();
-    await expect.poll(async()=>(await state(page)).project.id).toBe(originalId);await ready(page);
     await expect(page.locator('[data-token="w2"] .reading-text')).toHaveText('strolled');
+    await ready(page);
+    expect((await state(page)).project.id).toBe(originalId);
     expect((await head(page)).revision).toEqual(savedHead);
     const registry=JSON.parse(readFileSync(join(profile,'desktop-projects.json'),'utf8'));
     const authority=registry.recent.find(entry=>entry.id===originalId).store;
