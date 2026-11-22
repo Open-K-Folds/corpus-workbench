@@ -201,7 +201,7 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -.02em;
 }
-.canvas-tools .canvas-console:not(:has(#canvas-exit:not([hidden]))) {grid-template-columns: auto minmax(86px, 15rem) auto}
+.canvas-tools .canvas-console:where(:not(:has(#canvas-exit:not([hidden])))) {grid-template-columns: auto minmax(86px, 15rem) auto}
 .canvas-position {display:grid; gap:2px; min-inline-size:0; max-inline-size:14ch}
 #canvas-position {white-space:nowrap; color:#f2f6f2; font-weight:600}
 #canvas-location {overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#b8cbc2; font-size:.64rem}
@@ -309,7 +309,7 @@
 #app[data-reading-canvas] .workspace .canvas-tools {padding-block-end:max(15px,env(safe-area-inset-bottom))}
 
 @container steering-dock (max-width: 470px) {
-  .canvas-tools .canvas-console, .canvas-tools .canvas-console:not(:has(#canvas-exit:not([hidden]))) {
+  .canvas-tools .canvas-console {
     inline-size: 100%;
     box-sizing: border-box;
     grid-template-columns: minmax(0,1fr) auto auto;

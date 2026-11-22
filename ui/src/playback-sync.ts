@@ -21,9 +21,9 @@ export class PlaybackSync {
   private follow=el<HTMLButtonElement>('follow-audio');
   private controls=el('canvas-listening');
 
-  constructor(private audio:HTMLAudioElement, surface:HTMLElement) {
+  constructor(private audio:HTMLAudioElement, surface:HTMLElement, onFollowTurn:(turn:HTMLElement|null)=>void) {
     const options={signal:this.events.signal};
-    this.reader=new PlaybackReader(surface,()=>this.setFollowing(false));
+    this.reader=new PlaybackReader(surface,()=>this.setFollowing(false),onFollowTurn);
     this.play.addEventListener('click',()=>el<HTMLButtonElement>('audio-play').click(),options);
     this.follow.addEventListener('click',()=>this.setFollowing(!this.following),options);
     for(const event of ['loadedmetadata','durationchange','emptied','error']) {
@@ -43,10 +43,11 @@ export class PlaybackSync {
   }
 
   bind(doc:Document|null, scope:string) {
-    if(this.doc!==doc || this.scope!==scope) {
+    if(this.doc!==doc || (doc && this.scope!==scope)) {
       if(scope && this.scope!==scope)this.following=true;
       this.reader.reset();
       this.lastCue=null;
+      this.lastFollow=false;
       this.cues=null;
       this.doc=doc;
       if(scope)this.scope=scope;
@@ -109,7 +110,7 @@ export class PlaybackSync {
 
   private tick(jump=false) {
     const cue=this.cues?.at(this.audio.currentTime)??null;
-    const follow=this.following && (!this.audio.paused || jump);
+    const follow=this.following && !!this.cues?.available;
     if(cue!==this.lastCue || follow!==this.lastFollow || jump) {
       this.reader.show(cue,follow,{jump});
       this.lastCue=cue;

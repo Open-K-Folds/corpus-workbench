@@ -149,6 +149,27 @@ test('audio following drops stale cues when a new transcript reuses a recording 
   await expect(page.locator('#tokens [data-token="low"][data-playback-word]')).toBeVisible();
 });
 
+test('playback fits beside the turn and zoom controls on desktop and in phone focus mode',async({page})=>{
+  await page.setViewportSize({width:1160,height:720});
+  await open(page);
+  await page.locator('#rail-reading').click();
+  const play=page.locator('#canvas-play'),zoom=page.locator('#canvas-zoom-in');
+  const centerY=async (locator:typeof play)=>locator.evaluate(el=>{
+    const box=el.getBoundingClientRect();return box.top+box.height/2;
+  });
+  await expect.poll(async()=>Math.abs(await centerY(play)-await centerY(zoom))).toBeLessThan(3);
+  await page.setViewportSize({width:360,height:740});
+  await page.locator('#open-reading-canvas').click();
+  for(const id of ['canvas-play','follow-audio','canvas-prev','canvas-next','canvas-scrub','canvas-zoom-in','canvas-exit']){
+    const control=page.locator('#'+id);
+    await expect(control).toBeVisible();
+    expect(await control.evaluate(el=>{
+      const box=el.getBoundingClientRect();
+      return box.left>=0 && box.right<=window.innerWidth && box.top>=0 && box.bottom<=window.innerHeight;
+    })).toBe(true);
+  }
+});
+
 test('spectrum is a live frequency view with honest pause state and separate seeking',async({page})=>{
   const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await open(page);await mode(page,'Spectrum');await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');
