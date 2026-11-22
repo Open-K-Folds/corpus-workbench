@@ -63,6 +63,8 @@ test('dragging part of a Unicode word opens an exact correction and survives und
   await page.mouse.move(right.x,right.y);await page.mouse.down();
   await page.mouse.move(left.x,left.y,{steps:6});await page.mouse.up();
   await expect.poll(()=>activeText(page)).toBe('ép');
+  await word(page,113).click({button:'right'});
+  await expect.poll(()=>page.evaluate(()=>getSelection()?.anchorOffset)).toBe(4);
   const tools=page.getByRole('toolbar',{name:'Selection tools'});
   await tools.getByRole('button',{name:'Correct',exact:true}).click();
   await expect(page.getByRole('textbox',{name:'Proposed correction'})).toHaveValue('ép');
