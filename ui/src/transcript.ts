@@ -28,6 +28,7 @@ export class Transcript {
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
     this.surface.classList.add('prose');this.surface.tabIndex=0;
+    this.surface.setAttribute('aria-describedby','selection-help');
     this.recovery.className='local-draft-recovery';this.recovery.setAttribute('aria-live','polite');this.surface.before(this.recovery);
     window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
@@ -47,8 +48,16 @@ export class Transcript {
     let interactingWithSelection=true;
     const trackTarget=(event:Event)=>{
       const target=event.target;
-      interactingWithSelection=target instanceof Node&&[this.surface,this.menu,this.details].some(region=>region.contains(target));
+      if(!(target instanceof Element))return;
+      interactingWithSelection=this.surface.contains(target);
+      if(this.menu.contains(target)||this.details.contains(target))return;
       if(!interactingWithSelection){this.menu.hidden=true;this.details.hidden=true}
+      if(event.type!=='pointerdown'||this.draft||target.closest('dialog[open]'))return;
+      if(interactingWithSelection&&target.closest('.lexeme[data-token],button,input'))return;
+      // Keep the passage available throughout a command or form interaction.
+      const command=target.closest('button,input,select,textarea,summary,label,a,form,[role=slider],[contenteditable=true],.side-resizer,#timeline-resizer');
+      if(command)return;
+      this.clearSelection();
     };
     document.addEventListener('pointerdown',trackTarget,true);
     document.addEventListener('focusin',trackTarget);
@@ -69,13 +78,40 @@ export class Transcript {
     this.menu.addEventListener('mousedown',e=>{if((e.target as HTMLElement).closest('button'))e.preventDefault()});
     this.surface.addEventListener('mouseup',()=>setTimeout(captureSelection,0));
     this.surface.addEventListener('keyup',e=>{if(!this.draft&&e.key.startsWith('Arrow'))this.capture()});
+    // Avoid Chromium replacing a partial or backwards range before contextmenu.
+    this.surface.addEventListener('mousedown',event=>{
+      if(event.button===2&&!this.draft&&(event.target as Element).closest('[data-token]'))event.preventDefault();
+    });
+    this.surface.addEventListener('contextmenu',event=>{
+      const word=(event.target as Element).closest<HTMLElement>('[data-token]');
+      if(!word||this.draft||!this.currentProjection()||this.host.busy()||(event.target as Element).closest('input,button'))return;
+      event.preventDefault();
+      if(this.training?.blocksSelection||('pointerType' in event&&event.pointerType==='touch'))return;
+      this.openWordTools(word);
+    });
     this.surface.addEventListener('click',e=>this.click(e));
     this.surface.addEventListener('keydown',e=>this.key(e));
     this.surface.addEventListener('paste',e=>{if((e.target as HTMLElement).closest('input'))return;if(this.selection){e.preventDefault();this.begin(e.clipboardData?.getData('text/plain')??'')}});
     this.surface.addEventListener('cut',e=>{if((e.target as HTMLElement).closest('input'))return;if(this.selection){e.preventDefault();e.clipboardData?.setData('text/plain',this.selection.quote);this.begin('')}});
     this.surface.addEventListener('copy',e=>this.copy(e));
     document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.drag.active&&!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
-    document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!this.composing&&!e.isComposing){this.menu.hidden=true;this.details.hidden=true}});
+    window.addEventListener('keydown',e=>{
+      if(e.key!=='Escape'||e.isComposing||this.composing||this.draft||document.querySelector('dialog[open]'))return;
+      if(this.clearSelection()){e.preventDefault();e.stopImmediatePropagation()}
+    },{capture:true});
+  }
+  private clearSelection(){
+    const native=window.getSelection();
+    const hasNativeRange=native?.anchorNode&&!native.isCollapsed&&this.surface.contains(native.anchorNode);
+    const hadSelection=this.selection!==null||this.host.selected().length>0;
+    if(!hadSelection&&this.menu.hidden&&this.details.hidden&&!this.drag.active&&!hasNativeRange)return false;
+    const restoreFocus=this.menu.contains(document.activeElement)||this.details.contains(document.activeElement)||document.activeElement?.matches('.passage-pin-handle');
+    this.training?.cancel();this.drag.cancel();this.pin.clear();
+    this.menu.hidden=true;this.details.hidden=true;this.selection=null;
+    if(native?.anchorNode&&this.surface.contains(native.anchorNode))native.removeAllRanges();
+    if(hadSelection){this.host.select([]);this.paintSelection()}
+    if(restoreFocus)this.surface.focus({preventScroll:true});
+    return true;
   }
   dirty(){return this.draft!==null||this.records.some(r=>r.document===this.host.doc().path||r.command!==null)}
   activeDraft(){return this.draft!==null}
@@ -184,13 +220,26 @@ export class Transcript {
     const s=window.getSelection();if(s&&!s.isCollapsed){this.capture();return}
     const span=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');if(!span||span.classList.contains('filtered'))return;
     if(event.detail&&document.activeElement!==span){if(!span.hasAttribute('tabindex'))span.tabIndex=-1;span.focus({preventScroll:true})}
+    this.selectWord(span,event);
+  }
+  private selectWord(span:HTMLElement,modifiers?:MouseEvent){
     const id=span.dataset.token!,doc=this.host.doc();let ids=[id];
-    if(event.ctrlKey||event.metaKey)ids=this.host.selected().includes(id)?this.host.selected().filter(t=>t!==id):[...this.host.selected(),id];
-    else if(event.shiftKey&&this.host.selected().length){const all=doc.tokens.map(t=>t.id),a=all.indexOf(this.host.selected()[0]),b=all.indexOf(id);ids=all.slice(Math.min(a,b),Math.max(a,b)+1)}
+    if(modifiers?.ctrlKey||modifiers?.metaKey)ids=this.host.selected().includes(id)?this.host.selected().filter(t=>t!==id):[...this.host.selected(),id];
+    else if(modifiers?.shiftKey&&this.host.selected().length){const all=doc.tokens.map(t=>t.id),a=all.indexOf(this.host.selected()[0]),b=all.indexOf(id);ids=all.slice(Math.min(a,b),Math.max(a,b)+1)}
+    this.menu.hidden=true;this.details.hidden=true;
+    if(!this.pin.matches(ids))this.pin.clear();
     this.host.select(ids);if(!ids.length){this.selection=null;this.menu.hidden=true;this.paintSelection();return}
     const remaining=doc.tokens.find(t=>t.id===ids.at(-1))!,text=reading(remaining,this.host.preferences.layer);
     this.selection={view:this.host.view(),document:doc.path,ids,start:0,end:Array.from(text).length,quote:ids.length===1?text:'',layer:this.host.preferences.layer,range:null};
-    this.paintSelection();this.showMenu((this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(remaining.id)}"]`)??span).getBoundingClientRect());
+    this.paintSelection();
+  }
+  private openWordTools(word:HTMLElement){
+    if(!this.selection?.ids.includes(word.dataset.token!)){
+      window.getSelection()?.removeAllRanges();
+      this.selectWord(word);
+    }
+    this.showMenu(word.getBoundingClientRect());
+    this.menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({preventScroll:true});
   }
   private capture(){
     if(this.drag.active||this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
@@ -326,9 +375,22 @@ export class Transcript {
   private key(event:KeyboardEvent){
     if((event.target as HTMLElement).closest('input,button')||this.composing||event.isComposing||this.host.busy())return;
     const focused=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');
-    if(focused&&!event.shiftKey&&window.getSelection()?.isCollapsed&&['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();const spans=[...this.surface.querySelectorAll<HTMLElement>('[data-token]')],index=spans.indexOf(focused),next=spans[(index+(event.key==='ArrowRight'?1:spans.length-1))%spans.length];next.tabIndex=-1;next.focus();return}
+    if(!event.shiftKey&&window.getSelection()?.isCollapsed&&['ArrowLeft','ArrowRight'].includes(event.key)){
+      const words=[...this.surface.querySelectorAll<HTMLElement>('[data-token]')];
+      if(!words.length)return;
+      event.preventDefault();
+      const index=focused?words.indexOf(focused):-1;
+      const step=event.key==='ArrowRight'?1:-1;
+      const next=index<0 ? words[step===1?0:words.length-1] : words[(index+step+words.length)%words.length];
+      next.focus();return;
+    }
     if(focused&&event.code==='Space'&&window.getSelection()?.isCollapsed){event.preventDefault();focused.dispatchEvent(new MouseEvent('click',{bubbles:true}));return}
-    if((event.shiftKey&&event.key==='F10')||event.key==='ContextMenu'){event.preventDefault();this.capture();if(this.selection){const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(this.selection.ids[0])}"]`);if(span)this.showMenu(span.getBoundingClientRect());this.menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()}return}
+    if((event.shiftKey&&event.key==='F10')||event.key==='ContextMenu'){
+      event.preventDefault();
+      const word=focused??(this.selection&&this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(this.selection.ids[0])}"]`));
+      if(word)this.openWordTools(word);
+      return;
+    }
     if(this.selection&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.key==='Backspace'||event.key==='Delete'||Array.from(event.key).length===1)){event.preventDefault();this.begin(event.key==='Backspace'||event.key==='Delete'?'':event.key)}
   }
   private begin(replacement:string){
