@@ -5,6 +5,7 @@ import {passageAnchor,type Listening} from './listening';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
 import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
 import {TrainingGesture,type TrainingLens,type TrainingPassage} from './training-gesture';
+import {TranscriptDrag} from './transcript-drag';
 
 interface Block {source_id:string|null;source_kind:string;anchor_token:string|null;sections:{id:string;kind:string;number:string|null}[];runs:{token:string|null;text:string}[]}
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
@@ -20,6 +21,7 @@ export class Transcript {
   private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
   private training?:TrainingGesture;
+  private drag:TranscriptDrag;
   private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
@@ -33,6 +35,8 @@ export class Transcript {
     // Dismiss only popovers whose viewport or reading pane has since moved.
     const dismissPopovers=()=>{const geometry=this.readingGeometry();for(const popup of [this.menu,this.details])if(!popup.hidden&&this.popoverGeometry.get(popup)!==geometry)popup.hidden=true};
     const readingPane=this.surface.closest<HTMLElement>('.transcript');
+    this.drag=new TranscriptDrag(this.surface,readingPane!,()=>!this.draft&&!this.training?.blocksSelection&&!this.host.busy()&&this.currentProjection(),
+      ()=>{this.menu.hidden=true;this.details.hidden=true},()=>this.capture());
     readingPane?.addEventListener('scroll',dismissPopovers,{passive:true});
     window.addEventListener('resize',dismissPopovers);
     if(readingPane)new ResizeObserver(dismissPopovers).observe(readingPane);
@@ -44,9 +48,6 @@ export class Transcript {
     };
     document.addEventListener('pointerdown',trackTarget,true);
     document.addEventListener('focusin',trackTarget);
-    // A focusable inline span captures Chromium's initial mouse caret at a word
-    // edge. Let the shared text surface own the native drag, retaining tab order
-    // and programmatic token focus after the pointer's default action.
     this.surface.addEventListener('pointerdown',event=>{
       if(event.button!==0||!(event.target instanceof Element)||event.target.closest('input,button'))return;
       const token=event.target.closest<HTMLElement>('.lexeme[tabindex]');
@@ -58,8 +59,6 @@ export class Transcript {
         window.getSelection()?.removeAllRanges();
         return;
       }
-      const tabIndex=token.tabIndex;token.removeAttribute('tabindex');
-      requestAnimationFrame(()=>{if(token.isConnected)token.tabIndex=tabIndex});
     });
     // A queued selectionchange can arrive after the inspector has received focus.
     const captureSelection=()=>{if(interactingWithSelection)this.capture()};
@@ -71,7 +70,7 @@ export class Transcript {
     this.surface.addEventListener('paste',e=>{if((e.target as HTMLElement).closest('input'))return;if(this.selection){e.preventDefault();this.begin(e.clipboardData?.getData('text/plain')??'')}});
     this.surface.addEventListener('cut',e=>{if((e.target as HTMLElement).closest('input'))return;if(this.selection){e.preventDefault();e.clipboardData?.setData('text/plain',this.selection.quote);this.begin('')}});
     this.surface.addEventListener('copy',e=>this.copy(e));
-    document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
+    document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.drag.active&&!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
     document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!this.composing&&!e.isComposing){this.menu.hidden=true;this.details.hidden=true}});
   }
   dirty(){return this.draft!==null||this.records.some(r=>r.document===this.host.doc().path||r.command!==null)}
@@ -121,7 +120,7 @@ export class Transcript {
   setInterlinear(value:boolean){if(this.draft){(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;this.host.message('Finish or undo the correction draft before changing reading layers.',true);return}this.interlinear=value;void this.render();this.storePreferences()}
   private storePreferences(){try{localStorage.setItem('wb-reading:'+this.host.view().snapshot.project,JSON.stringify({layout:this.layout,interlinear:this.interlinear}))}catch{/* Preferences are optional. */}}
   async render(){
-    if(this.draft)return;this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
+    if(this.draft)return;this.drag.cancel();this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
       const p=await api<Projection>(`/api/reading?path=${encodeURIComponent(doc.path)}&revision=${view.revision.id}`);
@@ -166,7 +165,7 @@ export class Transcript {
     }
   }
   private showHistory(span:HTMLElement,change:Diff['changes'][number],view:View,record:Revision){
-    if(this.draft||!this.menu.hidden||this.host.busy()||this.host.view().revision.id!==view.revision.id)return;
+    if(this.drag.active||this.draft||!this.menu.hidden||this.host.busy()||this.host.view().revision.id!==view.revision.id)return;
     const token=this.host.doc().tokens.find(t=>t.id===change.target)!;
     this.details.innerHTML=`<strong>Recorded correction · R${record.id}</strong><dl><dt>Previous corrected</dt><dd>${esc(change.before??token.original)}</dd><dt>Saved corrected</dt><dd>${esc(change.after??token.original)}</dd><dt>Immutable source</dt><dd>${esc(token.original)}</dd></dl><p>${esc(record.label)} · current R${view.revision.id} ${view.approved?'Reviewed':'Unreviewed'}</p><button data-history>Open full revision history</button><button data-close>Close</button>`;
     this.details.querySelector<HTMLButtonElement>('[data-history]')!.onclick=()=>{if(this.host.busy())return;this.details.hidden=true;this.host.tool('history')};this.details.querySelector<HTMLButtonElement>('[data-close]')!.onclick=()=>this.details.hidden=true;
@@ -186,13 +185,16 @@ export class Transcript {
     this.paintSelection();this.showMenu((this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(remaining.id)}"]`)??span).getBoundingClientRect());
   }
   private capture(){
-    if(this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
+    if(this.drag.active||this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
     const range=s.getRangeAt(0);const start=this.endpoint(range.startContainer,range.startOffset),end=this.endpoint(range.endContainer,range.endOffset);
+    const saved=this.selection?.range,backward=s.anchorNode===range.endContainer&&s.anchorOffset===range.endOffset;
+    if(saved && saved.startContainer===range.startContainer && saved.startOffset===range.startOffset && saved.endContainer===range.endContainer && saved.endOffset===range.endOffset && this.selection?.backward===backward && !this.menu.hidden)return;
     if(!start||!end){this.menu.hidden=true;this.selection=null;return}
     const doc=this.host.doc(),a=doc.tokens.findIndex(t=>t.id===start.id),b=doc.tokens.findIndex(t=>t.id===end.id);
     if(a<0||b<a)return;const ids=doc.tokens.slice(a,b+1).map(t=>t.id);
-    if(ids.some(id=>!this.surface.querySelector(`[data-token="${CSS.escape(id)}"]`))){this.host.message('Clear token filters before editing this range.',true);this.selection=null;return}
-    this.selection={view:this.host.view(),document:doc.path,ids,start:start.cp,end:end.cp,quote:this.primaryRangeText(range),layer:this.host.preferences.layer,range:range.cloneRange(),backward:s.anchorNode===range.endContainer&&s.anchorOffset===range.endOffset};
+    const rendered=new Set(Array.from(this.surface.querySelectorAll<HTMLElement>('[data-token]'),span=>span.dataset.token!));
+    if(ids.some(id=>!rendered.has(id))){this.host.message('Clear token filters before editing this range.',true);this.selection=null;return}
+    this.selection={view:this.host.view(),document:doc.path,ids,start:start.cp,end:end.cp,quote:this.primaryRangeText(range),layer:this.host.preferences.layer,range:range.cloneRange(),backward};
     this.host.select(ids);this.paintSelection();const rects=[...range.getClientRects()];if(rects.length)this.showMenu(rects.at(-1)!);
   }
   private endpoint(node:Node,offset:number):{id:string;cp:number}|null{
@@ -211,8 +213,8 @@ export class Transcript {
   }
   private copy(event:ClipboardEvent){if((event.target as HTMLElement).closest('input'))return;const s=window.getSelection();if(s?.rangeCount&&this.surface.contains(s.anchorNode)&&this.surface.contains(s.focusNode)){event.preventDefault();event.clipboardData?.setData('text/plain',this.primaryRangeText(s.getRangeAt(0)))}}
   private paintSelection(){
-    const selected=this.host.selected();
-    for(const span of this.surface.querySelectorAll<HTMLElement>('[data-token]'))span.classList.toggle('selected',selected.includes(span.dataset.token!));
+    const selected=this.host.selected(),selectedIds=new Set(selected);
+    for(const span of this.surface.querySelectorAll<HTMLElement>('[data-token]'))span.classList.toggle('selected',selectedIds.has(span.dataset.token!));
     const doc=this.host.doc(),shown=doc.tokens.filter(token=>visibleToken(token,this.host.preferences));
     const status=document.getElementById('token-count');
     if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
