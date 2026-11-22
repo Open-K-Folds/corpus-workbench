@@ -77,6 +77,8 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await expect(turn).toHaveAttribute('data-utterance', 'u4');
     await expect(page.locator('#canvas-position')).toContainText('4 of 8');
     await expect(page.locator('#canvas-scrub')).toHaveValue('4');
+    await expect(page.locator('#canvas-location')).toHaveText('u4');
+    await expect(turn.locator('.canvas-turn-handle')).toHaveCount(1);
     await expect(word).toHaveCount(0);
     await expect(caret).toBeHidden();
     await page.screenshot({path:join(evidence, 'spoken-turn.png')});
@@ -101,6 +103,7 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await follow.click();
     await expect(follow).toHaveAttribute('aria-pressed', 'true');
     await expect(word).toBeInViewport();
+    await expect(page.locator('#canvas-location')).toHaveText('u1');
     expect(await page.evaluate(async () => (await (await fetch('/api/view')).json()).revision.id)).toBe(1);
     expect(errors).toEqual([]);
   } finally {
