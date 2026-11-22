@@ -126,6 +126,11 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     training.clear();render();draftStatus();
   }},el('training-comparison'));
   const audioPane=el('recording-pane');
+  // A text-only document can use the compact recording header on its first paint.
+  if (!recordingCandidate(currentDoc())) {
+    audioPane.dataset.recordingSource='absent';
+    el('audio-availability').hidden=false;
+  }
   const settings=document.querySelector<HTMLDetailsElement>('.reading-settings')!;
   settings.open=initialLayout()==='editing' && !matchMedia('(max-width: 1000px)').matches;
   document.querySelector('.documents')!.insertAdjacentHTML('beforeend','<div id="navigation-resizer" class="side-resizer" aria-label="Resize projects pane"></div>');
@@ -488,11 +493,14 @@ async function resolvePendingWrite() {
     offerSaveRetry();
   } finally { saving = false; }
 }
-function configureMedia(unsupportedBase:boolean){
-  const doc=currentDoc(),audio=el<HTMLAudioElement>('audio');
+function recordingCandidate(doc:Document):string|undefined {
   const candidates=[...new Set(doc.media.flatMap(reference=>[reference,`Audio/${reference}`,`Video/${reference}`])
     .filter(path=>view.snapshot.files[path]?.role==='source-media'))];
-  const media=!unsupportedBase && candidates.length===1 ? candidates[0] : undefined;
+  return candidates.length===1 ? candidates[0] : undefined;
+}
+function configureMedia(unsupportedBase:boolean){
+  const doc=currentDoc(),audio=el<HTMLAudioElement>('audio');
+  const media=unsupportedBase ? undefined : recordingCandidate(doc);
   const scope=media ? doc.path+':'+view.snapshot.files[media].sha256 : '';
   cueMedia=media ? {document:doc.path,snapshot:view.revision.snapshot_hash,scope} : null;
   audio.hidden=!media;

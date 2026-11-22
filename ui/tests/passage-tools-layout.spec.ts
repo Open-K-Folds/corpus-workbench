@@ -36,10 +36,15 @@ test.describe('touch passage tools',()=>{
   test.use({hasTouch:true,isMobile:true,viewport:{width:390,height:844}});
   for(const focus of [false,true]){
     test(`tapping the selected count opens passage actions in ${focus?'focus mode':'the workspace'}`,async({page,practiceUrl})=>{
+      // Measure the text-only workspace while its saved transcript is still loading.
+      let showTranscript!:()=>void;
+      const loading=new Promise<void>(resolve=>{showTranscript=resolve});
+      await page.route('**/api/reading?*',async route=>{await loading;await route.continue()},{times:1});
       await page.goto(practiceUrl);
       if(focus)await page.getByRole('button',{name:'Open reading canvas'}).tap();
       const dock=page.locator('#canvas-tools');
       const before=await dock.boundingBox();
+      showTranscript();
       await page.locator('[data-token="b3"] .reading-text').tap();
       const trigger=page.getByRole('button',{name:'Open tools for 1 selected word',exact:true});
       await expect(trigger).toBeInViewport();
