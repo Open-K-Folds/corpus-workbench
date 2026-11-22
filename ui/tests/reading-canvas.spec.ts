@@ -55,8 +55,20 @@ test('the standard stage steers with the dock and the handle attached to the cur
   const size = await fontSize(token(page,'a1'));
   await dock.getByRole('button', {name:'Increase text size'}).click();
   await expect.poll(() => fontSize(token(page,'a1'))).toBeGreaterThan(size);
+  const pane=page.locator('.transcript');
+  const beforeNext=await pane.evaluate(node=>node.scrollTop);
   await dock.getByRole('button', {name:'Next source turn'}).click();
   await expect(position).toHaveText('Turn 2 of 3');
+  // Sample the frames in which a reader aims for the newly displayed handle.
+  const scrollPositions=await pane.evaluate(async node=>{
+    const offsets:number[]=[];
+    for(let frame=0;frame<8;frame++){
+      await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));
+      offsets.push(node.scrollTop);
+    }
+    return offsets;
+  });
+  expect(scrollPositions.every(offset=>offset===beforeNext)).toBe(true);
   const handle = page.getByRole('button', {name:/^Steer source turn/});
   const grip = (await handle.boundingBox())!;
   const x = grip.x+grip.width/2, y = grip.y+grip.height/2;
@@ -73,6 +85,42 @@ test('the standard stage steers with the dock and the handle attached to the cur
   await expect(position).toHaveText('Turn 1 of 3');
   await expect(page.getByRole('button',{name:'Next match',exact:true})).toBeVisible();
   expect(await head(page)).toEqual(before);
+});
+
+test('offscreen turn navigation scrolls smoothly while direct scrubbing is immediate',async({page,practiceUrl})=>{
+  await page.emulateMedia({reducedMotion:'no-preference'});
+  await page.goto(practiceUrl);
+  const pane=page.locator('.transcript');
+  const position=page.locator('#canvas-position');
+  await expect(position).toHaveText('Turn 1 of 3');
+  const behavior=await pane.evaluateHandle(node=>{
+    const modes:ScrollBehavior[]=[];
+    const scroll=node.scrollTo.bind(node);
+    node.scrollTo=(target?:ScrollToOptions|number,y?:number)=>{
+      if(typeof target==='number') return scroll(target,y??0);
+      modes.push(target?.behavior??'auto');
+      scroll(target);
+    };
+    return modes;
+  });
+  await page.getByRole('button',{name:'Next source turn'}).click();
+  await page.locator('.canvas-turn-handle').click();
+  await expect.poll(()=>pane.evaluate(node=>node.scrollTop)).toBeGreaterThan(0);
+  expect(await behavior.evaluate(modes=>modes.includes('smooth'))).toBe(true);
+  await behavior.evaluate(modes=>{modes.length=0});
+  await pane.evaluate(node=>{node.scrollTop=node.scrollHeight});
+  await expect(position).toHaveText('Turn 3 of 3');
+  await expect(token(page,'b2')).not.toBeInViewport();
+  await page.getByRole('button',{name:'Previous source turn'}).click();
+  await expect(position).toHaveText('Turn 2 of 3');
+  expect(await behavior.evaluate(modes=>modes.includes('smooth'))).toBe(true);
+  await expect(token(page,'b2')).toBeInViewport();
+  const scrub=page.getByRole('slider',{name:'Scrub source turns'});
+  await scrub.press('End');
+  await expect(position).toHaveText('Turn 3 of 3');
+  expect(await behavior.evaluate(modes=>modes.at(-1))).toBe('instant');
+  await expect(token(page,'c6')).toBeInViewport();
+  await behavior.dispose();
 });
 
 test('canvas navigation and sizing preserve a live source selection for co-analysis', async ({page, practiceUrl}, info) => {

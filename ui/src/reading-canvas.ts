@@ -31,7 +31,7 @@ export function stageControls() {
 export class ReadingCanvas {
   private turns: HTMLElement[] = [];
   private current = -1;
-  private destination: number | null = null;
+  private destination: {index:number;top:number;scrolling:boolean} | null = null;
   private playbackTurn: HTMLElement | null = null;
   private zoom = 100;
   private frame = 0;
@@ -52,40 +52,54 @@ export class ReadingCanvas {
     el('canvas-exit').onclick = () => this.close();
     el('canvas-prev').onclick = () => this.go(this.current - 1);
     el('canvas-next').onclick = () => this.go(this.current + 1);
-    this.scrub.oninput = () => this.go(this.scrub.valueAsNumber - 1, false);
+    this.scrub.oninput = () => this.go(this.scrub.valueAsNumber - 1, 'scrub');
     el('canvas-zoom-in').onclick = () => this.setZoom(10);
     el('canvas-zoom-out').onclick = () => this.setZoom(-10);
     this.handle.type = 'button';
     this.handle.className = 'canvas-turn-handle';
     this.handle.title = 'Drag vertically to scrub source turns. Click to align this turn. Use Up and Down arrows, Home or End.';
     this.handle.setAttribute('aria-keyshortcuts','ArrowUp ArrowDown Home End');
-    this.handle.onclick = () => {
-      const turn = this.turns[this.current];
-      if (turn) this.go(this.current);
-    };
+    this.handle.onclick = () => this.go(this.current, 'align');
     this.handle.onkeydown = event => {
       const movements:Record<string,number> = {ArrowUp:this.current-1, ArrowDown:this.current+1, Home:0, End:this.turns.length-1};
       if (!(event.key in movements)) return;
       event.preventDefault();event.stopPropagation();this.go(movements[event.key]);
     };
-    this.pane.addEventListener('scroll', () => this.followScroll(), {...options, passive:true});
-    const releaseDestination = () => {this.destination = null};
+    const releaseDestination = () => {
+      if (this.destination?.scrolling)
+        this.pane.scrollTo({top:this.pane.scrollTop,behavior:'instant'});
+      this.destination = null;
+    };
+    this.pane.addEventListener('scroll', () => {
+      const target = this.destination;
+      if (target && !target.scrolling && Math.abs(this.pane.scrollTop-target.top)>1) releaseDestination();
+      this.followScroll();
+    }, {...options, passive:true});
     this.pane.addEventListener('wheel', releaseDestination, {...options, passive:true});
     this.pane.addEventListener('keydown', releaseDestination, {...options, capture:true});
     this.pane.addEventListener('pointerdown', event => {releaseDestination(); this.panStart(event)}, options);
-    this.pane.addEventListener('scrollend', releaseDestination, options);
+    this.pane.addEventListener('scrollend', () => {
+      const target = this.destination;
+      if (!target?.scrolling) return;
+      if (Math.abs(this.pane.scrollTop-target.top)<=1) target.scrolling = false;
+      else {
+        // A search jump or other scroll command interrupted the original trip.
+        this.destination = null;
+        this.followScroll();
+      }
+    }, options);
     this.pane.addEventListener('pointermove', event => {
       const drag = this.drag;
       if (!drag || drag.id !== event.pointerId) return;
       if (drag.turn === null) this.pane.scrollTop = drag.scroll + drag.y - event.clientY;
       else {
         const target = Math.max(0,Math.min(this.turns.length-1,drag.turn + Math.round((event.clientY-drag.y)/24)));
-        if (target !== this.current) this.go(target, false);
+        if (target !== this.current) this.go(target, 'scrub');
       }
     }, options);
     this.pane.addEventListener('pointerup', event => {
       if (this.drag?.id !== event.pointerId) return;
-      if (this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.go(this.drag.turn);
+      if (this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.go(this.drag.turn, 'align');
       this.endPan();
     }, options);
     const cancelPan = (event:PointerEvent) => {if (event.pointerId === this.drag?.id) this.endPan()};
@@ -118,6 +132,7 @@ export class ReadingCanvas {
     // Manual wheel/keyboard events finish relative to the turn they started on.
     // Read the new scroll position after their default action.
     if (!turn) {this.followScroll(); return}
+    this.destination = null;
     const index = this.readingIndex();
     if (this.current !== index) this.mark(index);
   }
@@ -131,7 +146,7 @@ export class ReadingCanvas {
     el('canvas-exit').hidden = false;
     this.enter.setAttribute('aria-expanded','true');
     this.pane.scrollTop = 0;
-    if (anchor) this.align(anchor);
+    if (anchor) this.pane.scrollTop = this.alignmentOffset(anchor);
     this.mark(this.readingIndex());
     el('canvas-exit').focus({preventScroll:true});
   }
@@ -170,7 +185,7 @@ export class ReadingCanvas {
 
   private readingIndex() {
     const timed = this.playbackTurn ? this.turns.indexOf(this.playbackTurn) : -1;
-    return timed >= 0 ? timed : this.destination ?? this.nearest();
+    return timed >= 0 ? timed : this.destination?.index ?? this.nearest();
   }
 
   private nearest() {
@@ -212,17 +227,23 @@ export class ReadingCanvas {
     el<HTMLButtonElement>('canvas-next').disabled = index < 0 || index >= total - 1;
   }
 
-  private align(turn:HTMLElement, animate=false) {
+  private alignmentOffset(turn:HTMLElement) {
     const top = turn === this.turns[0] ? 0 : this.pane.scrollTop + turn.getBoundingClientRect().top - this.guide();
-    this.pane.scrollTo({top, behavior:animate ? 'smooth' : 'instant'});
+    return Math.max(0,Math.min(top,this.pane.scrollHeight-this.pane.clientHeight));
   }
 
-  private go(index:number, animate=true) {
+  private go(index:number, mode:'reveal'|'align'|'scrub'='reveal') {
     const turn = this.turns[index];
     if (!turn) return;
-    const smooth = animate && matchMedia('(prefers-reduced-motion: no-preference)').matches;
-    this.destination = smooth ? index : null;
-    this.align(turn, smooth);
+    const pane = this.pane.getBoundingClientRect(), box = turn.getBoundingClientRect();
+    const inset = Math.min(24,pane.height * .08);
+    // A long turn only needs its opening lines in view for the reader to start.
+    const visible = box.top >= pane.top+inset && box.top+Math.min(box.height,48) <= pane.bottom-inset;
+    const keepPlace = mode === 'reveal' && visible;
+    const top = keepPlace ? this.pane.scrollTop : this.alignmentOffset(turn);
+    const scrolling = Math.abs(this.pane.scrollTop-top)>1 && mode !== 'scrub' && matchMedia('(prefers-reduced-motion: no-preference)').matches;
+    this.destination = {index,top,scrolling};
+    this.pane.scrollTo({top,behavior:scrolling?'smooth':'instant'});
     this.mark(index);
   }
 
@@ -242,7 +263,7 @@ export class ReadingCanvas {
     el('canvas-scale').textContent = this.zoom + '%';
     el<HTMLButtonElement>('canvas-zoom-in').disabled = this.zoom >= 300;
     el<HTMLButtonElement>('canvas-zoom-out').disabled = this.zoom <= 70;
-    if (turn) this.align(turn);
+    if (turn) this.go(this.current);
   }
 
   private panStart(event:PointerEvent) {
@@ -252,7 +273,10 @@ export class ReadingCanvas {
     const margin = target === this.pane || target === this.text || (target instanceof Element && target.matches('.source-number,.reading-block'));
     if (!steering && (event.pointerType === 'touch' || !margin)) return;
     event.preventDefault();
-    if (steering) this.handle.focus({preventScroll:true});
+    if (steering) {
+      this.destination = {index:this.current,top:this.pane.scrollTop,scrolling:false};
+      this.handle.focus({preventScroll:true});
+    }
     this.pane.setPointerCapture(event.pointerId);
     this.drag = {id:event.pointerId,y:event.clientY,scroll:this.pane.scrollTop,turn:steering ? this.current : null};
     this.pane.dataset.panning = '';
