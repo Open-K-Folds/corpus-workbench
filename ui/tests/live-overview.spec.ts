@@ -187,7 +187,7 @@ test('a pinned listening interval follows its own anchors and text-only selectio
   await page.getByRole('button',{name:'Projects',exact:true}).click();
   await page.locator('[data-document="xmlfiles/no-media.xml"]').click();
   for(const id of ['untimed','orphan-word']){
-    await page.locator(`[data-token="${id}"]`).click();
+    await page.locator(`[data-token="${id}"]`).click({button:'right'});
     const action=page.locator('.selection-tools:visible [data-action="listen"]');
     await expect(action).toBeVisible();
     await expect(action).toBeDisabled();
