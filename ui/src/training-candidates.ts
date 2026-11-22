@@ -16,6 +16,7 @@ export interface Passage {
   language: string | null;
   startUs: number | null;
   endUs: number | null;
+  mediaReferences?: string[];
   timeBasis?: 'word' | 'utterance' | null;
 }
 
@@ -109,6 +110,7 @@ function ground(view: View, source: IndexedDocument, range: Range): Passage | nu
   return {
     project: view.snapshot.project, revision: view.revision.id, snapshotHash: view.revision.snapshot_hash,
     document: doc.path, documentHash: view.snapshot.files[doc.path].sha256, title: doc.title,
+    ...(doc.media?.length && {mediaReferences:[...doc.media]}),
     utterance: first.utterance, tokenIds: tokens.map(t => t.id), quote,
     readings: tokens.map(t => ({id: t.id, original: t.original, corrected: t.corrected, language: t.language_effective,
       ...(t.language_source && {languageSource: t.language_source})})),

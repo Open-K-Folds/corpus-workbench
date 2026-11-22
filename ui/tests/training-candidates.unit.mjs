@@ -27,6 +27,7 @@ function view(...documents) {
 test('grounding reconstructs the saved reading and retains its exact authority, identities and observed metadata', () => {
   const d = doc('field.xml', [['a', ['A', 'cafe\u0301', 'opens.'], '#s1 #s2'], ['b', ['Later.']]]);
   d.tokens[0].corrected = 'The';
+  d.media = ['interview.wav'];
   d.tokens[1].normalized = 'coffeehouse';
   for (const [i, token] of d.tokens.slice(0, 2).entries()) {
     Object.assign(token, {start_us: 400 + i * 300, end_us: 600 + i * 300, language_effective: 'en'});
@@ -35,6 +36,7 @@ test('grounding reconstructs the saved reading and retains its exact authority, 
   assert.deepEqual(makePassage(v, d, ['w2', 'w1']), {
     project: 'research', revision: 12, snapshotHash: hash, document: 'field.xml', documentHash: file, title: 'field.xml',
     utterance: 'a', tokenIds: ['w1', 'w2'], quote: 'The cafe\u0301', speaker: '#s1 #s2', language: 'en',
+    mediaReferences: ['interview.wav'],
     readings: [{id: 'w1', original: 'A', corrected: 'The', language: 'en'},
       {id: 'w2', original: 'cafe\u0301', corrected: null, language: 'en'}],
     startUs: 400, endUs: 900, timeBasis: 'word',

@@ -63,7 +63,8 @@ function isPassage(value: unknown): value is Passage {
     present(p.quote) && validReadings(p) && nullableString(p.speaker) && nullableString(p.language) &&
     nullableTime(p.startUs) && nullableTime(p.endUs) &&
     (p.startUs === null && p.endUs === null || typeof p.startUs === 'number' && typeof p.endUs === 'number' && p.endUs >= p.startUs) &&
-    (p.timeBasis == null || p.timeBasis === 'word' || p.timeBasis === 'utterance');
+    (p.timeBasis == null || p.timeBasis === 'word' || p.timeBasis === 'utterance') &&
+    (p.mediaReferences === undefined || Array.isArray(p.mediaReferences) && p.mediaReferences.every(ref=>typeof ref==='string'));
 }
 
 function sameSnapshot(a: Passage, b: Passage) {

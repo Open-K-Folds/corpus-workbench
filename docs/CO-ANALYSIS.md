@@ -74,7 +74,8 @@ label. A confirmed save creates a revision. Suggestions alone create no examples
 Open **Saved collections** to revisit the source at its captured revision or export
 one JSONL record per reviewed example. Each record carries document and snapshot
 hashes, token IDs, the reviewer's label and the observed speaker, language and timing
-where available. The display quote joins token readings with spaces. The per-token
+where available. A passage with linked media includes the source document’s media
+references for use with the corpus package. The display quote joins token readings with spaces. The per-token
 readings retain original strings and human corrections separately. Source context can
 play an excerpt when the project provides an unambiguous recording and a usable interval.
 Distinct utterances and speaker IDs are counted within documents. A recurring label
