@@ -208,10 +208,10 @@ export class ReadingCanvas {
 
   private setZoom(delta:number) {
     const turn = this.turns[this.current];
-    this.zoom = Math.max(70,Math.min(170,this.zoom + delta));
+    this.zoom = Math.max(70,Math.min(300,this.zoom + delta));
     this.pane.style.setProperty('--canvas-scale',String(this.zoom / 100));
     el('canvas-scale').textContent = this.zoom + '%';
-    el<HTMLButtonElement>('canvas-zoom-in').disabled = this.zoom >= 170;
+    el<HTMLButtonElement>('canvas-zoom-in').disabled = this.zoom >= 300;
     el<HTMLButtonElement>('canvas-zoom-out').disabled = this.zoom <= 70;
     if (turn) this.align(turn);
   }

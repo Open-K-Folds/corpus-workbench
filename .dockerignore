@@ -28,6 +28,8 @@ ui/**
 !ui/public/third-party/
 !ui/public/third-party/material-symbols/
 !ui/public/third-party/material-symbols/**
+!ui/public/third-party/jetbrains-mono/
+!ui/public/third-party/jetbrains-mono/**
 !desktop/
 desktop/**
 !desktop/coanalysis-prompt.mjs
