@@ -9,7 +9,7 @@ const {Journal,validateJournal}=require('../journal.cjs');
 
 function record(){
   const id='draft-'+randomUUID();
-  const draft={schema:1,id,authority:'a'.repeat(64),actor:'local',project:'synthetic',document:'xmlfiles/interview.xml',revision:1,snapshot:'b'.repeat(64),artifact:'c'.repeat(64),config:1,layer:'corrected',ids:['w2'],internalIds:['w2'],readings:['walked'],start:0,end:6,backward:true,quote:'walked',before:'walked',prefix:'',suffix:'',replacement:'strolled',command:null,updated:Date.now()};
+  const draft={schema:1,id,authority:'a'.repeat(64),actor:'local',project:'synthetic',document:'xmlfiles/interview.xml',revision:1,snapshot:'b'.repeat(64),artifact:'c'.repeat(64),config:1,layer:'corrected',ids:['w2'],internalIds:['w2'],readings:['walked'],start:0,end:6,backward:true,quote:'walked',before:'walked',prefix:'',suffix:'',replacement:'walked  all the way',command:null,updated:Date.now()};
   draft.command={schema:1,project:draft.project,command_id:'cmd-'+randomUUID(),base_revision:draft.revision,preimage_hash:draft.snapshot,config_version:draft.config,label:'Correct w2 in place',operations:[{kind:'set_token',document:draft.document,token:'w2',fields:{nform:draft.replacement}}]};
   return draft;
 }

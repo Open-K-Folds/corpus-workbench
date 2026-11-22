@@ -251,7 +251,7 @@ test('stable desktop origin recovers backward Unicode draft and identical respon
     await page.getByRole('button',{name:'Recover correction',exact:true}).click();
     await expect(page.getByLabel('Proposed correction')).toHaveValue('étendu');
     await page.locator('#undo-draft').click();await expect.poll(()=>records(page)).toEqual([]);
-    await draft(page,'wandered');
+    await draft(page,'wandered away');
     await page.evaluate(()=>{const original=window.fetch.bind(window);window.fetch=async(input,init)=>{const command=new URL(typeof input==='string'?input:input.url,location.href).pathname==='/api/command';const response=await original(input,init);if(command&&response.ok){window.__lostCommand=init.body;throw new TypeError('Synthetic committed response loss')}return response}});
     await page.locator('#accept-draft').click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');
     const [pending]=await records(page),body=await page.evaluate(()=>window.__lostCommand);
@@ -266,6 +266,7 @@ test('stable desktop origin recovers backward Unicode draft and identical respon
     await expect(page.locator('#message')).toContainText('Original correction confirmed');
     expect(await page.evaluate(()=>window.__retries)).toEqual([body]);
     expect((await head(page)).revision.id).toBe(before.revision.id+1);await expect.poll(()=>records(page)).toEqual([]);
+    await expect(page.locator('[data-token="w2"] .reading-text')).toHaveText('wandered away');
     expect(new Set(origins)).toEqual(new Set(['workbench://app/']));
     writeFileSync(join(evidence,'recovery-evidence.json'),JSON.stringify({platform:process.platform,origins,backward_unicode_recovery:true,authority:pending.authority,command_id:pending.command.command_id,identical_request_retry:true,no_duplicate_revision:true,interrupted_parent_cleanup:true,final_revision:(await head(page)).revision.id},null,2));
   }finally{if(application&&application.process().exitCode===null)await interrupt(application,await sidecars(application))}
