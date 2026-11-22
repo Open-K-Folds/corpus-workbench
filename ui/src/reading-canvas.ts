@@ -1,13 +1,38 @@
 import {el} from './dom';
+import {icon} from './icons';
 import './reading-canvas.css';
+
+export function stageControls() {
+  return `<nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls">
+    <div class="canvas-console">
+      <div class="canvas-position">
+        <span id="canvas-position" role="status">No visible source turns</span>
+        <span id="canvas-location" title="Current source identifier"></span>
+      </div>
+      <div class="canvas-transport">
+        <button type="button" id="canvas-prev" aria-label="Previous source turn" title="Previous source turn">${icon('expand_less')}</button>
+        <input id="canvas-scrub" type="range" min="1" max="1" step="1" value="1" aria-label="Scrub source turns">
+        <button type="button" id="canvas-next" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
+      </div>
+      <div class="canvas-zoom">
+        <button type="button" id="canvas-zoom-out" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">−</button>
+        <output id="canvas-scale" aria-label="Text size">100%</output>
+        <button type="button" id="canvas-zoom-in" aria-label="Increase text size" title="Increase text size (Alt + plus)">+</button>
+      </div>
+      <button type="button" id="canvas-exit" aria-label="Exit reading canvas" title="Exit reading canvas (Escape)" hidden>Exit focus</button>
+    </div>
+  </nav>`;
+}
 
 export class ReadingCanvas {
   private turns: HTMLElement[] = [];
   private current = -1;
   private zoom = 100;
   private frame = 0;
-  private drag: {id:number; y:number; scroll:number} | null = null;
+  private drag: {id:number; y:number; scroll:number; turn:number | null} | null = null;
+  private handle = document.createElement('button');
   private observer: MutationObserver;
+  private sizeObserver: ResizeObserver;
   private events = new AbortController();
   private pane = document.querySelector<HTMLElement>('.transcript')!;
   private text = el('tokens');
@@ -24,20 +49,42 @@ export class ReadingCanvas {
     this.scrub.oninput = () => this.go(this.scrub.valueAsNumber - 1);
     el('canvas-zoom-in').onclick = () => this.setZoom(10);
     el('canvas-zoom-out').onclick = () => this.setZoom(-10);
+    this.handle.type = 'button';
+    this.handle.className = 'canvas-turn-handle';
+    this.handle.title = 'Drag vertically to scrub source turns. Click to align this turn. Use Up and Down arrows, Home or End.';
+    this.handle.setAttribute('aria-keyshortcuts','ArrowUp ArrowDown Home End');
+    this.handle.onclick = () => {
+      const turn = this.turns[this.current];
+      if (turn) this.pane.scrollTop += turn.getBoundingClientRect().top - this.guide();
+    };
+    this.handle.onkeydown = event => {
+      const movements:Record<string,number> = {ArrowUp:this.current-1, ArrowDown:this.current+1, Home:0, End:this.turns.length-1};
+      if (!(event.key in movements)) return;
+      event.preventDefault();event.stopPropagation();this.go(movements[event.key]);
+    };
     this.pane.addEventListener('scroll', () => this.followScroll(), {...options, passive:true});
-    window.addEventListener('resize', () => this.followScroll(), options);
     this.pane.addEventListener('pointerdown', event => this.panStart(event), options);
     this.pane.addEventListener('pointermove', event => {
-      if (this.drag?.id === event.pointerId) this.pane.scrollTop = this.drag.scroll + this.drag.y - event.clientY;
+      const drag = this.drag;
+      if (!drag || drag.id !== event.pointerId) return;
+      if (drag.turn === null) this.pane.scrollTop = drag.scroll + drag.y - event.clientY;
+      else {
+        const target = Math.max(0,Math.min(this.turns.length-1,drag.turn + Math.round((event.clientY-drag.y)/24)));
+        if (target !== this.current) this.go(target);
+      }
     }, options);
-    this.pane.addEventListener('pointerup', () => this.endPan(), options);
+    this.pane.addEventListener('pointerup', event => {
+      if (this.drag?.id === event.pointerId && this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.handle.click();
+      this.endPan();
+    }, options);
     this.pane.addEventListener('pointercancel', () => this.endPan(), options);
     this.pane.addEventListener('lostpointercapture', () => this.endPan(), options);
     document.addEventListener('keydown', event => {
-      if (!this.active || event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+      if (event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
       const target = event.target as HTMLElement;
+      if (!this.active && !this.toolbar.contains(target) && !this.pane.contains(target)) return;
       if (!this.toolbar.contains(target) && target.closest('input,textarea,select,[contenteditable=true],.draft-actions,.selection-tools,.change-popover')) return;
-      if (event.key === 'Escape') {
+      if (this.active && event.key === 'Escape') {
         if (document.querySelector('.selection-tools:not([hidden]),.change-popover:not([hidden])')) return;
         event.preventDefault();event.stopPropagation();this.close();
       } else if (event.altKey && !event.ctrlKey && !event.metaKey && ['=','+','-'].includes(event.key)) {
@@ -45,6 +92,10 @@ export class ReadingCanvas {
       }
     }, {...options, capture:true});
     this.observer = new MutationObserver(() => this.collect());
+    this.observer.observe(this.text,{childList:true});
+    this.sizeObserver = new ResizeObserver(() => this.followScroll());
+    this.sizeObserver.observe(this.pane);
+    this.collect();
   }
 
   get active() {return this.toolbar.isConnected && this.app.hasAttribute('data-reading-canvas')}
@@ -55,10 +106,9 @@ export class ReadingCanvas {
     const selected = this.text.querySelector('.lexeme.selected');
     const anchor = selected?.closest<HTMLElement>('.reading-block') ?? (this.pane.scrollTop > 0 ? this.turns[this.nearest()] : null);
     this.app.dataset.readingCanvas = '';
-    this.toolbar.hidden = false;
+    el('canvas-exit').hidden = false;
     this.enter.setAttribute('aria-expanded','true');
     this.pane.scrollTop = 0;
-    this.observer.observe(this.text,{childList:true});
     if (anchor) this.align(anchor);
     this.mark(this.nearest());
     el('canvas-exit').focus({preventScroll:true});
@@ -67,28 +117,27 @@ export class ReadingCanvas {
   close(focusEntry=true) {
     if (!this.active) return;
     const anchor = this.turns[this.current];
-    this.observer.disconnect();
     this.endPan();
     cancelAnimationFrame(this.frame);this.frame = 0;
     delete this.app.dataset.readingCanvas;
-    this.toolbar.hidden = true;
+    el('canvas-exit').hidden = true;
     this.enter.setAttribute('aria-expanded','false');
-    this.mark(-1);
     if (anchor?.isConnected) anchor.scrollIntoView({block:'nearest'});
+    this.mark(this.nearest());
     if (focusEntry) this.enter.focus({preventScroll:true});
   }
 
   dispose() {
     this.close(false);
     delete this.app.dataset.readingCanvas;
-    cancelAnimationFrame(this.frame);this.observer.disconnect();this.events.abort();
+    cancelAnimationFrame(this.frame);this.observer.disconnect();this.sizeObserver.disconnect();this.events.abort();
   }
 
   private collect() {
     // Filtered-out evidence and inter-block whitespace are not navigation stops.
     this.turns = [...this.text.querySelectorAll<HTMLElement>(':scope > .reading-block:not(.literal-block):has([data-token])')];
-    this.current = -1;
-    if (this.active) this.mark(this.nearest());
+    this.endPan();
+    this.mark(this.nearest());
   }
 
   private guide() {
@@ -114,9 +163,22 @@ export class ReadingCanvas {
     const position = turn ? `Turn ${index+1} of ${total}` : 'No visible source turns';
     turn?.setAttribute('data-canvas-current','');
     el('canvas-position').textContent = position;
+    if (turn) {
+      this.handle.dataset.turn = String(index+1);
+      this.handle.setAttribute('aria-label',`Steer source turn ${index+1} of ${total}. Use Up and Down arrows to scrub.`);
+      if (this.handle.parentElement !== turn) {
+        const focused = document.activeElement === this.handle;
+        turn.prepend(this.handle);
+        if (focused) this.handle.focus({preventScroll:true});
+      }
+    } else this.handle.remove();
+    const source = el('canvas-location');
+    source.textContent = turn?.dataset.location ?? '';
+    source.title = source.textContent ? `Source identifier: ${source.textContent}` : '';
     this.scrub.max = String(Math.max(1,total));
     this.scrub.value = String(Math.max(1,index+1));
     this.scrub.setAttribute('aria-valuetext',turn?.dataset.location ? `${position} · ${turn.dataset.location}` : position);
+    this.scrub.style.setProperty('--turn-progress', (total > 1 ? index / (total - 1) * 100 : 0) + '%');
     this.scrub.disabled = total < 2;
     el<HTMLButtonElement>('canvas-prev').disabled = index <= 0;
     el<HTMLButtonElement>('canvas-next').disabled = index < 0 || index >= total - 1;
@@ -129,12 +191,12 @@ export class ReadingCanvas {
 
   private go(index:number) {
     const turn = this.turns[index];
-    if (!this.active || !turn) return;
+    if (!turn) return;
     this.align(turn);this.mark(index);
   }
 
   private followScroll() {
-    if (!this.active || this.frame) return;
+    if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
       const index = this.nearest();
@@ -143,7 +205,6 @@ export class ReadingCanvas {
   }
 
   private setZoom(delta:number) {
-    if (!this.active) return;
     const turn = this.turns[this.current];
     this.zoom = Math.max(70,Math.min(170,this.zoom + delta));
     this.pane.style.setProperty('--canvas-scale',String(this.zoom / 100));
@@ -154,11 +215,13 @@ export class ReadingCanvas {
   }
 
   private panStart(event:PointerEvent) {
-    if (!this.active || this.drag || event.button !== 0 || event.pointerType === 'touch') return;
-    if (event.target !== this.pane && event.target !== this.text && !(event.target instanceof Element && event.target.matches('.source-number'))) return;
+    if (this.drag || !event.isPrimary || event.button !== 0) return;
+    const steering = event.target === this.handle;
+    if (!steering && (event.pointerType === 'touch' || (event.target !== this.pane && event.target !== this.text && !(event.target instanceof Element && event.target.matches('.source-number,.reading-block'))))) return;
     event.preventDefault();
+    if (steering) this.handle.focus({preventScroll:true});
     this.pane.setPointerCapture(event.pointerId);
-    this.drag = {id:event.pointerId,y:event.clientY,scroll:this.pane.scrollTop};
+    this.drag = {id:event.pointerId,y:event.clientY,scroll:this.pane.scrollTop,turn:steering ? this.current : null};
     this.pane.dataset.panning = '';
   }
 

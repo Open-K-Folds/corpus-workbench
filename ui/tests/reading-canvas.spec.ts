@@ -18,6 +18,36 @@ async function nativeSelection(page: Page, from: string, to: string) {
   await expect(page.getByRole('toolbar', {name: 'Selection tools'})).toBeVisible();
 }
 
+test('the standard stage steers with the dock and the handle attached to the current source turn', async ({page, practiceUrl}) => {
+  await page.goto(practiceUrl);
+  const dock = page.getByRole('navigation', {name:'Reading canvas controls'});
+  const position = dock.locator('#canvas-position');
+  await expect(dock).toBeVisible();
+  await expect(position).toHaveText('Turn 1 of 3');
+  const before = await head(page);
+  const size = await fontSize(token(page,'a1'));
+  await dock.getByRole('button', {name:'Increase text size'}).click();
+  await expect.poll(() => fontSize(token(page,'a1'))).toBeGreaterThan(size);
+  await dock.getByRole('button', {name:'Next source turn'}).click();
+  await expect(position).toHaveText('Turn 2 of 3');
+  const handle = page.getByRole('button', {name:/^Steer source turn/});
+  const grip = (await handle.boundingBox())!;
+  const x = grip.x+grip.width/2, y = grip.y+grip.height/2;
+  await page.mouse.move(x,y);
+  await page.mouse.down();
+  await page.mouse.move(x,y+30,{steps:7});
+  await page.mouse.up();
+  await expect(position).toHaveText('Turn 3 of 3');
+  await expect(handle).toBeFocused();
+  await handle.press('ArrowUp');
+  await expect(position).toHaveText('Turn 2 of 3');
+  await expect(page.locator('[data-canvas-current]')).toContainText('only heard after');
+  await handle.press('Home');
+  await expect(position).toHaveText('Turn 1 of 3');
+  await expect(page.getByRole('button',{name:'Next match',exact:true})).toBeVisible();
+  expect(await head(page)).toEqual(before);
+});
+
 test('canvas navigation and sizing preserve a live source selection for co-analysis', async ({page, practiceUrl}, info) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
@@ -65,7 +95,8 @@ test('canvas navigation and sizing preserve a live source selection for co-analy
   expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('only heard after');
   await info.attach('Reading canvas with native selection', {body: await page.screenshot(), contentType: 'image/png'});
   await page.getByRole('button', {name: 'Co-analyse selected tokens'}).click();
-  await expect(tools).toBeHidden();
+  await expect(page.getByRole('button',{name:'Exit reading canvas'})).toBeHidden();
+  await expect(tools).toBeVisible();
   await expect(page.locator('.ca-source blockquote')).toHaveText('only heard after');
   await expect(page.locator('.ca-source details')).toContainText('b2, b3, b4');
   expect(await head(page)).toEqual(initial);
@@ -95,7 +126,8 @@ test('canvas controls fit a phone and a correction draft stays attached to its t
   const exit = page.getByRole('button', {name: 'Exit reading canvas'});
   await exit.focus();
   await exit.press('Escape');
-  await expect(tools).toBeHidden();
+  await expect(exit).toBeHidden();
+  await expect(tools).toBeVisible();
   await expect(open).toBeFocused();
   await open.press('Enter');
   await nativeSelection(page, 'a4', 'a4');

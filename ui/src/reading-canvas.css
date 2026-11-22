@@ -1,59 +1,284 @@
+/* The text and its steering dock share one grid column. Neither covers the other. */
+#app > .workspace {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+.workspace > .documents {grid-column: 1; grid-row: 1 / -1}
+.workspace > .transcript {grid-column: 2; grid-row: 1}
+.workspace > .canvas-tools {grid-column: 2; grid-row: 2}
+.workspace > .inspector {grid-column: 3; grid-row: 1 / -1}
+
+.workspace > :is(.transcript, .canvas-tools) {
+  --stage-floor: #121617;
+  --stage-ink: #e9eeea;
+  --stage-soft: #a2ada9;
+  --stage-line: #37423e;
+  --stage-mint: #a3f2cf;
+  --stage-type: var(--font-mono, "IBM Plex Mono", ui-monospace, "SFMono-Regular", Consolas, monospace);
+}
+:root[data-theme=light] .workspace > :is(.transcript, .canvas-tools) {
+  --stage-floor: #f5f7f4;
+  --stage-ink: #202b27;
+  --stage-soft: #51625a;
+  --stage-line: #c3cfc7;
+  --stage-mint: #09684c;
+}
+.workspace > .transcript {
+  container: transcript-stage / size;
+  min-block-size: 0;
+  background: var(--stage-floor);
+  color: var(--stage-ink);
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+.transcript :is(.reading-settings, .reading-status, .transcript-title, #document-tabs, #selection-help) {cursor: auto}
 .transcript-title {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 16px;margin:20px 0 14px}
 .transcript-title #document-title {min-width:0;flex:1 1 12ch;margin:0}
-#open-reading-canvas {background:var(--selection-surface);color:var(--selection-ink);border-color:var(--border);white-space:nowrap}
+#open-reading-canvas {white-space:nowrap}
+.transcript .canvas-help {display: none}
 
-.canvas-tools {
-  display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:8px 18px;
-  flex:none;padding:9px clamp(12px,2.5vw,36px);background:var(--rail);border-bottom:1px solid var(--border);
+.workspace .transcript #tokens {
+  --measure: 64ch;
+  box-sizing: border-box;
+  max-inline-size: var(--measure);
+  min-block-size: 0;
+  margin: clamp(1.25rem, 4cqh, 3rem) auto 0;
+  padding: 0 0 max(6rem,100cqh) 3ch;
+  color: var(--stage-ink);
+  font: 400 calc(clamp(1.05rem, 2.55cqi, 1.34rem) * var(--canvas-scale, 1)) / 1.68 var(--stage-type);
+  letter-spacing: -.035em;
 }
-.canvas-tools > strong,.canvas-tools .canvas-turns,.canvas-tools .canvas-zoom {display:flex;align-items:center;gap:7px;color:var(--ink)}
-.canvas-tools > strong {font-size:14px}
-.canvas-tools > strong .material-symbol {color:var(--selection-ink)}
-.canvas-tools .canvas-turns {flex:0 1 300px}
-.canvas-tools #canvas-position {min-width:9ch;color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
-.canvas-tools #canvas-scrub {flex:1;min-width:32px;max-width:180px}
-.canvas-tools button {min-width:32px}
-.canvas-tools .canvas-zoom output {min-width:4ch;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}
-.canvas-tools :is(#canvas-prev,#canvas-next) .material-symbol {font-size:18px}
-.canvas-help {display:none}
+.workspace .transcript #tokens .reading-block:not(.literal-block) {
+  display: block;
+  margin: 0 0 .8em;
+  padding: 0;
+  cursor: grab;
+}
+.workspace .transcript #tokens .turn-separator {display: none}
+.workspace .transcript #tokens .reading-content {cursor: text}
+.workspace .transcript #tokens .lexeme {color: inherit}
+.workspace .transcript #tokens .lexeme.selected {
+  background: color-mix(in srgb, var(--stage-mint) 21%, var(--stage-floor));
+  color: var(--stage-mint);
+}
+.workspace .transcript #tokens ::selection {background: var(--stage-mint); color: var(--stage-floor)}
+.workspace .transcript #tokens .source-number {
+  position: absolute;
+  display: block;
+  inset-inline-end: calc(100% + .8rem);
+  inset-block-start: .46em;
+  min-inline-size: 2.2em;
+  margin: 0;
+  padding-inline-end: 8px;
+  border-inline-end: 2px solid var(--stage-line);
+  color: var(--stage-soft);
+  text-align: end;
+  white-space: nowrap;
+  font: 500 .64rem/1.45 var(--stage-type);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  cursor: grab;
+}
+.workspace .transcript #tokens .literal-block > .source-number {display: none}
+.workspace .transcript #tokens [data-canvas-current] > .source-number {color: var(--stage-mint); border-color: currentColor}
+.workspace .transcript #tokens [data-canvas-current] > .source-number {visibility:hidden}
+.workspace .transcript #tokens .canvas-turn-handle {
+  position:absolute;
+  inset-inline-end:calc(100% + 3px);
+  inset-block-start:calc(.84em - 16px);
+  display:grid;
+  place-items:center;
+  inline-size:32px;block-size:32px;
+  padding:0;margin:0;
+  background:transparent;border:0;border-radius:50%;box-shadow:none;
+  color:var(--stage-mint);
+  font:inherit;
+  cursor:ns-resize;touch-action:none;
+  -webkit-user-select:none;user-select:none;
+}
+.canvas-turn-handle::before,.canvas-turn-handle::after {grid-area:1/1;pointer-events:none}
+.canvas-turn-handle::before {
+  content:"";
+  inline-size:23px;block-size:23px;
+  border:1px solid #9abab0;border-radius:50%;
+  background:radial-gradient(circle,#263d33 45%,transparent 48%),repeating-conic-gradient(#a3cbad 0 4deg,#375645 4deg 36deg);
+  box-shadow:inset 0 0 0 2px #283a30, 0 1px 3px #10181360;
+}
+.canvas-turn-handle::after {content:attr(data-turn);color:#dfffe9;font:600 8px/1 var(--stage-type);letter-spacing:-.08em}
+.canvas-turn-handle:is(:hover,:focus-visible)::before {box-shadow:inset 0 0 0 2px #283a30,0 0 0 3px #85cdaa40}
+.workspace .transcript #tokens .canvas-turn-handle:focus-visible {outline:2px solid var(--stage-mint);outline-offset:1px}
+.workspace .transcript #tokens[data-layout=lines] .reading-block:not(.literal-block) {
+  padding-block: .36em;
+  margin: 0;
+  border-block-end: 1px dotted var(--stage-line);
+}
+.workspace .transcript #tokens[data-layout=lines] .source-number {inset-block-start: 1.04em}
+.workspace .transcript #tokens[data-layout=lines] .canvas-turn-handle {inset-block-start:calc(1.1em - 16px)}
+.workspace .transcript #tokens[data-layout=lines] {line-height: 1.5}
+.workspace .transcript[data-panning], .workspace .transcript[data-panning] * {
+  cursor: grabbing;
+  -webkit-user-select: none;
+  user-select: none;
+}
 
-/* Keep the original document, audio engine and measured side columns mounted. */
+/* A native range control supplies touch, pointing, keyboard and AT scrubbing. */
+.workspace .canvas-tools {
+  box-sizing: border-box;
+  display: grid;
+  container: steering-dock / inline-size;
+  min-inline-size: 0;
+  border: 0;
+  padding: 9px clamp(8px,2vw,24px) 15px;
+  background: var(--stage-floor);
+  color: var(--stage-ink);
+  z-index: 2;
+}
+.canvas-tools .canvas-console {
+  justify-self: center;
+  display: grid;
+  grid-template-columns: auto minmax(86px, 15rem) auto auto;
+  align-items: center;
+  gap: 12px;
+  max-inline-size: 100%;
+  padding: 7px 10px 7px 13px;
+  border: 1px solid #515d59;
+  border-radius: 13px;
+  background: linear-gradient(#343c3b, #252c2b 55%, #222927);
+  box-shadow: inset 0 1px #ffffff16, 0 3px 8px #050a0825;
+  color: #edf4ef;
+  color-scheme: dark;
+  font: 500 .7rem/1.35 var(--stage-type);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+}
+.canvas-tools .canvas-console:not(:has(#canvas-exit:not([hidden]))) {grid-template-columns: auto minmax(86px, 15rem) auto}
+.canvas-position {display:grid; gap:2px; min-inline-size:0; max-inline-size:14ch}
+#canvas-position {white-space:nowrap; color:#f2f6f2; font-weight:600}
+#canvas-location {overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#b8cbc2; font-size:.64rem}
+#canvas-location:empty {display:none}
+.canvas-transport {display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:5px}
+.canvas-console button {
+  display: inline-grid;
+  place-items: center;
+  min-block-size: 30px;
+  min-inline-size: 30px;
+  margin: 0;
+  padding: 0;
+  color: #eff5f1;
+  border: 1px solid #53605b;
+  border-radius: 50%;
+  background: linear-gradient(#3d4944, #29332e);
+  box-shadow: inset 0 1px #ffffff12;
+  font: inherit;
+  cursor: pointer;
+}
+.canvas-console button:hover:not(:disabled) {color:#c5ffdc; background:#415349; border-color:#8caa98}
+.canvas-console button:active:not(:disabled) {background:#1b2720; box-shadow:inset 0 1px 3px #0c170e}
+.canvas-console button:disabled {opacity:.42; cursor:default}
+.canvas-console :is(button,input):focus-visible {outline:2px solid #b1ffd8;outline-offset:3px}
+.canvas-console button .material-symbol {font-size:18px}
+.canvas-tools #canvas-scrub {
+  --track-size: 15px;
+  --thumb-size: 22px;
+  --channel: repeating-linear-gradient(90deg, transparent 0 4px, #b5cfc14f 4px 5px),linear-gradient(#131817, #2e3934);
+  --grip: repeating-linear-gradient(90deg, #68756d 0 1px, #c3d0c6 1px 2px, #819088 2px 3px);
+  appearance: none;
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 0;
+  block-size: 32px;
+  border: 0;
+  border-radius: 5px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  accent-color: #b1f5d0;
+  cursor: ew-resize;
+}
+#canvas-scrub::-webkit-slider-runnable-track {
+  block-size:var(--track-size);
+  border:1px solid #72837a;
+  border-radius:5px;
+  background:linear-gradient(to right,#91d7b05e var(--turn-progress, 0%),transparent var(--turn-progress, 0%)),var(--channel);
+  box-shadow:inset 0 1px 3px #060c07ab;
+}
+#canvas-scrub::-moz-range-track {
+  block-size:var(--track-size);
+  border:1px solid #72837a;
+  border-radius:5px;
+  background:var(--channel);
+  box-shadow:inset 0 1px 3px #060c07ab;
+}
+#canvas-scrub::-moz-range-progress {block-size:var(--track-size); border-radius:4px; background:#91d7b05e}
+#canvas-scrub::-webkit-slider-thumb {
+  appearance:none;
+  inline-size:27px;block-size:var(--thumb-size);
+  margin-block-start:calc((var(--track-size) - var(--thumb-size)) / 2 - 1px);
+  border:1px solid #cedcd1;border-radius:5px;
+  background:var(--grip);
+  box-shadow:inset 0 2px #ffffff67,inset 0 -3px #25392a68,0 2px 4px #060d09b0;
+}
+#canvas-scrub::-moz-range-thumb {
+  box-sizing:border-box;inline-size:27px;block-size:var(--thumb-size);
+  border:1px solid #cedcd1;border-radius:5px;background:var(--grip);
+  box-shadow:inset 0 2px #ffffff67,inset 0 -3px #25392a68,0 2px 4px #060d09b0;
+}
+.canvas-tools #canvas-scrub:disabled {cursor:default;opacity:.52}
+.canvas-zoom {display:flex;align-items:center;gap:2px;padding-inline-start:8px;border-inline-start:1px solid #67736b}
+.canvas-zoom button {border:0;box-shadow:none;background:transparent; font-size:1.1rem; min-inline-size:26px}
+#canvas-scale {min-inline-size:4ch;text-align:center;color:#dce8de}
+.canvas-console #canvas-exit {padding-inline:9px;border-radius:6px;white-space:nowrap}
+.canvas-console [hidden] {display:none!important}
+
 #app[data-reading-canvas] > .workbench-header {display:none}
-#app[data-reading-canvas] > #recording-pane {position:absolute;bottom:0;width:100%;visibility:hidden}
+#app[data-reading-canvas] > #recording-pane {position:absolute;bottom:0;width:100%;visibility:hidden;pointer-events:none}
 #app[data-reading-canvas] .workspace > :is(.documents,.inspector,.side-resizer) {visibility:hidden;pointer-events:none}
-#app[data-reading-canvas] .workspace > .inspector {grid-column:3}
+#app[data-reading-canvas] .workspace > :is(.transcript,.canvas-tools) {grid-column:1 / -1}
 #app[data-reading-canvas] .workspace > .transcript {
-  --canvas-measure:52rem;
-  position:absolute;inset:0;height:100%;min-height:0;padding:clamp(32px,7vh,88px) clamp(25px,7vw,100px) 0;
-  overflow:auto;overscroll-behavior:contain;background:var(--paper);cursor:grab;z-index:1;
+  position:relative;z-index:1;
+  padding:clamp(24px,6vh,78px) clamp(16px,5vw,80px) 0;
 }
-#app[data-reading-canvas] .transcript > :is(#document-tabs,.reading-settings,.reading-status,#selection-help) {display:none}
-#app[data-reading-canvas] #open-reading-canvas {display:none}
-#app[data-reading-canvas] .transcript > :is(.transcript-title,.canvas-help,.prose,.local-draft-recovery) {width:min(100%,var(--canvas-measure));margin-inline:auto}
-#app[data-reading-canvas] .transcript-title {margin-block:0 10px}
-#app[data-reading-canvas] #document-title {font-size:clamp(21px,2.2vw,32px);letter-spacing:-.04em}
-#app[data-reading-canvas] .canvas-help {display:block;margin-block:6px 30px;color:var(--muted);font-size:12px}
-#app[data-reading-canvas] .prose {max-width:none;min-height:0;padding-bottom:80dvh;font-size:calc(clamp(22px,1.9vw,28px) * var(--canvas-scale,1));line-height:1.7}
-#app[data-reading-canvas] .reading-block:not(.literal-block) {display:block;margin:0 0 .65em;cursor:text}
-#app[data-reading-canvas] .reading-block.turn-separator {display:none}
-#app[data-reading-canvas] .reading-block:not(.literal-block) > .source-number {
-  display:block;position:absolute;inset-inline-end:calc(100% + 7px);top:.6em;width:2.2em;min-width:0;margin:0;
-  padding-inline-end:5px;border-inline-end:2px solid transparent;text-align:end;color:var(--muted);font:10px/1.5 ui-monospace,monospace;cursor:grab;
-}
-#app[data-reading-canvas] .reading-block[data-canvas-current] > .source-number {color:var(--selection-ink);border-color:currentColor}
-#app[data-reading-canvas] .canvas-help,#app[data-reading-canvas] #document-title {cursor:text}
-#app[data-reading-canvas] .transcript[data-panning] {cursor:grabbing;user-select:none}
-#app[data-reading-canvas] .transcript[data-panning] * {cursor:inherit}
+#app[data-reading-canvas] .transcript > :is(#document-tabs,.reading-settings,.reading-status,#selection-help), #app[data-reading-canvas] #open-reading-canvas {display:none}
+#app[data-reading-canvas] .transcript > :is(.transcript-title,.canvas-help,.local-draft-recovery) {max-inline-size:49rem;margin-inline:auto}
+#app[data-reading-canvas] .transcript-title {margin-block:0 .55rem}
+#app[data-reading-canvas] #document-title {font-size:clamp(1.4rem,2.7vw,2.35rem);letter-spacing:-.045em;cursor:text}
+#app[data-reading-canvas] .canvas-help {display:block;margin-block:0;color:var(--stage-soft);font-size:.75rem;cursor:text}
+#app[data-reading-canvas] .transcript #tokens {font-size:calc(clamp(1.16rem,2.2cqi,1.55rem) * var(--canvas-scale,1)); margin-block-start:clamp(2rem,6cqh,5rem)}
+#app[data-reading-canvas] .workspace .canvas-tools {padding-block-end:max(15px,env(safe-area-inset-bottom))}
 
-@media(max-width:700px){
-  .transcript-title {margin:15px 0 10px}
-  .canvas-tools {display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:5px 8px;padding:6px 10px}
-  .canvas-tools > strong {font-size:12px;gap:4px}
-  .canvas-tools .canvas-turns {grid-row:2;grid-column:1/-1;max-width:none}
-  .canvas-tools #canvas-scrub {max-width:none}
-  .canvas-tools .canvas-zoom {gap:2px}
-  .canvas-tools #canvas-exit {font-size:12px}
-  #app[data-reading-canvas] .workspace > .transcript {padding-inline:30px 20px;padding-top:32px}
-  #app[data-reading-canvas] .reading-block:not(.literal-block) > .source-number {inset-inline-end:calc(100% + 3px)}
+@container steering-dock (max-width: 470px) {
+  .canvas-tools .canvas-console, .canvas-tools .canvas-console:not(:has(#canvas-exit:not([hidden]))) {
+    inline-size: 100%;
+    box-sizing: border-box;
+    grid-template-columns: minmax(0,1fr) auto auto;
+    gap: 4px 8px;
+    padding: 5px 8px;
+  }
+  .canvas-position {grid-row:1;grid-column:1;display:flex;flex-wrap:wrap;gap:2px 8px;max-inline-size:none}
+  .canvas-zoom {grid-row:1;grid-column:2;border:0;padding:0}
+  .canvas-console #canvas-exit {grid-row:1;grid-column:3}
+  .canvas-transport {grid-row:2;grid-column:1 / -1}
+}
+@media (pointer:coarse) {
+  .canvas-console button, .canvas-tools #canvas-scrub {min-block-size:44px}
+  .canvas-console button {min-inline-size:44px}
+  .workspace .transcript #tokens {padding-inline-start:3.2rem}
+  .workspace .transcript #tokens .canvas-turn-handle {inline-size:44px;block-size:44px;inset-block-start:calc(.84em - 22px)}
+  .workspace .transcript #tokens[data-layout=lines] .canvas-turn-handle {inset-block-start:calc(1.1em - 22px)}
+}
+@media (max-width:700px) {
+  #app > .workspace {grid-template-columns:minmax(0,1fr)}
+  #app .workspace > :is(.transcript,.canvas-tools) {grid-column:1}
+  .workspace .transcript {height:auto}
+  .workspace .documents,.workspace .inspector {grid-area:1 / 1 / -1 / -1}
+  .workspace:is([data-focus=navigation],[data-focus=properties]) > .canvas-tools {visibility:hidden}
+  #app[data-reading-canvas] .workspace .canvas-tools {visibility:visible}
+  .workspace .canvas-tools {padding:4px 10px 7px}
+  #app[data-reading-canvas] .workspace > .transcript {padding-inline:16px}
   body:has(#app[data-reading-canvas]) :is(.selection-tools,.change-popover) {bottom:12px}
+}
+@media (forced-colors:active) {
+  .canvas-tools #canvas-scrub {appearance:auto}
+  #canvas-scrub::-webkit-slider-thumb, #canvas-scrub::-webkit-slider-runnable-track {appearance:auto}
+  .canvas-console button {border:1px solid ButtonText}
 }
