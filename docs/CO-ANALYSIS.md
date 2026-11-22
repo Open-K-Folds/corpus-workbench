@@ -101,8 +101,9 @@ or another category from your project. A passage can carry several distinct labe
 
 To compare passages, choose **Same meaning**, **Similar wording** or **Easy to confuse**.
 Click a word to select it or drag across words to select a passage. Right-click a
-word in the selection to open its tools. A stationary press and hold opens the
-training fan. You can also hold the second press of a double-click.
+word in the selection to open its tools. On touchscreens, tap the selected-word
+count in the status bar. A stationary press and hold opens the training fan.
+You can also hold the second press of a double-click.
 Drag farther to request up to 3, 6 or 12 candidates. Release near the starting point to
 cancel. For keyboard control, open the selection tools with Shift+F10 and choose
 **Training lenses**. The angle and distance select the search mode and number of results.
