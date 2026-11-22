@@ -114,7 +114,7 @@ test('real Electron imports, corrects, reviews, exports, reopens and protects me
   try{
     ({application,page}=await launch(profile));
     const errors=[];page.on('pageerror',error=>errors.push(error.message));
-    await expect(page.getByRole('heading',{name:'Corpus workbench',exact:true})).toBeVisible();
+    await expect(page.getByRole('heading',{name:'Open a project',exact:true})).toBeVisible();
     expect(page.url()).toBe('workbench://app/');
     await queue(application,'open',[source]);await page.locator('#desktop-import').click();await ready(page);
     const initial=await head(page),originalState=await state(page),originalId=originalState.project.id;
