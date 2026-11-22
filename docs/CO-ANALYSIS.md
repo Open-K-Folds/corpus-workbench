@@ -69,6 +69,29 @@ transcript with word timing, a passage timed as a whole, and pauses between turn
 The active-word caret and line-following behavior draw on the work of the
 [Monkeytype contributors](https://github.com/monkeytypegame/monkeytype).
 
+### Align an existing Omnilingual CTC transcript locally
+
+For a transcript produced by `omniASR_CTC_300M_v2`, keep the original ASR
+chunk JSON, the exact input WAVs and the model image used for transcription.
+The source Workbench package must identify the recording and retain its timed
+chunks and untimed token IDs. The following commands use read-only inputs and
+a new private output directory. Run the first inside the original model
+container with networking disabled and the model weights already cached.
+Run the second with Python 3.11 or later.
+
+```sh
+python /tools/omnilingual-emissions.py --raw /source/Raw/run.json --chunks /chunks --out /evidence
+python /tools/omnilingual-word-timing.py --source /source --raw Raw/run.json --transcript xmlfiles/transcript.xml --evidence /evidence --out /new/aligned-package
+```
+
+Open the resulting package through the Workbench import flow. The scripts check
+recording and chunk hashes, replay the acoustic model, and require the decoded
+labels to reproduce the original words in order. Each token keeps its source
+ID and spelling. The private `Resources/word-alignment.json` records the model
+fingerprint and the acoustic frames' time span for each word. Nearby words
+share a boundary at the model's space prediction. Longer gaps retain the
+passage marker. These boundaries are machine estimates for listening review.
+
 ## Collect training examples
 
 Open **Who gets the notice?** in a new practice copy. Select the second turn by clicking
