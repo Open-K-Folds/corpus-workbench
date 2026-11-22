@@ -67,8 +67,22 @@ test('recording resize, pane focus, themes, tabs and citation guards preserve re
   await open(page);await expect(page.locator('#recording-summary')).toContainText('original recording');await page.locator('[data-token="w2"]').click();await page.getByRole('button',{name:'Listen to selection',exact:true}).click();await expect.poll(()=>page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(.05);await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.pause());const time=await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime);
   await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','expanded');await expect(page.locator('#recording-layers')).toContainText('No complete word times');await page.keyboard.press('Home');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','minimal');expect(await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeCloseTo(time,1);
   await page.getByRole('button',{name:'Dark appearance',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  const colors=await page.locator('#navigation-query').evaluate(e=>({fg:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,label:getComputedStyle(e.closest('label')!).color}));
-  expect(colors).toEqual({fg:'rgb(227, 235, 227)',bg:'rgb(38, 49, 43)',label:'rgb(176, 191, 180)'});
+  const colors=await page.locator('#navigation-query').evaluate(input=>{
+    const style=getComputedStyle(input),brush=document.createElement('canvas').getContext('2d')!;
+    const hex=(color:string)=>{brush.fillStyle=color.trim();return brush.fillStyle;};
+    const actual=[style.color,style.backgroundColor,getComputedStyle(input.closest('label')!).color,getComputedStyle(input.closest('aside')!).backgroundColor].map(hex);
+    const expected=['--ink','--control-surface','--muted','--rail'].map(role=>hex(style.getPropertyValue(role)));
+    return {actual,expected};
+  });
+  expect(colors.actual).toEqual(colors.expected);
+  const luminance=(hex:string)=>{
+    const rgb=hex.slice(1).match(/../g)!.map(pair=>parseInt(pair,16)/255)
+      .map(channel=>channel<=0.04045?channel/12.92:((channel+0.055)/1.055)**2.4);
+    return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];
+  };
+  const [text,surface,label,rail]=colors.actual.map(luminance);
+  expect((text+.05)/(surface+.05)).toBeGreaterThanOrEqual(4.5);
+  expect((label+.05)/(rail+.05)).toBeGreaterThanOrEqual(4.5);
   await page.getByRole('button',{name:'Token',exact:true}).click();await page.locator('[data-token="w2"]').click();await page.getByLabel('Human-corrected reading').fill('noticeLayout');await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#message')).toContainText('Saved R');
   expect(await page.locator('#recording-pane').evaluate(e=>e.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);expect(await page.locator("audio").evaluate(a=>a.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);
   await page.locator('[data-document="xmlfiles/second.xml"]').click();await expect(page.getByRole('tab')).toHaveCount(2);await page.getByRole('tab',{name:'SYNTHETIC correction workspace'}).click();await expect(page.locator('[data-token="w2"]')).toBeVisible();
@@ -80,6 +94,7 @@ test('delayed document projection cannot edit stale text or expose previous audi
   await page.locator('[data-document="xmlfiles/second.xml"]').click();await expect.poll(()=>waiting).toBe(true);await expect(page.locator('#tokens')).toHaveAttribute('inert','');await expect(page.locator('#tokens [data-token]')).toHaveCount(0);await expect(page.getByRole('button',{name:'Listen to selection',exact:true})).toBeDisabled();await page.keyboard.press('Backspace');expect((await head(page)).revision.id).toBe(before);release();await expect(page.locator('#tokens')).not.toHaveAttribute('inert','');await expect(page.locator('#tokens')).toContainText('Other');
 });
 test('late optional history failure preserves active draft and Undo',async({page})=>{
+  await open(page);await change(page,'w5','history-before-draft');await page.goto('about:blank');
   let release!:()=>void;const hold=new Promise<void>(r=>release=r);let waiting=false;await page.route('**/api/diff?*',async route=>{waiting=true;await hold;await route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'Synthetic delayed history failure'})})});
   await open(page);await expect.poll(()=>waiting).toBe(true);await select(page,'w2');await page.keyboard.press('Backspace');await page.getByLabel('Proposed correction').fill('historysafe');release();await expect(page.locator('#message')).toContainText('history decoration');await expect(page.getByLabel('Proposed correction')).toHaveValue('historysafe');await page.locator('#undo-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);
 });
@@ -96,13 +111,20 @@ test('properties save response loss retains exact command and locks dependent ed
   await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');await expect(page.getByLabel('Human-corrected reading')).toBeDisabled();await page.getByRole('button',{name:'Resolve original save',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Saved R');expect((await head(page)).revision.id).toBe(before+1);expect(attempts).toBe(2);
 });
 test('correction history marker retains its actual revision after unrelated edits and reload',async({page})=>{
-  await open(page);await expect(page.locator('[data-token="w4"]')).toHaveClass(/recorded-correction/);const label=await page.locator('[data-token="w4"]').getAttribute('aria-label');await change(page,'w3','historyunrelated');await page.reload();await expect(page.locator('[data-token="w4"]')).toHaveClass(/recorded-correction/);expect(await page.locator('[data-token="w4"]').getAttribute('aria-label')).toBe(label);await page.locator('[data-token="w4"]').focus();await expect(page.locator('.change-popover')).toContainText('Recorded correction · R2');
+  await open(page);await change(page,'w1','history-marker');
+  const revision=(await head(page)).revision.id,marker=page.locator('[data-token="w1"]');
+  await page.reload();await expect(marker).toHaveClass(/recorded-correction/);
+  const label=await marker.getAttribute('aria-label');
+  await change(page,'w3','historyunrelated');await page.reload();
+  await expect(marker).toHaveClass(/recorded-correction/);await expect(marker).toHaveAttribute('aria-label',label!);
+  await marker.focus();await expect(page.locator('.change-popover')).toContainText('Recorded correction · R'+revision);
 });
 test('logical copy excludes interlinear metadata and deletion ghost and includes draft once',async({page})=>{
   await open(page);await page.getByLabel('Interlinear',{exact:true}).check();await expect(page.locator('#tokens')).toHaveAttribute('data-interlinear','true');await select(page,'w2');await page.keyboard.press('Backspace');await page.getByLabel('Proposed correction').fill('copyonce');
   const text=await page.evaluate(()=>{const span=document.querySelector('[data-token="w2"]')!,range=document.createRange();range.selectNode(span);window.getSelection()!.removeAllRanges();window.getSelection()!.addRange(range);const data=new DataTransfer();document.querySelector('#tokens')!.dispatchEvent(new ClipboardEvent('copy',{bubbles:true,cancelable:true,clipboardData:data}));return data.getData('text/plain')});expect(text).toBe('copyonce');await page.locator('#undo-draft').click();
 });
 test('lost restore stays recoverable after a late decoration error and blocks new review or draft',async({page})=>{
+  await open(page);await change(page,'w5','history-before-restore');await page.goto('about:blank');
   let release!:()=>void;const held=new Promise<void>(r=>release=r);let waiting=false;await page.route('**/api/diff?*',async route=>{waiting=true;await held;await route.fulfill({status:500,contentType:'application/json',body:JSON.stringify({error:'Synthetic history failure during pending restore'})})});
   await open(page);await expect.poll(()=>waiting).toBe(true);const before=(await head(page)).revision.id;let body='';let attempts=0;await page.route('**/api/command',async route=>{attempts++;if(attempts===1){body=route.request().postData()!;await route.fetch();await route.abort('failed')}else{expect(route.request().postData()).toBe(body);await route.continue()}});
   await page.getByRole('button',{name:'History',exact:true}).click();await page.getByRole('button',{name:'Undo last committed edit',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');release();await expect(page.locator('#message')).toContainText('history decoration');await expect(page.getByRole('button',{name:'Resolve original save'})).toBeVisible();await page.keyboard.press('Alt+5');await expect(page.locator('#review-form')).toHaveCount(0);await page.locator('#tokens').focus();await page.keyboard.press('Backspace');await expect(page.getByLabel('Proposed correction')).toHaveCount(0);await page.getByRole('button',{name:'Resolve original save'}).click();await expect(page.locator('#save-state')).toContainText('Saved R');expect((await head(page)).revision.id).toBe(before+1);expect(attempts).toBe(2);
