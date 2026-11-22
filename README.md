@@ -16,6 +16,11 @@ your assessment at the source anchors. Try the fictional noticeboard conversatio
 in the [co-analysis guide](docs/CO-ANALYSIS.md). The interaction draws on
 Chuanqi Sun’s [Spaceship IDE](https://github.com/chuanqisun/spaceship).
 
+**Training collections** turns selected words into reviewed examples for machine learning.
+Label a passage, compare different accounts or collect a difficult negative. Reopen the
+collection and export its labels, source readings and optional model proposals as JSONL.
+The [training exercise](docs/CO-ANALYSIS.md#collect-training-examples) uses two fictional interviews.
+
 The latest public prerelease is
 [v0.2.0-dev.11](https://github.com/Open-K-Folds/corpus-workbench/releases/tag/v0.2.0-dev.11),
 with Windows CLI/browser and Linux container packages. Those assets do not include

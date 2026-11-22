@@ -45,6 +45,41 @@ word interval, or its source utterance if word timing is unavailable. The
 control names the timing basis. Changing the current selection keeps the
 original passage pinned. A text-only document has no listening action available.
 
+## Collect training examples
+
+Open **Who gets the notice?** in a new practice copy. Select the second turn by clicking
+“I” and Shift-clicking “meeting.” Open **Training collections** on the rail. Choose
+**Label a passage** for a speech act, topic, language observation, transcription issue
+or another category from your project. A passage can carry several distinct labels.
+
+To compare passages, choose **Same meaning**, **Similar wording** or **Easy to confuse**.
+You can also click a selected word twice, hold the second press and drag towards a lens.
+Drag farther to request up to 3, 6 or 12 candidates. Release near the starting point to
+cancel. For keyboard control, open the selection tools with Shift+F10 and choose
+**Training lenses**. The angle and distance select the search mode and number of results.
+
+Try comparing “I only heard after the meeting” with “By the time I found out, it was
+already over.” Open **Source context** on each passage before judging whether both refer
+to the same event. Compare again with “I got there after the meeting.” The wording is
+close, but arriving and hearing about something describe different events. You can also
+find a passage by entering words from the corpus. Candidate ranking uses vocabulary
+and nearby text, so rephrasings with little shared wording can be missed.
+
+Name the collection and enter your own relationship, such as **Same meaning**,
+**Partial overlap**, **Different** or **Needs context**. **Model second reading** lets
+you inspect the prompt and ask the desktop’s local model, or attach a reply obtained
+manually. The saved example keeps the model name, prompt and reply alongside your
+label. A confirmed save creates a revision. Suggestions alone create no examples.
+
+Open **Saved collections** to revisit the source at its captured revision or export
+one JSONL record per reviewed example. Each record carries document and snapshot
+hashes, token IDs, the reviewer's label and the observed speaker, language and timing
+where available. The display quote joins token readings with spaces. The per-token
+readings retain original strings and human corrections separately. Source context can
+play an excerpt when the project provides an unambiguous recording and a usable interval.
+Distinct utterances and speaker IDs are counted within documents. A recurring label
+such as “A” in two interviews therefore makes no claim about the person's identity.
+
 ## Where the interaction comes from
 
 Chuanqi Sun (MIT Media Lab), *Spaceship IDE: Steer Your Ideas in Realtime,
