@@ -148,14 +148,47 @@ test('deselecting either endpoint corrects only the remaining complete token',as
 });
 
 test('late next-match projection cannot create new authoring controls during a held properties save',async({page})=>{
-  await open(page);await page.locator('[data-token="w2"]').click();await page.getByLabel('Human-corrected reading').fill('heldSafe');
-  let releaseReading!:()=>void,releaseSave!:()=>void;const readingHeld=new Promise<void>(r=>releaseReading=r),saveHeld=new Promise<void>(r=>releaseSave=r);let readingWaiting=false,saveWaiting=false;
-  await page.route('**/api/reading?*',async route=>{const response=await route.fetch();readingWaiting=true;await readingHeld;await route.fulfill({response})});
-  await page.keyboard.press('F3');await expect.poll(()=>readingWaiting).toBe(true);
-  await page.route('**/api/command',async route=>{const response=await route.fetch();saveWaiting=true;await saveHeld;await route.fulfill({response})});
-  await page.getByRole('button',{name:'Save token',exact:true}).click();await expect.poll(()=>saveWaiting).toBe(true);
-  const received=page.waitForResponse(r=>r.url().includes('/api/reading?'));releaseReading();await (await received).finished();await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));
-  await expect(page.getByLabel('Human-corrected reading')).toHaveValue('heldSafe');await expect(page.getByLabel('Human-corrected reading')).toBeDisabled();
-  await page.locator('[data-token="w4"]').hover();await expect(page.locator('.change-popover')).toBeHidden();
-  await page.unroute('**/api/reading?*');releaseSave();await expect(page.locator('#save-state')).toContainText('Saved R');const after=await head(page);expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('heldSafe');
+  await open(page);
+  await page.locator('[data-token="w2"]').click();
+  const corrected=page.getByLabel('Human-corrected reading');
+  await corrected.fill('heldSafe');
+  const originalRevision=(await head(page)).revision.id;
+  let releaseReading!:()=>void,releaseSave!:()=>void,captureRevision!:(revision:number)=>void,acceptSave!:(ok:boolean)=>void;
+  const readingHeld=new Promise<void>(resolve=>releaseReading=resolve);
+  const saveHeld=new Promise<void>(resolve=>releaseSave=resolve);
+  const readingCaptured=new Promise<number>(resolve=>captureRevision=resolve);
+  const saveAccepted=new Promise<boolean>(resolve=>acceptSave=resolve);
+  await page.route('**/api/reading?*',async route=>{
+    const response=await route.fetch();
+    captureRevision((await response.json()).revision);
+    await readingHeld;await route.fulfill({response});
+  });
+  await page.route('**/api/command',async route=>{
+    const response=await route.fetch();
+    acceptSave(response.ok());
+    await saveHeld;await route.fulfill({response});
+  });
+  try{
+    await page.getByRole('button',{name:'Next match',exact:true}).click();
+    expect(await readingCaptured).toBe(originalRevision);
+    await expect(page.locator('#tokens')).toContainText('Loading exact saved transcript');
+    await page.getByRole('button',{name:'Save token',exact:true}).click();
+    expect(await saveAccepted).toBe(true);
+    await expect(corrected).toBeDisabled();
+    const delivered=page.waitForResponse('**/api/reading?*');
+    releaseReading();
+    await (await delivered).finished();
+    // Next match selects w3 in the old projection while the inspector still holds w2.
+    await expect(page.locator('[data-token="w3"]')).toHaveClass(/selected/);
+    await page.locator('[data-token="w4"]').hover();
+    await expect(corrected).toHaveValue('heldSafe');
+    await expect(corrected).toBeDisabled();
+    await expect(page.locator('.change-popover')).toBeHidden();
+  }finally{
+    releaseReading();releaseSave();
+    await page.unrouteAll({behavior:'wait'});
+  }
+  await expect(page.locator('#save-state')).toContainText('Saved R');
+  const after=await head(page);
+  expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('heldSafe');
 });
