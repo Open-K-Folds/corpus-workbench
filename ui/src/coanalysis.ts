@@ -69,7 +69,7 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   let passage: ReturnType<typeof preparePassage>;
   try { passage = preparePassage(view, request); }
   catch (error) {
-    const reason = !ids.length ? 'Select a word in the transcript. Shift-click another word to analyse a passage.' : (error as Error).message;
+    const reason = !ids.length ? 'Select words in the transcript and choose Co-analyse. You can also click a word and Shift-click the end of a passage.' : (error as Error).message;
     panel.insertAdjacentHTML('beforeend', `<p class="ca-empty">${icon('notes')}<span>${esc(reason)}</span></p>${savedMemos(doc)}${footer}`);
     return panel;
   }
