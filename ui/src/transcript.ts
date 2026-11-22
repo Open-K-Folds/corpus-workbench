@@ -101,6 +101,7 @@ export class Transcript {
     },{capture:true});
   }
   private clearSelection(){
+    if(!this.surface.isConnected)return false;
     const native=window.getSelection();
     const hasNativeRange=native?.anchorNode&&!native.isCollapsed&&this.surface.contains(native.anchorNode);
     const hadSelection=this.selection!==null||this.host.selected().length>0;

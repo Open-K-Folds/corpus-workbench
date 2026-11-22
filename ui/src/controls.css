@@ -272,6 +272,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 }
 .workspace .transcript #tokens .lexeme:has(#inline-replacement) {
   display:inline-block;
+  box-sizing:border-box;
   vertical-align:baseline;
   max-inline-size:100%;
   margin-block:3px;

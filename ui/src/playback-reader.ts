@@ -69,6 +69,11 @@ export class PlaybackReader {
   show(cue: PlaybackCue | null, follow: boolean, options: {jump?:boolean} = {}) {
     const changed = cue !== this.cue;
     const followChanged = follow !== this.following;
+    if ((options.jump || !follow) && this.scrollTarget !== null) {
+      // A seek or manual release supersedes the previous turn's destination.
+      this.pane.scrollTo({top:this.pane.scrollTop, behavior:'instant'});
+      this.scrollTarget = null;
+    }
     this.following = follow;
     this.surface.toggleAttribute('data-playback-following',follow);
     this.cue = cue;
@@ -212,6 +217,7 @@ export class PlaybackReader {
     if (line.top <= bottom && line.bottom >= top) return;
     const delta = line.top - (bounds.top + bounds.height * .42);
     const destination = Math.max(0, Math.min(this.pane.scrollHeight - this.pane.clientHeight, this.pane.scrollTop + delta));
+    if (Math.abs(this.pane.scrollTop - destination) < 1) return;
     if (this.scrollTarget !== null && Math.abs(this.scrollTarget - destination) < 2) return;
     const smooth = matchMedia('(prefers-reduced-motion: no-preference)').matches;
     this.scrollTarget = destination;
