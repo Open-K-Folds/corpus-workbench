@@ -2,14 +2,15 @@ import {preparePassage, type PassageRequest} from '../../desktop/coanalysis-prom
 import type {Document, Operation, View} from './contracts';
 import {desktop} from './desktop';
 import {esc} from './dom';
+import {icon} from './icons';
 import {quoteCheck} from './quote-check';
 import type {Listening} from './listening';
 import './coanalysis.css';
 
 const lenses = [
-  ['Competing readings', 'What are two plausible readings of this passage, and which words support each?'],
-  ['Language in context', 'Where might register or language use shift, and what would a speaker or listener need to clarify?'],
-  ['Follow-up questions', 'What question would help a researcher distinguish what is said here from what is being inferred?'],
+  ['Competing readings', 'What are two plausible readings of this passage, and which words support each?', 'view_agenda'],
+  ['Language in context', 'Where might register or language use shift, and what would a speaker or listener need to clarify?', 'notes'],
+  ['Follow-up questions', 'What question would help a researcher distinguish what is said here from what is being inferred?', 'search'],
 ] as const;
 
 interface Memo {
@@ -63,39 +64,47 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
     project: view.snapshot.project, revision: view.revision.id, snapshot_hash: view.revision.snapshot_hash,
     document: doc.path, token_ids: [...ids], question: lenses[0][1],
   };
-  panel.innerHTML = `<h2>Transcript co-analysis</h2>`;
+  panel.innerHTML = `<h2 id="ca-heading">${icon('tune')}Transcript co-analysis</h2>`;
   const footer = `<p class="ca-credit">Inspired by Chuanqi Sun’s Spaceship IDE.</p>`;
   let passage: ReturnType<typeof preparePassage>;
   try { passage = preparePassage(view, request); }
   catch (error) {
     const reason = !ids.length ? 'Select a word in the transcript. Shift-click another word to analyse a passage.' : (error as Error).message;
-    panel.insertAdjacentHTML('beforeend', `<p>${esc(reason)}</p>${savedMemos(doc)}${footer}`);
+    panel.insertAdjacentHTML('beforeend', `<p class="ca-empty">${icon('notes')}<span>${esc(reason)}</span></p>${savedMemos(doc)}${footer}`);
     return panel;
   }
   const groups = passage.groups;
   request.token_ids = groups.flatMap(group => group.tokens.map(token => token.id));
   panel.insertAdjacentHTML('beforeend', `
     <section class="ca-source" aria-label="Passage for co-analysis">
-      <div class="ca-basis"><strong>Saved passage</strong><span>R${view.revision.id} · ${ids.length} ${ids.length === 1 ? 'token' : 'tokens'}</span></div>
-      <small>${esc(doc.title)} · ${esc(doc.path)}</small>
+      <div class="ca-basis"><strong>${icon('link')}Saved passage</strong><span>R${view.revision.id} · ${ids.length} ${ids.length === 1 ? 'token' : 'tokens'}</span></div>
+      <div class="ca-document">${esc(doc.title)}<small>${esc(doc.path)}</small></div>
       ${groups.map(group => `<div class="ca-excerpt">${group.gap_before ? '<span aria-label="omitted tokens">[…]</span>' : ''}
         ${group.utterance ? `<small>${esc(group.utterance)}</small>` : ''}
         <blockquote>${group.tokens.map(token => esc(token.text)).join(' ')}</blockquote></div>`).join('')}
-      <details><summary>Source anchors</summary><p>${esc(doc.path)}</p><p>${esc(request.token_ids.join(', '))}</p><small>Human-corrected reading with original text where a correction is absent.</small></details>
-      <button type="button" class="secondary" data-listen-pinned aria-describedby="pinned-cue-basis">Listen to pinned passage</button>
+      <details><summary>Source anchors</summary><p>${esc(request.token_ids.join(', '))}</p><small>Human-corrected reading with original text where a correction is absent.</small></details>
+      <button type="button" class="secondary" data-listen-pinned aria-describedby="pinned-cue-basis">${icon('headphones')}Listen to pinned passage</button>
       <small id="pinned-cue-basis"></small>
     </section>
-    <form id="coanalysis-form" data-dirty="false">
+    <form id="coanalysis-form" data-dirty="false" aria-labelledby="ca-heading">
       <fieldset data-setup><legend>Ask about the passage</legend>
-        <label>Your first reading (optional)<textarea data-first-reading rows="2" maxlength="4000" aria-describedby="first-reading-help"></textarea></label>
-        <small id="first-reading-help">Jot down what stands out before opening the proposal. This stays with your annotation and is excluded from the model prompt.</small>
-        <label>Analytical lens<select data-lens>${lenses.map(([label], i) => `<option value="${i}">${esc(label)}</option>`).join('')}</select></label>
+        <div class="ca-private">
+          <label for="ca-first">Your first reading (optional)</label>
+          <textarea id="ca-first" data-first-reading rows="2" maxlength="4000" aria-describedby="first-reading-help"></textarea>
+          <small id="first-reading-help">Record your observations before opening the proposal. Only your annotation includes this reading.</small>
+        </div>
+        <fieldset class="ca-lenses" data-lens><legend>Analytical lens</legend>
+          <div class="ca-lens-options">${lenses.map(([label, , symbol], i) => `<div class="ca-lens-option">
+            <input type="radio" id="ca-lens-${i}" name="ca-lens" value="${i}" ${i === 0 ? 'checked' : ''}>
+            <label for="ca-lens-${i}">${icon(symbol)}<span>${esc(label)}</span></label>
+          </div>`).join('')}</div>
+        </fieldset>
         <label>Research question<textarea data-question rows="3" maxlength="600" required></textarea></label>
         <details data-prompt-details><summary>Prompt for a local model</summary>
           <textarea data-prompt readonly rows="5" aria-label="Exact model prompt"></textarea>
           <button type="button" class="secondary" data-copy>Copy prompt</button>
         </details>
-        ${desktop?.askLocalModel ? '<p>Send this prompt to your local llama-server at 127.0.0.1:8080 with its loaded model.</p><button type="button" data-run>Ask local model</button>' : ''}
+        ${desktop?.askLocalModel ? `<div class="ca-local"><button type="button" data-run>${icon('play_arrow')}Ask local model</button><small>Uses the model loaded at 127.0.0.1:8080.</small></div>` : ''}
         <details class="ca-manual" ${desktop?.askLocalModel ? '' : 'open'}><summary>Use a reply from your local model</summary>
           <label>Model name or version<input data-model maxlength="256" autocomplete="off"></label>
           <label>Model reply<textarea data-reply rows="4" maxlength="8000"></textarea></label>
@@ -103,11 +112,15 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
         </details>
       </fieldset>
       <section data-review hidden>
-        <div data-initial-comparison hidden><h3>Your first reading</h3><small>Recorded before opening the proposal here.</small><blockquote data-initial-text></blockquote></div>
-        <h3>Model proposal</h3><p data-used-question></p><small data-by></small><blockquote data-proposal></blockquote>
-        <label>Your assessment<select data-decision><option value="">Choose an assessment</option><option>Supported by the passage</option><option>Partly supported</option><option>Disagree</option><option>Needs more context</option></select></label>
-        <label>Your interpretation<textarea data-interpretation maxlength="4000" rows="4" placeholder="Which words support or challenge the proposal?"></textarea></label>
-        <button type="submit" data-save disabled>Save reviewed annotation</button>
+        <h3 data-review-heading tabindex="-1">Compare readings</h3>
+        <p class="ca-review-question" data-used-question></p>
+        <div class="ca-reading" data-initial-comparison hidden><h4>${icon('notes')}Your first reading</h4><small>Recorded before opening the proposal here.</small><blockquote data-initial-text></blockquote></div>
+        <div class="ca-reading ca-model"><h4>${icon('view_agenda')}Model proposal</h4><small data-by></small><blockquote data-proposal></blockquote></div>
+        <div class="ca-judgment">
+          <label>Your assessment<select data-decision required><option value="">Choose an assessment</option><option>Supported by the passage</option><option>Partly supported</option><option>Disagree</option><option>Needs more context</option></select></label>
+          <label>Your interpretation<textarea data-interpretation maxlength="4000" rows="4" placeholder="Which words support or challenge the proposal?" required></textarea></label>
+          <button type="submit" data-save disabled>${icon('fact_check')}Save reviewed annotation</button>
+        </div>
       </section>
       <p data-status role="status"></p>
       <button type="button" class="secondary" data-discard hidden>Discard co-analysis draft</button>
@@ -145,7 +158,7 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   const pinPrompt = () => {
     markDirty();
     question.readOnly = true;
-    find<HTMLSelectElement>('lens').disabled = true;
+    find<HTMLFieldSetElement>('lens').disabled = true;
   };
   function updatePrompt() {
     request.question = question.value.trim();
@@ -178,11 +191,13 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
     find('proposal').textContent = proposal;
     status.textContent = '';
     refreshControls();
-    decision.focus();
+    find('review-heading').focus();
   }
   form.addEventListener('input', () => { markDirty(); updatePrompt(); refreshControls(); });
-  find<HTMLSelectElement>('lens').onchange = event => {
-    question.value = lenses[Number((event.target as HTMLSelectElement).value)][1];
+  find('lens').onchange = event => {
+    const radio = event.target;
+    if (!(radio instanceof HTMLInputElement)) return;
+    question.value = lenses[Number(radio.value)][1];
     markDirty(); updatePrompt(); refreshControls();
   };
   find<HTMLButtonElement>('copy').onclick = async () => {
