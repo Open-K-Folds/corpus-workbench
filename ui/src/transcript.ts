@@ -343,14 +343,20 @@ export class Transcript {
     span.querySelector<HTMLButtonElement>('#reapply-draft')!.onclick=()=>{if(this.finalizing||!d.compared||!d.latest)return;const latestToken=d.latest.documents.find(doc=>doc.path===d.basis.document)?.tokens.find(t=>t.id===d.basis.ids[0]);if(!latestToken?.editable){this.host.message('Target no longer supports correction. Undo the draft and inspect the new structure.',true);return}const proposed=d.prefix+d.replacement+d.suffix;d.before=latestToken.corrected??latestToken.original;d.basis={...d.basis,view:d.latest,start:0,end:Array.from(d.before).length,quote:d.before,range:null};d.prefix='';d.suffix='';d.replacement=proposed;d.phase='editing';d.command=null;this.persist();void this.accept()};
     this.updateDraft();input.focus();input.select();
   }
-  private reason(){const d=this.draft!;const proposed=d.prefix+d.replacement+d.suffix;if(d.basis.ids.length!==1)return 'Range replacement needs an explicit token mapping. Use Tokenize after undoing this draft.';if(!proposed)return 'Token deletion needs a supported mapping; this remains a draft.';if(/\s/u.test(proposed))return 'Multiple replacement tokens need a supported mapping; Accept is unavailable.';if(proposed===d.before)return 'No corrected reading change.';return ''}
+  private reason(){
+    const d=this.draft!,proposed=d.prefix+d.replacement+d.suffix;
+    if(d.basis.ids.length!==1)return 'Range replacement needs an explicit token mapping. Use Tokenize after undoing this draft.';
+    if(!proposed.trim())return 'Enter a corrected reading to keep this source token.';
+    if(proposed===d.before)return 'No corrected reading change.';
+    return '';
+  }
   private updateDraft(){
-    if(!this.draft)return;const d=this.draft,input=this.surface.querySelector<HTMLInputElement>('#inline-replacement')!;input.style.width=Math.max(2,Math.min(24,Array.from(input.value).length+1))+'ch';
+    if(!this.draft)return;const d=this.draft,input=this.surface.querySelector<HTMLInputElement>('#inline-replacement')!;input.style.width=Math.max(2,Math.min(56,Array.from(input.value).length+1))+'ch';
     const busy=this.finalizing||d.phase==='saving'||d.phase==='unknown';input.disabled=busy;for(const id of ['compare-draft','reapply-draft'])this.surface.querySelector<HTMLButtonElement>('#'+id)!.disabled=busy;
     const accept=this.surface.querySelector<HTMLButtonElement>('#accept-draft')!;accept.disabled=busy||d.phase==='conflict'||this.composing||this.settling||!!this.reason();
     this.surface.querySelector<HTMLButtonElement>('#undo-draft')!.disabled=busy;
     this.surface.querySelector<HTMLButtonElement>('#retry-draft')!.hidden=d.phase!=='unknown';this.surface.querySelector<HTMLButtonElement>('#compare-draft')!.hidden=d.phase!=='conflict';this.surface.querySelector<HTMLButtonElement>('#reapply-draft')!.hidden=d.phase!=='conflict'||!d.compared;
-    this.surface.querySelector<HTMLElement>('#draft-explanation')!.textContent=(d.phase==='unknown'?'Save outcome unknown. Resolve the original command before editing.':d.phase==='conflict'?'Saved head changed. Compare before explicitly reapplying.':this.reason()||'Unsaved correction draft')+(this.writesPending?' Updating local draft…':this.storageWarning?' '+this.storageWarning:'');
+    this.surface.querySelector<HTMLElement>('#draft-explanation')!.textContent=(d.phase==='unknown'?'Save outcome unknown. Resolve the original command before editing.':d.phase==='conflict'?'Saved head changed. Compare before explicitly reapplying.':this.reason()||(/\S\s+\S/u.test(d.prefix+d.replacement+d.suffix)?'Saves these words on one source token.':'Unsaved correction draft'))+(this.writesPending?' Updating local draft…':this.storageWarning?' '+this.storageWarning:'');
     this.host.status(`${d.phase==='saving'?'Saving':d.phase==='unknown'?'Save outcome unknown':'Draft'} · saved R${d.basis.view.revision.id}`);
   }
   private async accept(retry=false){

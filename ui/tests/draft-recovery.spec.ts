@@ -8,7 +8,7 @@ test.beforeAll(async()=>{
   if(existsSync(runtime))throw new Error('Fresh synthetic authority required');
   for(const folder of ['Resources','xmlfiles','Other'])mkdirSync(resolve(runtime,'package',folder),{recursive:true});
   writeFileSync(resolve(runtime,'package/Resources/settings.xml'),'<ttsettings/>');
-  writeFileSync(resolve(runtime,'package/xmlfiles/alpha.xml'),"<TEI><text><body><u id='u1'><tok id='w1'>We</tok> <tok id='w2'>their</tok> <tok id='w3'>é🙂é</tok>.</u></body></text></TEI>");
+  writeFileSync(resolve(runtime,'package/xmlfiles/alpha.xml'),"<TEI><text><body><u id='u1'><tok id='w1'>We</tok> <tok id='w2' start='0.2' end='0.7'>their</tok> <tok id='w3'>é🙂é</tok>.</u></body></text></TEI>");
   writeFileSync(resolve(runtime,'package/xmlfiles/beta.xml'),"<TEI><text><tok id='w2'>Other</tok></text></TEI>");
   writeFileSync(resolve(runtime,'package/Other/preserved.bin'),Buffer.from([0,255,12]));
   execFileSync(binary,['import','--store',resolve(runtime,'authority'),'--package',resolve(runtime,'package'),'--project','draft-recovery']);
@@ -33,15 +33,33 @@ test('reload offers explicit recovery with Unicode backward anchors and leaves s
   await page.screenshot({path:resolve(root,'.runtime/draft-recovery-desktop.png')});await page.setViewportSize({width:390,height:844});await page.screenshot({path:resolve(root,'.runtime/draft-recovery-mobile.png')});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Recover correction',exact:true}).click();await expect(page.getByLabel('Proposed correction')).toHaveValue('è');await page.locator('#undo-draft').click();await expect.poll(()=>records(page)).toEqual([]);await expect.poll(()=>page.evaluate(()=>window.getSelection()!.anchorOffset>window.getSelection()!.focusOffset)).toBe(true);expect((await head(page)).snapshot.files).toEqual(before.snapshot.files);
 });
-test('closing the page without unload recovers unsupported multi-token proposals without enabling Accept',async({page,context})=>{
-  await open(page);await draft(page,'over there');await page.close({runBeforeUnload:false});const next=await context.newPage();await next.goto('/');await next.getByRole('button',{name:'Recover correction',exact:true}).click();await expect(next.getByLabel('Proposed correction')).toHaveValue('over there');await expect(next.locator('#accept-draft')).toBeDisabled();await next.locator('#undo-draft').click();await expect.poll(()=>records(next)).toEqual([]);
+test('a recovered phrase correction preserves the original word, spacing and recording interval after save and reload',async({page,context})=>{
+  await open(page);
+  const before=await head(page);
+  const phrase='over  there';
+  await draft(page,phrase);
+  await page.close({runBeforeUnload:false});
+  const next=await context.newPage();
+  await next.goto('/');
+  await next.getByRole('button',{name:'Recover correction',exact:true}).click();
+  await expect(next.getByLabel('Proposed correction')).toHaveValue(phrase);
+  await next.locator('#accept-draft').click();
+  await expect(next.getByLabel('Proposed correction')).toHaveCount(0);
+  await expect.poll(()=>records(next)).toEqual([]);
+  await next.reload();
+  await expect(next.locator('[data-token="w2"] .reading-text')).toHaveText(phrase);
+  const after=await head(next);
+  const document=after.documents.find((d:any)=>d.path==='xmlfiles/alpha.xml');
+  expect(after.revision.id).toBe(before.revision.id+1);
+  expect(document.tokens.map((t:any)=>t.id)).toEqual(['w1','w2','w3']);
+  expect(document.tokens[1]).toMatchObject({original:'their',corrected:phrase,start_us:200000,end_us:700000});
 });
 test('stale revision cannot recover or silently rebase and preserves inspection until explicit discard',async({page})=>{
   await open(page);await draft(page,'staleProposal');const original=await records(page);await compete(page);await page.reload();await expect(page.locator('.local-draft-recovery')).toContainText('Saved source changed');await expect(page.getByRole('button',{name:'Recover correction',exact:true})).toBeDisabled();expect(await records(page)).toEqual(original);await page.getByText('Inspect proposal',{exact:true}).click();await expect(page.locator('.local-draft-recovery pre')).toContainText('staleProposal');await page.getByRole('button',{name:'Discard local correction',exact:true}).click();await expect.poll(()=>records(page)).toEqual([]);
 });
 test('saved response loss plus page close reconciles the identical persisted command with no duplicate write',async({page,context})=>{
   await open(page);const before=await head(page);let first='';await page.route('**/api/command',async route=>{first=route.request().postData()!;const [saved]=await records(page);expect(saved.command).toEqual(JSON.parse(first));await route.fetch();await route.abort('failed')});
-  await draft(page,'recoveredSave');await page.locator('#accept-draft').click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');expect((await head(page)).revision.id).toBe(before.revision.id+1);await page.close({runBeforeUnload:false});const next=await context.newPage();await next.goto('/');await expect(next.getByRole('button',{name:'Resolve original save',exact:true})).toBeVisible();await expect(next.getByRole('button',{name:'Review',exact:true})).toBeDisabled();await expect(next.getByRole('button',{name:'Discard local correction',exact:true})).toHaveCount(0);
+  await draft(page,'recovered save');await page.locator('#accept-draft').click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');expect((await head(page)).revision.id).toBe(before.revision.id+1);await page.close({runBeforeUnload:false});const next=await context.newPage();await next.goto('/');await expect(next.getByRole('button',{name:'Resolve original save',exact:true})).toBeVisible();await expect(next.getByRole('button',{name:'Review',exact:true})).toBeDisabled();await expect(next.getByRole('button',{name:'Discard local correction',exact:true})).toHaveCount(0);
   let retries=0;await next.route('**/api/command',async route=>{retries++;expect(route.request().postData()).toBe(first);await route.continue()});await next.getByRole('button',{name:'Resolve original save',exact:true}).click();await expect(next.locator('#message')).toContainText('Original correction confirmed');expect(retries).toBe(1);expect((await head(next)).revision.id).toBe(before.revision.id+1);await expect.poll(()=>records(next)).toEqual([]);expect((await head(next)).snapshot.files['Other/preserved.bin']).toEqual(before.snapshot.files['Other/preserved.bin']);
 });
 test('untransmitted unknown save reconciles as stale without a new command or deleting the proposal',async({page})=>{

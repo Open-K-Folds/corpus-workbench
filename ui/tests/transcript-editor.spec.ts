@@ -50,9 +50,25 @@ test('selection tools dismiss on an inspector interaction while its passage stay
   await expect(page.locator('#coanalysis-form')).toBeVisible();
   await expect(question).toBeFocused();
 });
-test('IME candidate Enter never commits and unsupported many-word proposals remain drafts',async({page})=>{
-  await open(page);const before=(await head(page)).revision.id;await select(page,'w2');await page.keyboard.press('Backspace');const input=page.getByLabel('Proposed correction');await input.fill('over there now');await expect(page.locator('#accept-draft')).toBeDisabled();await expect(page.locator('#draft-explanation')).toContainText('mapping');
-  await input.fill('there');await input.dispatchEvent('compositionstart');await input.dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true});await input.dispatchEvent('compositionend');expect((await head(page)).revision.id).toBe(before);await expect(page.locator('#accept-draft')).toBeEnabled();await input.press('Escape');await expect(input).toHaveValue('there');await input.blur();await expect(page.locator('#save-state')).toContainText('Draft');await page.locator('#undo-draft').click();
+test('a phrase can replace one word while blank deletion and IME candidate Enter stay guarded',async({page})=>{
+  await open(page);
+  const before=(await head(page)).revision.id;
+  await select(page,'w2');
+  await page.keyboard.press('Backspace');
+  const input=page.getByLabel('Proposed correction');
+  await input.fill('   ');
+  await expect(page.locator('#accept-draft')).toBeDisabled();
+  await input.fill('over there now');
+  await expect(page.locator('#accept-draft')).toBeEnabled();
+  await input.dispatchEvent('compositionstart');
+  await input.dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true});
+  await input.dispatchEvent('compositionend');
+  expect((await head(page)).revision.id).toBe(before);
+  await expect(page.locator('#accept-draft')).toBeEnabled();
+  await input.press('Enter');
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('[data-token="w2"] .reading-text')).toHaveText('over there now');
+  expect((await head(page)).revision.id).toBe(before+1);
 });
 test('saved response loss retries exact command once and blocks dependent operations',async({page})=>{
   await open(page);const before=(await head(page)).revision.id;let firstBody='';let retries=0;await page.route('**/api/command',async route=>{retries++;const body=route.request().postData()!;if(retries===1){firstBody=body;await route.fetch();await route.abort('failed')}else{expect(body).toBe(firstBody);await route.continue()}});

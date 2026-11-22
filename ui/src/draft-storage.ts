@@ -23,7 +23,7 @@ export function validDraft(v:LocalDraft):boolean {
   const first=Array.from(v.readings[0]),last=Array.from(v.readings.at(-1)!);
   if(v.before!==v.readings[0]||v.start>first.length||v.end>last.length||(v.ids.length===1&&v.start>v.end)||v.prefix!==first.slice(0,v.start).join('')||v.suffix!==(v.ids.length===1?first.slice(v.end).join(''):'')||(v.ids.length===1&&v.quote!==first.slice(v.start,v.end).join('')))return false;
   const c=v.command;
-  if(c!==null){if(!c||typeof c!=='object'||!Array.isArray(c.operations))return false;const op=c.operations[0];if(c.schema!==1||c.project!==v.project||typeof c.command_id!=='string'||!/^cmd-[a-f0-9-]{36}$/.test(c.command_id)||c.base_revision!==v.revision||c.preimage_hash!==v.snapshot||c.config_version!==v.config||c.label!==`Correct ${v.ids[0]} in place`||c.operations.length!==1||v.ids.length!==1||op?.kind!=='set_token'||op.document!==v.document||op.token!==v.ids[0]||Object.keys(op.fields??{}).length!==1||op.fields.nform!==v.prefix+v.replacement+v.suffix||!op.fields.nform||/\s/u.test(op.fields.nform))return false;}
+  if(c!==null){if(!c||typeof c!=='object'||!Array.isArray(c.operations))return false;const op=c.operations[0];if(c.schema!==1||c.project!==v.project||typeof c.command_id!=='string'||!/^cmd-[a-f0-9-]{36}$/.test(c.command_id)||c.base_revision!==v.revision||c.preimage_hash!==v.snapshot||c.config_version!==v.config||c.label!==`Correct ${v.ids[0]} in place`||c.operations.length!==1||v.ids.length!==1||op?.kind!=='set_token'||op.document!==v.document||op.token!==v.ids[0]||Object.keys(op.fields??{}).length!==1||op.fields.nform!==v.prefix+v.replacement+v.suffix||!op.fields.nform.trim())return false;}
   return true;
 }
 export function scopedDrafts():{records:LocalDraft[];warning:string} {
