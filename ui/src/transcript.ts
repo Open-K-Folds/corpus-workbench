@@ -5,6 +5,7 @@ import {passageAnchor,type Listening} from './listening';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
 import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
 import {TrainingGesture,type TrainingLens,type TrainingPassage} from './training-gesture';
+import {PassagePin} from './passage-pin';
 
 interface Block {source_id:string|null;source_kind:string;anchor_token:string|null;sections:{id:string;kind:string;number:string|null}[];runs:{token:string|null;text:string}[]}
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
@@ -20,6 +21,7 @@ export class Transcript {
   private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
   private training?:TrainingGesture;
+  private pin:PassagePin;
   private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
@@ -28,6 +30,8 @@ export class Transcript {
     window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
     this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
+    this.pin=new PassagePin(this.surface,(words,showTools)=>this.selectPin(words,showTools),
+      ()=>this.currentProjection()&&!this.dirty()&&!this.host.busy());
     if(this.host.training)this.training=new TrainingGesture(this.surface,token=>this.pinTraining(token));
     // Notifications can arrive after a new selection has already been placed.
     // Dismiss only popovers whose viewport or reading pane has since moved.
@@ -121,6 +125,7 @@ export class Transcript {
   setInterlinear(value:boolean){if(this.draft){(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;this.host.message('Finish or undo the correction draft before changing reading layers.',true);return}this.interlinear=value;void this.render();this.storePreferences()}
   private storePreferences(){try{localStorage.setItem('wb-reading:'+this.host.view().snapshot.project,JSON.stringify({layout:this.layout,interlinear:this.interlinear}))}catch{/* Preferences are optional. */}}
   async render(){
+    if(!this.draft)this.pin.clear();
     if(this.draft)return;this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
@@ -217,6 +222,21 @@ export class Transcript {
     const status=document.getElementById('token-count');
     if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
   }
+  private selectPin(words:HTMLElement[],showTools:boolean){
+    const first=words[0].querySelector('.reading-text')?.firstChild;
+    const last=words.at(-1)?.querySelector('.reading-text')?.firstChild;
+    if(!first||!last)return;
+    const range=document.createRange();
+    range.setStart(first,0);range.setEnd(last,last.textContent!.length);
+    const ids=words.map(word=>word.dataset.token!);
+    this.selection={view:this.host.view(),document:this.host.doc().path,ids,start:0,
+      end:Array.from(last.textContent??'').length,quote:this.primaryRangeText(range),
+      layer:this.host.preferences.layer,range};
+    window.getSelection()?.removeAllRanges();
+    this.host.select(ids);this.paintSelection();
+    this.details.hidden=true;this.menu.hidden=true;
+    if(showTools)this.showMenu(words[Math.floor((words.length-1)/2)].getBoundingClientRect());
+  }
   private pinTraining(token:string):TrainingPassage|null {
     if(this.dirty()||this.host.busy()||!this.currentProjection())return null;
     const doc=this.host.doc(),view=this.host.view(),layer=this.host.preferences.layer;
@@ -264,6 +284,16 @@ export class Transcript {
       button.onclick=()=>{const passage=this.pinTraining(s.ids[0]);if(passage)this.training!.openChooser(passage,button)};
       this.menu.querySelector('.tool-secondary')!.append(button);
     }
+    const pinButton=document.createElement('button');
+    pinButton.type='button';
+    const pinned=this.pin.matches(s.ids);
+    pinButton.textContent=pinned?'Unpin from canvas':'Pin on canvas';
+    pinButton.onclick=()=>{
+      if(this.dirty()||this.host.busy()||!this.currentProjection())return;
+      if(pinned){this.menu.hidden=true;this.pin.clear(true)}
+      else if(!this.pin.set(s.ids))this.host.message('Select consecutive visible words to pin a passage.',true);
+    };
+    this.menu.querySelector('.tool-secondary')!.append(pinButton);
     this.refreshListen();this.position(this.menu,rect);this.menu.hidden=false;
   }
   refreshListen(){
@@ -290,7 +320,7 @@ export class Transcript {
     const token=this.host.doc().tokens.find(t=>t.id===basis.ids[0])!;if(!token.editable){this.host.message('Nested token is preserved read-only.',true);return}
     const before=token.corrected??token.original,chars=Array.from(before);
     this.draft={id:`draft-${crypto.randomUUID()}`,basis,before,prefix:chars.slice(0,basis.start).join(''),suffix:basis.ids.length===1?chars.slice(basis.end).join(''):'',replacement,command:null,phase:'editing',latest:null,compared:false};
-    this.menu.hidden=true;this.details.hidden=true;this.persist();this.drawDraft();
+    this.pin.clear();this.menu.hidden=true;this.details.hidden=true;this.persist();this.drawDraft();
   }
   private drawDraft(){
     const d=this.draft!;const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(d.basis.ids[0])}"]`)!;

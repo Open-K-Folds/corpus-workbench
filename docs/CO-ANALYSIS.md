@@ -12,6 +12,13 @@ they report from what a researcher might infer about how the notice reached them
    the text size with the **−** and **+** buttons. Drag across “I only heard
    after the meeting.” and choose **Co-analyse**. In the inspector you can see
    the saved excerpt, its revision and its token IDs.
+   To experiment with another passage of the same length, choose **Pin on canvas**.
+   Drag the underlined middle word onto a new word and release. You can also
+   focus that underline and press Left or Right to move one word at a time.
+   Click it or press Enter to open the passage tools. Delete removes the pin.
+   The pin lasts for the current reading projection. Saving a training example
+   still requires an explicit review in the training panel. The interaction
+   follows Chuanqi Sun’s [Spaceship attention-lock demonstration](https://github.com/chuanqisun/spaceship/blob/0499b9930bdc0c471ee62ee1b1c01e1a986fb4ec/extra/clips/attention-lock.gif).
 2. Optionally write **Your first reading** while the passage is in front of you.
    This note stays out of the prompt. It appears beside the model response when
    you review the two together. Choose **Competing readings** or write your own

@@ -1,0 +1,37 @@
+.workspace .transcript #tokens .lexeme.passage-pinned {
+  color: var(--stage-ink);
+  background: color-mix(in srgb, var(--stage-ink) 15%, var(--stage-floor));
+}
+.workspace .transcript #tokens .pin-keyword > .reading-text {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: .22em;
+}
+.workspace .transcript #tokens :is(.pin-keyword:hover,.pin-keyword:focus-within) > .reading-text,
+.workspace .transcript #tokens.moving-passage-pin .pin-keyword > .reading-text {
+  text-decoration-color: #ff5a1f;
+  text-decoration-thickness: 2px;
+}
+.workspace .transcript #tokens .passage-pin-handle {
+  position: absolute;
+  inset: 0;
+  inset-block-end: auto;
+  block-size: 1lh;
+  font: inherit;
+  padding: 0;
+  min-inline-size: 0;
+  min-block-size: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: grab;
+}
+.workspace .transcript #tokens .passage-pin-handle:focus-visible {
+  outline: 1px solid currentColor;
+  outline-offset: 2px;
+}
+.workspace .transcript #tokens.moving-passage-pin,
+.workspace .transcript #tokens.moving-passage-pin * {cursor: grabbing}
