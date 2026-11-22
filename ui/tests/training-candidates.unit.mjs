@@ -130,3 +130,29 @@ test('ambiguous IDs, unbound files and stale seed revisions or copied quotes can
   unbound.snapshot.files = {};
   assert.equal(makePassage(unbound, a, ['w1']), null);
 });
+
+test('matched words in unsegmented text retain exact token spans for each occurrence and exclude the seed', () => {
+  const d = doc('uncut.xml', [[null, ['intro', 'café', 'nÖt,', 'again', 'CAFE\u0301', 'NÖT,', 'and', 'café', 'nöt', 'end']]]);
+  const v = view(d), seed = makePassage(v, d, ['w2', 'w3']);
+  const search = (query, n = 6) => findCandidates(v, seed, 'meaning', {query, limit: n, matchedWordsOnly: true});
+  // A partial first/last word still anchors the original whole tokens, preserving
+  // their diacritics, punctuation and incoming Unicode representation.
+  const matches = search('FÉ NÖ');
+  assert.deepEqual(matches.map(p => [p.tokenIds, p.quote, p.utterance]), [
+    [['w5', 'w6'], 'CAFE\u0301 NÖT,', null], [['w8', 'w9'], 'café nöt', null],
+  ]);
+  assert.deepEqual(search('FÉ NÖ', 1), matches.slice(0, 1));
+  for (const m of matches) assert.deepEqual(m, makePassage(v, d, m.tokenIds));
+  assert.equal(findCandidates(v, seed, 'meaning', {query: 'FÉ NÖ', limit: 6})[0].quote,
+    'again CAFE\u0301 NÖT, and café nöt end');
+});
+
+test('matched word searches include overlapping phrases, deduplicate identical token anchors and stop at turns', () => {
+  const d = doc('turns.xml', [['a', ['seed', 'go', 'go', 'go', '🙂🙂']], ['b', ['go']]]);
+  const v = view(d), seed = makePassage(v, d, ['w1']);
+  const search = query => findCandidates(v, seed, 'wording', {...limit, query, matchedWordsOnly: true}).map(p => p.tokenIds);
+  assert.deepEqual(search('go go'), [['w2', 'w3'], ['w3', 'w4']]);
+  assert.deepEqual(search('🙂'), [['w5']]);
+  assert.deepEqual(search('🙂 go'), []);
+  assert.deepEqual(search('seed go'), []);
+});
