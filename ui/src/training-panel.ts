@@ -32,6 +32,7 @@ export class TrainingPanel {
   private pendingId = '';
   private stale = false;
   private query = '';
+  private matchedWordsOnly = false;
   private candidates:Passage[] = [];
   private candidateIndex = 0;
   private assistance?:TrainingAssistance;
@@ -73,7 +74,7 @@ export class TrainingPanel {
   private status(text:string) {const out=this.node.querySelector('[data-status]');if(out)out.textContent=text;}
   private rerank() {
     this.candidateIndex=0;
-    this.candidates=this.seed && this.mode!=='label'?findCandidates(this.view,this.seed,this.mode,{limit:this.limit,query:this.query}):[];
+    this.candidates=this.seed && this.mode!=='label'?findCandidates(this.view,this.seed,this.mode,{limit:this.limit,query:this.query,matchedWordsOnly:this.matchedWordsOnly}):[];
   }
   private draw() {
     this.stopAudio();
@@ -133,18 +134,22 @@ export class TrainingPanel {
     const section=document.createElement('section');section.className='training-discovery';
     section.innerHTML=`<h3>Find a comparison</h3><p class="muted">${esc(lensDescriptions[this.mode as TrainingLens])}</p>
       <search><form aria-label="Find a comparison" data-dirty="false"><label>Find words in the corpus<input type="search" name="query" value="${esc(this.query)}" autocomplete="off"></label>
+      <label>Search result span<select name="manual-scope"><option value="passage">Surrounding passage</option><option value="matched" ${this.matchedWordsOnly?'selected':''}>Matched words only</option></select></label>
       <label>Candidate limit<select name="limit">${[3,6,12].map(n=>`<option ${n===this.limit?'selected':''}>${n}</option>`).join('')}</select></label><button type="submit" class="secondary">${icon('search')}Find passages</button></form></search>`;
     body.append(section);
     section.querySelector('form')!.onsubmit=e=>{
       e.preventDefault();const data=new FormData(e.currentTarget as HTMLFormElement);
-      this.query=String(data.get('query')??'').trim();this.limit=Number(data.get('limit'));this.assistance=undefined;this.rerank();this.draw();
+      this.query=String(data.get('query')??'').trim();this.limit=Number(data.get('limit'));
+      this.matchedWordsOnly=data.get('manual-scope')==='matched';this.assistance=undefined;this.rerank();this.draw();
       this.node.querySelector<HTMLSelectElement>('[name="candidate"]')?.focus();
     };
     if(!candidate){section.insertAdjacentHTML('beforeend','<p class="training-empty">No other passage matched. Change the search words or clear the search.</p>');return;}
     const label=document.createElement('label');label.textContent='Comparison passage';
     const select=document.createElement('select');select.name='candidate';
     for(const [index,p] of this.candidates.entries()){
-      const option=new Option(`${index+1}. ${p.quote} · ${p.title}`,String(index));select.add(option);
+      const ids = p.tokenIds;
+      const location = this.query && this.matchedWordsOnly ? ' · ' + (ids.length===1 ? ids[0] : ids[0]+'–'+ids.at(-1)) : '';
+      const option=new Option(`${index+1}. ${p.quote} · ${p.title}${location}`,String(index));select.add(option);
     }
     select.value=String(this.candidateIndex);
     select.onchange=()=>{this.candidateIndex=Number(select.value);this.assistance=undefined;this.draw();this.node.querySelector<HTMLSelectElement>('[name="candidate"]')?.focus();};
@@ -184,9 +189,10 @@ export class TrainingPanel {
           this.status('Attach the model reading or clear its fields before saving the review.');return;
         }
         const collection=String(fields.get('collection')).trim();
+        const searchMethod=this.matchedWordsOnly?'manual text search · matched words only':'manual text search';
         const op=trainingOperation(this.view,{collection,lens:this.mode,seed:this.seed!,candidate,
           label:String(fields.get('label')).trim(),note:String(fields.get('note')??'').trim(),
-          discovery:pair?(this.query?'manual text search':'local '+this.mode+' ranking'):'manual selection',assistance:this.assistance},draftContext()?.actor??'');
+          discovery:pair?(this.query?searchMethod:'local '+this.mode+' ranking'):'manual selection',assistance:this.assistance},draftContext()?.actor??'');
         this.collection=collection;this.libraryName=collection;this.pendingId=op.id;
         await this.actions.save([op],`Collect example in ${collection}`,form,this.view);
       } catch(error) {this.status(error instanceof Error?error.message:String(error));}

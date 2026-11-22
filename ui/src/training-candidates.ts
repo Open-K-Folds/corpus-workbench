@@ -138,7 +138,7 @@ function outside(range: Range, exclude: Range | null): Range[] {
 }
 
 /** Lookup stays inside a turn and can span excerpt boundaries in long prose. */
-function manual(view: View, index: Index, seed: Passage, exclude: Range, query: string, limit: number): Passage[] {
+function manual(view: View, index: Index, seed: Passage, exclude: Range, query: string, limit: number, matchedWordsOnly: boolean): Passage[] {
   const found: Passage[] = [];
   for (const source of index.documents.values()) {
     for (const turn of source.turns) for (const available of outside(turn, source.doc.path === seed.document ? exclude : null)) {
@@ -151,17 +151,26 @@ function manual(view: View, index: Index, seed: Passage, exclude: Range, query: 
         offsets.push(value.length);
         value += part;
       }
-      let token = 0, at = value.indexOf(query);
+      let first = 0, last = 0, at = value.indexOf(query);
+      let previous: Range | undefined;
       while (at >= 0) {
-        while (token + 1 < offsets.length && offsets[token + 1] <= at) token++;
-        const first = source.excerpts[source.excerptAt[available.start + token]];
-        while (token + 1 < offsets.length && offsets[token + 1] < at + query.length) token++;
-        const last = source.excerpts[source.excerptAt[available.start + token]];
-        const start = Math.max(first.start, available.start), end = Math.min(last.end, available.end);
-        const passage = ground(view, source, {start, end});
-        if (passage) found.push(passage);
+        while (first + 1 < offsets.length && offsets[first + 1] <= at) first++;
+        last = Math.max(last, first);
+        while (last + 1 < offsets.length && offsets[last + 1] < at + query.length) last++;
+        let start = available.start + first, end = available.start + last + 1;
+        if (!matchedWordsOnly) {
+          start = Math.max(source.excerpts[source.excerptAt[start]].start, available.start);
+          end = Math.min(source.excerpts[source.excerptAt[end - 1]].end, available.end);
+        }
+        if (previous?.start !== start || previous.end !== end) {
+          const passage = ground(view, source, {start, end});
+          if (passage) found.push(passage);
+          previous = {start, end};
+        }
         if (found.length >= limit) return found;
-        const next = offsets[end - available.start];
+        // Advancing one Unicode scalar keeps overlapping phrases. Several hits
+        // inside one word still resolve to a single whole-token training span.
+        const next = matchedWordsOnly ? at + (value.codePointAt(at)! > 0xffff ? 2 : 1) : offsets[end - available.start];
         at = next === undefined ? -1 : value.indexOf(query, next);
       }
     }
@@ -196,7 +205,7 @@ function pairs(terms: string[]): Set<string> {
   return new Set(terms.slice(1).map((term, i) => terms[i] + '\u0000' + term));
 }
 
-export function findCandidates(view: View, seed: Passage, lens: TrainingLens, options: {limit: number; query?: string}): Passage[] {
+export function findCandidates(view: View, seed: Passage, lens: TrainingLens, options: {limit: number; query?: string; matchedWordsOnly?: boolean}): Passage[] {
   const index = indexView(view);
   const source = index.documents.get(seed.document);
   const anchor = source && makePassage(view, source.doc, seed.tokenIds);
@@ -205,7 +214,7 @@ export function findCandidates(view: View, seed: Passage, lens: TrainingLens, op
       || anchor.snapshotHash !== seed.snapshotHash || anchor.documentHash !== seed.documentHash || anchor.quote !== seed.quote) return [];
   const exclude = {start: source.byId.get(anchor.tokenIds[0])!, end: source.byId.get(anchor.tokenIds.at(-1)!)! + 1};
   const query = comparable(options.query ?? '');
-  if (query) return manual(view, index, anchor, exclude, query, limit);
+  if (query) return manual(view, index, anchor, exclude, query, limit, options.matchedWordsOnly === true);
   const seedTerms = termsOf(anchor.quote), vocabulary = new Set(seedTerms), seedPairs = pairs(seedTerms);
   const context = neighbours(source, exclude);
   const ranked: {score: number; source: IndexedDocument; range: Range}[] = [];
