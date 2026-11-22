@@ -1,5 +1,7 @@
 # Corpus workbench
 
+The [Codex workspace goals](docs/CODEX-WORKSPACE-GOALS.md) track the desktop redesign and the exercises used to verify it.
+
 The **0.2.0-dev.12 Electron desktop preview** reuses the Rust authority and transcript
 editor, adding native project import/open, exact-revision saving/export, backups,
 stable draft storage and managed process lifecycle. See
