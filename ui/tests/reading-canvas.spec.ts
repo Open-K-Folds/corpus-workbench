@@ -47,7 +47,7 @@ test.describe('touch dock with a linked recording', () => {
       const scrubber = dock.getByRole('slider', {name:'Scrub source turns'});
       await expect(scrubber).toHaveValue('2');
 
-      const problems = await dock.evaluate(nav => {
+      await expect.poll(() => dock.evaluate(nav => {
         const pane = nav.getBoundingClientRect();
         const targets = [...nav.querySelectorAll<HTMLElement>('button,input')]
           .filter(control => control.getClientRects().length)
@@ -59,8 +59,7 @@ test.describe('touch dock with a linked recording', () => {
             box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom);
           return fits && !overlaps && box.width >= 44 && box.height >= 44 && control.contains(hit) ? [] : [control.id];
         });
-      });
-      expect(problems).toEqual([]);
+      })).toEqual([]);
       const play = dock.getByRole('button', {name:'Play audio on canvas'});
       await play.tap();
       await dock.getByRole('button', {name:'Pause audio on canvas'}).tap();
