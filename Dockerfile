@@ -7,6 +7,7 @@ WORKDIR /source/ui
 COPY ui/package.json ui/package-lock.json ./
 RUN npm ci --ignore-scripts && npm rebuild esbuild
 COPY ui/ ./
+COPY desktop/coanalysis-prompt.mjs desktop/coanalysis-prompt.d.mts /source/desktop/
 RUN npm run build
 
 FROM ${RUNTIME_IMAGE} AS runtime-base

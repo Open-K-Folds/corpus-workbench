@@ -67,7 +67,7 @@ fn prune_uploads(
     for id in expired {
         let directory = &uploads[&id].directory;
         if directory.exists() {
-            fs::remove_dir_all(directory)?;
+            corpus_workbench::staging::remove_private_directory(directory)?;
         }
         uploads.remove(&id);
     }
@@ -804,7 +804,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
                         );
                         let stage = store.stage_return(&upload.directory, project)?;
                         let upload = uploads.remove(id).unwrap();
-                        fs::remove_dir_all(upload.directory)?;
+                        corpus_workbench::staging::remove_private_directory(&upload.directory)?;
                         Ok(json!({"stage":stage}))
                     }
                     (Method::Post, "/api/return/cancel") => {
@@ -812,7 +812,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
                         if let Some(upload) =
                             uploads.remove(data["upload"].as_str().context("upload id")?)
                         {
-                            fs::remove_dir_all(upload.directory)?;
+                            corpus_workbench::staging::remove_private_directory(&upload.directory)?;
                         }
                         Ok(json!({"cancelled":true}))
                     }

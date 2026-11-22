@@ -35,6 +35,21 @@ test('partial Unicode correction, ghost exclusion, real commit and immutable raw
   await page.keyboard.press('Enter');await expect(page.getByLabel('Proposed correction')).toHaveCount(0);const after=await head(page);expect(after.revision.id).toBe(before.revision.id+1);const token=after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w4');expect(token.original).toBe('😀é👩‍💻مرحبا');expect(token.corrected).toBe('😎é👩‍💻مرحبا');expect(after.approved).toBe(false);await expect(page.locator('[data-token="w4"]')).toHaveClass(/recorded-correction/);
   await page.locator('[data-token="w4"]').hover();await expect(page.locator('.change-popover')).toContainText('Immutable source');
 });
+
+test('selection tools dismiss on an inspector interaction while its passage stays selected',async({page})=>{
+  await open(page);
+  const toolbar=page.getByRole('toolbar',{name:'Selection tools'});
+  await select(page,'w2');
+  await page.locator('[data-tab="coanalysis"]').click();
+  await expect(toolbar).toBeHidden();
+  const question=page.getByRole('textbox',{name:'Research question'});
+  await select(page,'w3');
+  await question.focus();
+  await expect(toolbar).toBeHidden();
+  await expect(page.locator('[data-token="w3"]')).toHaveClass(/selected/);
+  await expect(page.locator('#coanalysis-form')).toBeVisible();
+  await expect(question).toBeFocused();
+});
 test('IME candidate Enter never commits and unsupported many-word proposals remain drafts',async({page})=>{
   await open(page);const before=(await head(page)).revision.id;await select(page,'w2');await page.keyboard.press('Backspace');const input=page.getByLabel('Proposed correction');await input.fill('over there now');await expect(page.locator('#accept-draft')).toBeDisabled();await expect(page.locator('#draft-explanation')).toContainText('mapping');
   await input.fill('there');await input.dispatchEvent('compositionstart');await input.dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true});await input.dispatchEvent('compositionend');expect((await head(page)).revision.id).toBe(before);await expect(page.locator('#accept-draft')).toBeEnabled();await input.press('Escape');await expect(input).toHaveValue('there');await input.blur();await expect(page.locator('#save-state')).toContainText('Draft');await page.locator('#undo-draft').click();
@@ -52,7 +67,8 @@ test('recording resize, pane focus, themes, tabs and citation guards preserve re
   await open(page);await expect(page.locator('#recording-summary')).toContainText('original recording');await page.locator('[data-token="w2"]').click();await page.getByRole('button',{name:'Listen to selection',exact:true}).click();await expect.poll(()=>page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(.05);await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.pause());const time=await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime);
   await page.locator('#timeline-resizer').focus();await page.keyboard.press('End');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','expanded');await expect(page.locator('#recording-layers')).toContainText('No complete word times');await page.keyboard.press('Home');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','minimal');expect(await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeCloseTo(time,1);
   await page.getByRole('button',{name:'Dark appearance',exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
-  const colors=await page.locator('#navigation-query').evaluate(e=>({fg:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,label:getComputedStyle(e.closest('label')!).color}));expect(colors.fg).toBe('rgb(231, 231, 231)');expect(colors.bg).toBe('rgb(37, 37, 37)');expect(colors.label).toBe('rgb(179, 179, 179)');
+  const colors=await page.locator('#navigation-query').evaluate(e=>({fg:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,label:getComputedStyle(e.closest('label')!).color}));
+  expect(colors).toEqual({fg:'rgb(227, 235, 227)',bg:'rgb(38, 49, 43)',label:'rgb(176, 191, 180)'});
   await page.getByRole('button',{name:'Token',exact:true}).click();await page.locator('[data-token="w2"]').click();await page.getByLabel('Human-corrected reading').fill('noticeLayout');await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#message')).toContainText('Saved R');
   expect(await page.locator('#recording-pane').evaluate(e=>e.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);expect(await page.locator("audio").evaluate(a=>a.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);
   await page.locator('[data-document="xmlfiles/second.xml"]').click();await expect(page.getByRole('tab')).toHaveCount(2);await page.getByRole('tab',{name:'SYNTHETIC correction workspace'}).click();await expect(page.locator('[data-token="w2"]')).toBeVisible();
@@ -105,6 +121,14 @@ test('mobile projects and tools open on the first click and report the visible f
   await tools.click();await expect(page.locator('#properties-pane')).toBeVisible();await expect(tools).toHaveAttribute('aria-expanded','true');
   await projects.click();await expect(page.locator('#projects-pane')).toBeVisible();await expect(page.locator('#properties-pane')).toBeHidden();await expect(tools).toHaveAttribute('aria-expanded','false');
   await projects.click();await expect(page.locator('#projects-pane')).toBeHidden();await expect(page.locator('#tokens')).toBeVisible();
+  await projects.click();
+  await expect(page.locator('.transcript')).toHaveAttribute('inert','');
+  await page.locator('[data-document="xmlfiles/second.xml"]').click();
+  await expect(projects).toHaveAttribute('aria-expanded','false');
+  await expect(page.locator('#document-title')).toHaveText('SYNTHETIC second document');
+  await expect(page.locator('[data-token="second"]')).toBeInViewport();
+  await expect(page.locator('#audio-availability')).toBeVisible();
+  await page.keyboard.press('Control+k');await expect(page.locator('#token-query')).toBeFocused();
   await page.setViewportSize({width:1440,height:1000});await expect(projects).toHaveAttribute('aria-expanded','true');await expect(tools).toHaveAttribute('aria-expanded','true');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
@@ -124,14 +148,46 @@ test('deselecting either endpoint corrects only the remaining complete token',as
 });
 
 test('late next-match projection cannot create new authoring controls during a held properties save',async({page})=>{
-  await open(page);await page.locator('[data-token="w2"]').click();await page.getByLabel('Human-corrected reading').fill('heldSafe');
-  let releaseReading!:()=>void,releaseSave!:()=>void;const readingHeld=new Promise<void>(r=>releaseReading=r),saveHeld=new Promise<void>(r=>releaseSave=r);let readingWaiting=false,saveWaiting=false;
-  await page.route('**/api/reading?*',async route=>{const response=await route.fetch();readingWaiting=true;await readingHeld;await route.fulfill({response})});
-  await page.keyboard.press('F3');await expect.poll(()=>readingWaiting).toBe(true);
-  await page.route('**/api/command',async route=>{const response=await route.fetch();saveWaiting=true;await saveHeld;await route.fulfill({response})});
-  await page.getByRole('button',{name:'Save token',exact:true}).click();await expect.poll(()=>saveWaiting).toBe(true);
-  const received=page.waitForResponse(r=>r.url().includes('/api/reading?'));releaseReading();await (await received).finished();await page.evaluate(()=>new Promise<void>(r=>requestAnimationFrame(()=>requestAnimationFrame(()=>r()))));
-  await expect(page.getByLabel('Human-corrected reading')).toHaveValue('heldSafe');await expect(page.getByLabel('Human-corrected reading')).toBeDisabled();
-  await page.locator('[data-token="w4"]').hover();await expect(page.locator('.change-popover')).toBeHidden();
-  await page.unroute('**/api/reading?*');releaseSave();await expect(page.locator('#save-state')).toContainText('Saved R');const after=await head(page);expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('heldSafe');
+  await open(page);
+  await page.locator('[data-token="w2"]').click();
+  const corrected=page.getByLabel('Human-corrected reading');
+  await corrected.fill('heldSafe');
+  const originalRevision=(await head(page)).revision.id;
+  let releaseReading!:()=>void,releaseSave!:()=>void,captureRevision!:(revision:number)=>void,acceptSave!:(ok:boolean)=>void;
+  const readingHeld=new Promise<void>(resolve=>releaseReading=resolve);
+  const saveHeld=new Promise<void>(resolve=>releaseSave=resolve);
+  const readingCaptured=new Promise<number>(resolve=>captureRevision=resolve);
+  const saveAccepted=new Promise<boolean>(resolve=>acceptSave=resolve);
+  await page.route('**/api/reading?*',async route=>{
+    const response=await route.fetch();
+    captureRevision((await response.json()).revision);
+    await readingHeld;await route.fulfill({response});
+  });
+  await page.route('**/api/command',async route=>{
+    const response=await route.fetch();
+    acceptSave(response.ok());
+    await saveHeld;await route.fulfill({response});
+  });
+  try{
+    await page.getByRole('button',{name:'Next match',exact:true}).click();
+    expect(await readingCaptured).toBe(originalRevision);
+    await expect(page.locator('#tokens')).toContainText('Loading exact saved transcript');
+    await page.getByRole('button',{name:'Save token',exact:true}).click();
+    expect(await saveAccepted).toBe(true);
+    await expect(corrected).toBeDisabled();
+    const delivered=page.waitForResponse('**/api/reading?*');
+    releaseReading();
+    await (await delivered).finished();
+    // Next match selects w3 in the old projection while the inspector still holds w2.
+    await expect(page.locator('[data-token="w3"]')).toHaveClass(/selected/);
+    await page.locator('[data-token="w4"]').hover();
+    await expect(corrected).toHaveValue('heldSafe');
+    await expect(corrected).toBeDisabled();
+    await expect(page.locator('.change-popover')).toBeHidden();
+  }finally{
+    releaseReading();releaseSave();
+  }
+  await expect(page.locator('#save-state')).toContainText('Saved R');
+  const after=await head(page);
+  expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('heldSafe');
 });

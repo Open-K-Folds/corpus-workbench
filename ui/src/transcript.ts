@@ -1,6 +1,7 @@
 import {api,ApiError,commit,draftContext,loadView,makeCommand} from './api';
 import type {Command,Diff,Document,Revision,Token,View} from './contracts';
 import {esc} from './dom';
+import {passageAnchor,type Listening} from './listening';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
 import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
 
@@ -8,7 +9,7 @@ interface Block {source_id:string|null;source_kind:string;anchor_token:string|nu
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
 interface SelectionBasis {view:View;document:string;ids:string[];start:number;end:number;quote:string;layer:string;range:Range|null;backward?:boolean}
 interface Draft {id:string;basis:SelectionBasis;before:string;prefix:string;suffix:string;replacement:string;command:Command|null;phase:'editing'|'saving'|'unknown'|'conflict';latest:View|null;compared:boolean;epoch?:number;unlock?:()=>void}
-interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listen:()=>void;projection:(unsupportedBase:boolean)=>void}
+interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
 export class Transcript {
   private projection:Projection|null=null;private epoch=0;private selection:SelectionBasis|null=null;
   private draft:Draft|null=null;private composing=false;private settling=false;
@@ -32,15 +33,35 @@ export class Transcript {
     readingPane?.addEventListener('scroll',dismissPopovers,{passive:true});
     window.addEventListener('resize',dismissPopovers);
     if(readingPane)new ResizeObserver(dismissPopovers).observe(readingPane);
+    let interactingWithSelection=true;
+    const trackTarget=(event:Event)=>{
+      const target=event.target;
+      interactingWithSelection=target instanceof Node&&[this.surface,this.menu,this.details].some(region=>region.contains(target));
+      if(!interactingWithSelection){this.menu.hidden=true;this.details.hidden=true}
+    };
+    document.addEventListener('pointerdown',trackTarget,true);
+    document.addEventListener('focusin',trackTarget);
+    // A focusable inline span captures Chromium's initial mouse caret at a word
+    // edge. Let the shared text surface own the native drag, retaining tab order
+    // and programmatic token focus after the pointer's default action.
+    this.surface.addEventListener('pointerdown',event=>{
+      if(event.button!==0||!(event.target instanceof Element)||event.target.closest('input,button'))return;
+      const token=event.target.closest<HTMLElement>('.lexeme[tabindex]');
+      if(!token)return;
+      const tabIndex=token.tabIndex;token.removeAttribute('tabindex');
+      requestAnimationFrame(()=>{if(token.isConnected)token.tabIndex=tabIndex});
+    });
+    // A queued selectionchange can arrive after the inspector has received focus.
+    const captureSelection=()=>{if(interactingWithSelection)this.capture()};
     this.menu.addEventListener('mousedown',e=>{if((e.target as HTMLElement).closest('button'))e.preventDefault()});
-    this.surface.addEventListener('mouseup',()=>setTimeout(()=>this.capture(),0));
+    this.surface.addEventListener('mouseup',()=>setTimeout(captureSelection,0));
     this.surface.addEventListener('keyup',e=>{if(!this.draft&&e.key.startsWith('Arrow'))this.capture()});
     this.surface.addEventListener('click',e=>this.click(e));
     this.surface.addEventListener('keydown',e=>this.key(e));
     this.surface.addEventListener('paste',e=>{if((e.target as HTMLElement).closest('input'))return;if(this.selection){e.preventDefault();this.begin(e.clipboardData?.getData('text/plain')??'')}});
     this.surface.addEventListener('cut',e=>{if((e.target as HTMLElement).closest('input'))return;if(this.selection){e.preventDefault();e.clipboardData?.setData('text/plain',this.selection.quote);this.begin('')}});
     this.surface.addEventListener('copy',e=>this.copy(e));
-    document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(()=>this.capture(),0)});
+    document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
     document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!this.composing&&!e.isComposing){this.menu.hidden=true;this.details.hidden=true}});
   }
   dirty(){return this.draft!==null||this.records.some(r=>r.document===this.host.doc().path||r.command!==null)}
@@ -104,7 +125,8 @@ export class Transcript {
       this.surface.innerHTML=p.blocks.map(block=>{
         const hasToken=block.runs.some(r=>r.token!==null);if(hasToken)ordinal++;
         const source=block.source_id??block.anchor_token;const segment=doc.segments.find(s=>s.id===block.source_id);
-        return `<section class="reading-block utterance ${hasToken?'':'literal-block'}" ${segment?`data-utterance="${esc(segment.id)}"`:''} ${source?`data-location="${esc(source)}"`:''}><span class="source-number" aria-hidden="true" title="Display number ${ordinal}; source ${esc(source??'unanchored literal text')}">${hasToken?ordinal:''}</span><span class="reading-content">${block.runs.map(r=>{
+        const separator=!hasToken&&block.runs.every(run=>!run.text.trim());
+        return `<section class="reading-block utterance ${hasToken?'':separator?'literal-block turn-separator':'literal-block'}" ${segment?`data-utterance="${esc(segment.id)}"`:''} ${source?`data-location="${esc(source)}"`:''}><span class="source-number" aria-hidden="true" title="Display number ${ordinal}; source ${esc(source??'unanchored literal text')}">${hasToken?ordinal:''}</span><span class="reading-content">${block.runs.map(r=>{
           if(r.token===null)return `<span class="reading-text separator">${esc(r.text)}</span>`;
           const t=tokens.get(r.token);if(!t)throw new Error('Unknown token in reading projection');
           const shown=visibleToken(t,this.host.preferences);return `<span class="lexeme ${shown?'':'filtered'} ${this.host.selected().includes(t.id)?'selected':''}" ${shown?'data-token':'data-filtered-token'}="${esc(t.id)}" tabindex="-1" title="${esc(t.id)} · ${esc(t.language_effective??'Unknown language')}"><span class="reading-text">${esc(reading(t,this.host.preferences.layer))}</span>${this.interlinear?`<span class="interlinear" aria-hidden="true"><span>Raw ${esc(t.original)}</span><span>Normalized ${esc(t.normalized??'—')}${t.attrs.wb_normalized_status==='unresolved'?' · unresolved':''}</span><span>${esc(t.language_effective??'Unknown language')}</span></span>`:''}</span>`;
@@ -144,6 +166,7 @@ export class Transcript {
     if(this.draft||!this.currentProjection()||this.host.busy()||(event.target as HTMLElement).closest('input,button'))return;
     const s=window.getSelection();if(s&&!s.isCollapsed){this.capture();return}
     const span=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');if(!span||span.classList.contains('filtered'))return;
+    if(event.detail&&document.activeElement!==span){if(!span.hasAttribute('tabindex'))span.tabIndex=-1;span.focus({preventScroll:true})}
     const id=span.dataset.token!,doc=this.host.doc();let ids=[id];
     if(event.ctrlKey||event.metaKey)ids=this.host.selected().includes(id)?this.host.selected().filter(t=>t!==id):[...this.host.selected(),id];
     else if(event.shiftKey&&this.host.selected().length){const all=doc.tokens.map(t=>t.id),a=all.indexOf(this.host.selected()[0]),b=all.indexOf(id);ids=all.slice(Math.min(a,b),Math.max(a,b)+1)}
@@ -185,12 +208,26 @@ export class Transcript {
     if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
   }
   private readingGeometry(){const pane=this.surface.closest<HTMLElement>('.transcript'),rect=pane?.getBoundingClientRect();return [window.innerWidth,window.innerHeight,rect?.left,rect?.top,rect?.width,rect?.height,pane?.scrollLeft,pane?.scrollTop].join(':')}
-  private position(element:HTMLElement,rect:DOMRect){element.hidden=false;const height=element.getBoundingClientRect().height;const available=window.innerHeight-Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--recording-height'))-12;const top=rect.bottom+height+12<available?rect.bottom+10:Math.max(68,rect.top-height-10);element.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-350))+'px';element.style.top=top+'px';this.popoverGeometry.set(element,this.readingGeometry())}
+  private position(element:HTMLElement,rect:DOMRect){
+    element.hidden=false;
+    const height=element.getBoundingClientRect().height,pane=this.surface.closest('.transcript')!.getBoundingClientRect();
+    const top=rect.bottom+height+12<pane.bottom?rect.bottom+10:Math.max(pane.top+6,rect.top-height-10);
+    element.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-350))+'px';
+    element.style.top=top+'px';this.popoverGeometry.set(element,this.readingGeometry());
+  }
   private showMenu(rect:DOMRect){
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;
-    this.menu.innerHTML=`<div class="tool-primary"><button data-action="correct">Correct</button><button data-action="language">Language</button><button data-action="annotations">Annotate</button><button data-action="structure">Tokenize</button></div><div class="tool-secondary"><button data-action="definitions">Definitions</button><button data-action="references">References</button><button data-action="listen">Listen · ${s.ids.every(id=>{const t=this.host.doc().tokens.find(t=>t.id===id);return !!t&&t.start_us!==null&&t.end_us!==null&&t.end_us>t.start_us})?'word':'utterance'}</button></div><small>${s.ids.length} token${s.ids.length===1?'':'s'} · ${esc(s.layer)} · R${s.view.revision.id}</small>`;
-    this.menu.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b=>{if(b.dataset.action==='correct'&&s.ids.length>1&&!s.range)b.disabled=true;if(['definitions','references'].includes(b.dataset.action!))b.setAttribute('aria-label',`${b.textContent} for selection`);b.onclick=()=>{if(b.dataset.action==='correct')this.begin(this.selection?.quote??'');else if(b.dataset.action==='listen')this.host.listen();else{this.menu.hidden=true;const token=this.host.doc().tokens.find(t=>t.id===s.ids[0]);const partial=b.dataset.action==='annotations'&&s.layer==='corrected'&&s.ids.length===1&&token&&(s.start>0||s.end<Array.from(token.corrected??token.original).length);this.host.tool(b.dataset.action==='language'?'token':b.dataset.action!,partial?{start:s.start,end:s.end,quote:s.quote}:undefined);if(b.dataset.action==='language'&&s.ids.length>1)this.host.message('Language properties currently edit the first selected token; other selected identities remain unchanged.')}}});
-    this.position(this.menu,rect);this.menu.hidden=false;
+    this.menu.innerHTML=`<div class="tool-primary"><button data-action="correct">Correct</button><button data-action="language">Language</button><button data-action="annotations">Annotate</button><button data-action="structure">Tokenize</button></div><div class="tool-secondary"><button data-action="definitions">Definitions</button><button data-action="references">References</button><button data-action="coanalysis" aria-label="Co-analyse selected tokens">Co-analyse</button><button data-action="listen">Listen</button></div><small>${s.ids.length} token${s.ids.length===1?'':'s'} · ${esc(s.layer)} · R${s.view.revision.id}</small>`;
+    this.menu.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b=>{if(b.dataset.action==='correct'&&s.ids.length>1&&!s.range)b.disabled=true;if(['definitions','references'].includes(b.dataset.action!))b.setAttribute('aria-label',`${b.textContent} for selection`);b.onclick=()=>{if(b.dataset.action==='correct')this.begin(this.selection?.quote??'');else if(b.dataset.action==='listen')void this.host.listening.play(passageAnchor(s.view,s.document,s.ids));else{this.menu.hidden=true;const token=this.host.doc().tokens.find(t=>t.id===s.ids[0]);const partial=b.dataset.action==='annotations'&&s.layer==='corrected'&&s.ids.length===1&&token&&(s.start>0||s.end<Array.from(token.corrected??token.original).length);this.host.tool(b.dataset.action==='language'?'token':b.dataset.action!,partial?{start:s.start,end:s.end,quote:s.quote}:undefined);if(b.dataset.action==='language'&&s.ids.length>1)this.host.message('Language properties currently edit the first selected token; other selected identities remain unchanged.')}}});
+    this.refreshListen();this.position(this.menu,rect);this.menu.hidden=false;
+  }
+  refreshListen(){
+    const button=this.menu.querySelector<HTMLButtonElement>('[data-action="listen"]'),selection=this.selection;
+    if(!button||!selection)return;
+    const cue=this.host.listening.check(passageAnchor(selection.view,selection.document,selection.ids));
+    button.disabled='reason' in cue;
+    button.textContent='reason' in cue?'Listen unavailable':'Listen · '+cue.basis;
+    button.title='reason' in cue?cue.reason:`Start playback at ${cue.start} s.`;
   }
   private key(event:KeyboardEvent){
     if((event.target as HTMLElement).closest('input,button')||this.composing||event.isComposing||this.host.busy())return;

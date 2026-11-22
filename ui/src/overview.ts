@@ -14,6 +14,10 @@ const stamp=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digi
 const duration=(n:number)=>Number.isFinite(n)&&n>=0?`${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,'0')}`:'—';
 const bytes=(n:number)=>n<1048576?`${(n/1024).toFixed(1)} KiB`:`${(n/1048576).toFixed(1)} MiB`;
 
+// These members ship in Chromium 157. The desktop's older engine uses the HTML labels directly.
+type DrawableCanvas = HTMLCanvasElement & {content?:string; requestPaint?:()=>void};
+type DrawableContext = CanvasRenderingContext2D & {drawElementImage?:(source:Element,x:number,y:number,w:number,h:number)=>void};
+
 /** Read-only instrument view. Every line is snapshot membership, never inference. */
 export class ResearchOverview {
   private dialog=document.createElement('dialog');
@@ -30,11 +34,20 @@ export class ResearchOverview {
     this.dialog.innerHTML=`<div class="overview-header"><div class="overview-title"><h2 id="overview-heading">Research overview</h2><p id="overview-intro">Follow the evidence. Keep the source in view.</p><span class="overview-project"></span></div><div class="overview-controls"><button id="overview-refresh" class="secondary">Refresh state</button><button id="overview-pause" class="secondary" aria-pressed="false">Pause motion</button><button id="overview-close">Return to transcript</button></div></div>
       <div id="overview-basis" class="overview-basis"></div>
       <div class="overview-stage"><section class="overview-evidence" aria-labelledby="overview-evidence-heading"><h3 id="overview-evidence-heading">Preserved evidence <span class="overview-label">Snapshot membership</span></h3><svg id="overview-map" role="img" viewBox="0 0 570 390" aria-labelledby="overview-map-title overview-map-description"></svg><p class="overview-label">Lines connect files to this saved package. They are not semantic relationships or a claim that one file generated another.</p></section>
-      <section class="overview-signal" aria-labelledby="overview-signal-heading"><h3 id="overview-signal-heading">Recording trace <span id="overview-media" class="overview-label"></span></h3><canvas id="overview-traces" role="img" aria-label="Recording peak envelope and eight sampled frequency bands"></canvas><p id="overview-analysis-status" class="overview-label"></p><div class="overview-player"><button id="overview-play" class="secondary">Play recording</button><label>Recording position<input id="overview-seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Seek recording"></label><output id="overview-time"></output></div><p id="overview-motion-status" class="overview-label"></p></section></div>
+      <section class="overview-signal" aria-labelledby="overview-signal-heading"><h3 id="overview-signal-heading">Recording trace <span id="overview-media" class="overview-label"></span></h3>
+        <div class="overview-plot"><canvas id="overview-traces" role="img" aria-label="Recording peak envelope and eight sampled frequency bands"></canvas>
+          <div id="overview-trace-key" role="group" aria-label="Recording trace labels" hidden>
+            <div class="overview-trace-labels"><span class="overview-peak-label">Peak envelope</span><span class="overview-bands-label">Sampled frequency bands</span>
+              <div class="overview-trace-axis"><span>0:00</span><span id="overview-trace-mid"></span><span id="overview-trace-end"></span></div>
+            </div>
+          </div>
+        </div>
+        <p id="overview-analysis-status" class="overview-label"></p><div class="overview-player"><button id="overview-play" class="secondary">Play recording</button><label>Recording position<input id="overview-seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Seek recording"></label><output id="overview-time"></output></div><p id="overview-motion-status" class="overview-label"></p></section></div>
       <div class="overview-instruments"><section class="overview-instrument"><span>Preserved files</span><strong id="overview-file-count"></strong><small id="overview-file-bytes"></small></section><section class="overview-instrument"><span>Selected tokens</span><strong id="overview-selection-count"></strong><small id="overview-token-total"></small></section><section class="overview-instrument"><span>Exact-revision review</span><strong id="overview-review"></strong><button id="overview-open-review" class="secondary">Inspect review</button></section><section class="overview-instrument"><span>Local Semantica</span><strong id="overview-runtime"></strong><small id="overview-generation"></small><button id="overview-open-handoff" class="secondary">Open handoff</button></section></div>
       <div class="overview-detail-row"><section class="overview-selection"><h3>Selection in context</h3><p id="overview-selection-text"></p><p id="overview-selection-timing" class="overview-label"></p><p id="overview-draft-status" class="overview-label">Saved readings only. Unsaved drafts are excluded.</p></section><section class="overview-activity"><h3>This session <span class="overview-label">Observed changes</span></h3><ol id="overview-events"></ol></section></div>
       <details class="overview-files"><summary id="overview-files-summary"></summary><ul id="overview-files-list"></ul></details><footer class="overview-footer">Local evidence, not inferred certainty. Waveforms and sampled frequency bands describe the recording, not speech alignment, language, confidence or transcription accuracy.</footer>`;
     document.body.append(this.dialog);
+    this.enableCanvasLabels();
     this.find('overview-close').onclick=()=>this.close();
     this.dialog.addEventListener('cancel',event=>{event.preventDefault();this.close()});
     this.dialog.addEventListener('keydown',event=>event.stopPropagation());
@@ -56,6 +69,40 @@ export class ResearchOverview {
     this.reduced.addEventListener('change',()=>{this.motion();this.draw();this.animate()},{signal:this.abort.signal});
   }
   private find<T extends HTMLElement=HTMLElement>(id:string){return this.dialog.querySelector<T>('#'+id)!}
+  private enableCanvasLabels(){
+    const canvas=document.createElement('canvas') as DrawableCanvas;
+    canvas.setAttribute('content','drawable');
+    if(canvas.content!=='drawable'||typeof canvas.requestPaint!=='function')return;
+    const ctx=canvas.getContext('2d') as DrawableContext|null;
+    if(typeof ctx?.drawElementImage!=='function')return;
+
+    const host=this.find('overview-trace-key'),labels=host.firstElementChild!;
+    labels.setAttribute('drawable','');
+    canvas.append(labels);
+    host.append(canvas);
+    const resize=new ResizeObserver(()=>{
+      const {width,height}=canvas.getBoundingClientRect();
+      if(!width||!height)return;
+      const scale=Math.min(devicePixelRatio||1,2);
+      canvas.width=Math.round(width*scale);
+      canvas.height=Math.round(height*scale);
+      canvas.requestPaint!();
+    });
+    resize.observe(canvas);
+    this.abort.signal.addEventListener('abort',()=>resize.disconnect(),{once:true});
+    // Only repaint the text when its snapshot or dimensions change. Playback draws on the sibling canvas.
+    canvas.addEventListener('paint',()=>{
+      if(!this.dialog.open||host.hidden)return;
+      try{
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawElementImage!(labels,0,0,canvas.width,canvas.height);
+      }catch{
+        resize.disconnect();
+        labels.removeAttribute('drawable');
+        host.replaceChildren(labels);
+      }
+    },{signal:this.abort.signal});
+  }
   open(){if(this.dialog.open)return;this.previous=document.activeElement as HTMLElement;this.displayTime=this.sources.audio.currentTime;this.dialog.showModal();this.record('Overview opened on the saved editor basis');this.update();this.player();this.motion();this.draw();this.animate();void this.refresh();this.timer=setInterval(()=>{if(!document.hidden)void this.refresh()},3000);this.find('overview-close').focus()}
   private close(){this.dialog.close();this.request++;if(this.timer)clearInterval(this.timer);this.timer=null;cancelAnimationFrame(this.frame);this.frame=0;this.previous?.focus()}
   dispose(){this.close();this.abort.abort();this.resize.disconnect();this.theme.disconnect();this.dialog.remove()}
@@ -97,15 +144,18 @@ export class ResearchOverview {
     const scale=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*scale);canvas.height=Math.round(rect.height*scale);const c=canvas.getContext('2d');if(!c)return;c.scale(scale,scale);
     const styles=getComputedStyle(this.dialog),ink=styles.getPropertyValue('--ov-ink').trim()||'#fff',muted=styles.getPropertyValue('--ov-muted').trim()||'#888',line=styles.getPropertyValue('--ov-line').trim()||'#444';
     const width=rect.width,height=rect.height,left=38,right=width-15,plot=right-left;const {state,analysis:a}=this.sources.analysis();
-    c.font='10px ui-monospace,Consolas,monospace';c.fillStyle=muted;c.fillText('PEAK ENVELOPE',left,17);
+    this.find('overview-trace-key').hidden=!this.playable()||!a;
+    c.font='10px ui-monospace,Consolas,monospace';c.fillStyle=muted;
     if(!this.playable()||!a){this.find('overview-analysis-status').textContent=!this.media?'No recording association. No signal has been invented.':state==='loading'?'Preparing bounded local audio analysis…':'Audio overview unavailable. Playback may remain available in the recording panel.';canvas.setAttribute('aria-label',!this.media?'No recording association; no measured trace available':state==='loading'?'Recording analysis loading; no measured trace available':'Recording analysis unavailable; no measured trace available');c.fillText('No measured trace available',left,height/2);return;}
     this.find('overview-analysis-status').textContent='Peak amplitude + 8 sampled frequency bands · display intensity, low → high. No word alignment.';
+    const mid=this.find('overview-trace-mid'),end=this.find('overview-trace-end');
+    if(mid.textContent!==duration(a.duration/2))mid.textContent=duration(a.duration/2);
+    if(end.textContent!==duration(a.duration))end.textContent=duration(a.duration);
     const extent=this.extent();if(extent){c.fillStyle=line;c.globalAlpha=.3;c.fillRect(left+Math.max(0,extent[0]/a.duration)*plot,25,Math.max(2,Math.min(a.duration,extent[1])/a.duration*plot-Math.max(0,extent[0]/a.duration)*plot),height-52);c.globalAlpha=1;}
     const columns=Math.min(220,a.peaks.length),point=(index:number)=>left+index/Math.max(1,columns-1)*plot;
     c.strokeStyle=ink;c.lineWidth=.9;c.beginPath();for(let i=0;i<columns;i++){let peak=0;for(let bin=Math.floor(i*a.peaks.length/columns);bin<Math.floor((i+1)*a.peaks.length/columns);bin++)peak=Math.max(peak,a.peaks[bin]);const x=point(i);c.moveTo(x,54-peak*25);c.lineTo(x,54+peak*25)}c.stroke();
-    c.fillStyle=muted;c.fillText('SAMPLED FREQUENCY BANDS',left,98);const space=(height-142)/8;
+    const space=(height-142)/8;
     for(let band=0;band<8;band++){const y=116+(7-band)*space;c.strokeStyle=line;c.beginPath();c.moveTo(left,y);c.lineTo(right,y);c.stroke();c.strokeStyle=ink;c.globalAlpha=.6+band*.045;c.beginPath();for(let i=0;i<columns;i++){const column=Math.min(a.columns-1,Math.floor(i/columns*a.columns));let intensity=0;for(let bin=band*16;bin<(band+1)*16;bin++)intensity+=a.spectrogram[column*a.bins+Math.min(bin,a.bins-1)]/(255*16);const x=point(i),py=y-intensity*space*.82;if(i)c.lineTo(x,py);else c.moveTo(x,py)}c.stroke();c.globalAlpha=1;}
-    c.fillStyle=muted;c.fillText('0:00',left,height-8);c.fillText(duration(a.duration/2),left+plot/2-10,height-8);c.fillText(duration(a.duration),right-30,height-8);
     const x=left+Math.max(0,Math.min(1,this.displayTime/a.duration))*plot;c.strokeStyle=ink;c.lineWidth=1.1;c.beginPath();c.moveTo(x,25);c.lineTo(x,height-28);c.stroke();c.fillStyle=ink;c.beginPath();c.arc(x,54,3,0,Math.PI*2);c.fill();
     canvas.setAttribute('aria-label',`Recording envelope and eight sampled frequency bands across ${duration(a.duration)}; displayed playhead ${duration(this.displayTime)}. No word alignment.`);
   }

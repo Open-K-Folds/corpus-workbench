@@ -100,9 +100,13 @@ source_out = out / 'corresponding-source'
 for name in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'Dockerfile', 'compose.yaml', 'LICENSE', 'NOTICE', 'README.md', 'CHANGELOG.md', 'MILESTONES.md'):
     source_out.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, source_out / name)
-for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic'):
+for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic', 'fixtures/coanalysis', 'ui/public/third-party/material-symbols'):
     shutil.copytree(root / name, source_out / name)
-for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'scripts/runtime-contracts.py', 'evidence/dependency-inventory.json', 'evidence/trixie-runtime-packages.tsv', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
+for name in ('coanalysis-prompt.mjs', 'coanalysis-prompt.d.mts'):
+    destination = source_out / 'desktop' / name
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(root / 'desktop' / name, destination)
+for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'scripts/runtime-contracts.py', 'evidence/dependency-inventory.json', 'evidence/coanalysis/noticeboard.json', 'evidence/trixie-runtime-packages.tsv', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
     destination = source_out / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, destination)

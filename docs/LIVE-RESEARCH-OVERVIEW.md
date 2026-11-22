@@ -19,6 +19,19 @@ additional decode, model, media upload or second audio source is introduced.
 Existing analysis limits remain 32 MiB and ten minutes; playback can still be
 available when the static analysis is unavailable. Missing data is labelled.
 
+The recording trace uses HTML for the peak and band labels and the three time
+ticks. On browsers exposing the drawable-content canvas API, a transparent
+canvas paints those labels above the signal when their layout or content
+changes. Other browsers position the same HTML over the signal. A draw failure
+returns the labels to that DOM layout. The signal has its own canvas, so moving
+the playhead does not require repainting the text. The editor, selection and
+transport keep their native HTML controls.
+
+This is a separate rendering experiment inspired by the uses of HTML-in-canvas
+for chart legends and axes. Chrome shipped the API in version 157. The desktop
+preview uses Electron 44.7.0 with Chromium 152. Runtime feature detection picks
+the path in either application. [WICG explainer](https://wicg.github.io/html-in-canvas/) · [Chrome implementation](https://developer.chrome.com/blog/html-in-canvas) · [Electron version record](https://releases.electronjs.org/release/v44.7.0)
+
 Bright path highlights follow actual recording playback only. **Pause motion**
 freezes the trace playhead and path highlights while the recording continues.
 Reduced motion disables those animations and automatic playhead movement.

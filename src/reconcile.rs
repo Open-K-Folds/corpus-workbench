@@ -408,7 +408,7 @@ impl Store {
                 "stage collision"
             );
         } else {
-            fs::rename(&scratch.0, &destination)?;
+            crate::staging::publish_directory(&scratch.0, &destination)?;
             #[cfg(unix)]
             File::open(parent)?.sync_all()?;
         }

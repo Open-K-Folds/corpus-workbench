@@ -1117,11 +1117,11 @@ pub fn export_directory_with_history(
             file.write_all(&bytes)?;
             file.sync_all()?;
         }
-        fs::rename(&staged, destination)?;
+        crate::staging::publish_directory(&staged, destination)?;
         Ok(())
     })();
     if result.is_err() {
-        let _ = fs::remove_dir_all(&staged);
+        let _ = crate::staging::remove_private_directory(&staged);
     }
     result
 }

@@ -1,0 +1,21 @@
+.coanalysis { display: grid; gap: 0.9rem; min-width: 0; overflow-wrap: anywhere; }
+.coanalysis h2, .coanalysis h3, .coanalysis p, .coanalysis blockquote { margin: 0; }
+.coanalysis .ca-source { display: grid; gap: 0.7rem; padding: 0.85rem; border-left: 3px solid var(--correction); background: var(--rail); }
+.ca-basis { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 0.35rem; }
+.ca-basis span, .coanalysis small, .coanalysis .ca-credit { color: var(--muted); }
+.coanalysis blockquote { font-size: 1rem; line-height: 1.55; white-space: pre-wrap; }
+.coanalysis form, .coanalysis fieldset, .coanalysis [data-review], .ca-history { display: grid; gap: 0.75rem; min-width: 0; }
+.coanalysis form { margin: 0; }
+.coanalysis fieldset { padding: 0; border: 0; margin: 0; }
+.coanalysis legend { font-weight: 650; margin-bottom: 0.65rem; }
+.coanalysis label { display: grid; gap: 0.35rem; margin: 0; }
+.coanalysis textarea { display: block; width: 100%; box-sizing: border-box; min-width: 0; resize: vertical; line-height: 1.4; }
+.coanalysis details, .coanalysis input, .coanalysis select { min-width: 0; max-width: 100%; }
+.coanalysis details[open] > :not(summary) { margin-top: 0.55rem; }
+.coanalysis [data-review] blockquote { font: inherit; line-height: 1.55; border-left: 2px solid var(--border); padding-left: 0.7rem; }
+.coanalysis [data-initial-comparison] { display: grid; gap: 0.35rem; }
+.coanalysis [data-initial-comparison] blockquote { border-color: var(--correction); }
+.coanalysis button { justify-self: start; white-space: normal; }
+.coanalysis .ca-history, .coanalysis .ca-credit { border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.coanalysis .ca-saved p { white-space: pre-wrap; }
+.coanalysis [hidden], .coanalysis [data-status]:empty { display: none; }

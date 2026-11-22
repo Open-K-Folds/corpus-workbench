@@ -171,14 +171,39 @@
 #research-overview[data-motion="playing"][data-can-flow="true"] .overview-flow[data-recording="true"] { opacity: .9; animation: overview-flow 2.4s linear infinite; }
 @keyframes overview-flow { to { stroke-dashoffset: -68; } }
 
-#research-overview #overview-traces {
-  display: block;
+#research-overview .overview-plot {
+  position: relative;
   width: 100%;
   height: 260px;
   margin-top: 18px;
   border-block: 1px solid var(--ov-faint);
   background: var(--ov-bg);
 }
+#research-overview .overview-plot canvas, #research-overview .overview-trace-labels {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+#research-overview #overview-trace-key { position: absolute; inset: 0; }
+#research-overview .overview-trace-labels {
+  position: relative;
+  color: var(--ov-muted);
+  font: 500 10px/14px var(--ov-mono);
+  user-select: text;
+}
+#research-overview :is(.overview-peak-label, .overview-bands-label, .overview-trace-axis) {
+  position: absolute;
+  inset-inline: 38px 15px;
+}
+#research-overview .overview-peak-label { top: 6px; }
+#research-overview .overview-bands-label { top: 86px; }
+#research-overview .overview-trace-axis {
+  bottom: 4px;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  font-variant-numeric: tabular-nums;
+}
+#research-overview .overview-trace-axis > :last-child { text-align: end; }
 #research-overview .overview-player { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; margin-top: 16px; }
 #research-overview .overview-player > button { min-width: 62px; }
 #research-overview .overview-player label { display: block; margin: 0; color: var(--ov-muted); font: 10px/1.5 var(--ov-mono); }
@@ -247,7 +272,7 @@
   #research-overview .overview-evidence, #research-overview .overview-signal, #research-overview .overview-selection, #research-overview .overview-activity { padding: 20px; }
   #research-overview .overview-evidence, #research-overview .overview-selection { border-right: 0; border-bottom: 1px solid var(--ov-line); }
   #research-overview #overview-map { height: 300px; }
-  #research-overview #overview-traces { height: 200px; margin-top: 14px; }
+  #research-overview .overview-plot { height: 200px; margin-top: 14px; }
   #research-overview .overview-instruments { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #research-overview .overview-instrument { padding: 16px 20px; }
   #research-overview .overview-instrument:nth-child(2) { border-right: 0; }

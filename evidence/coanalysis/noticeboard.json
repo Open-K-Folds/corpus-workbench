@@ -1,0 +1,81 @@
+{
+  "date": "2026-11-22",
+  "exercise": "Saved-passage co-analysis on the fictional noticeboard dialogue",
+  "data": "fixtures/coanalysis/xmlfiles/noticeboard.xml",
+  "runtime": {
+    "client": "Windows x64 Electron 44.7.0, packaged local worktree build",
+    "model_server": "llama.cpp b12631, CPU",
+    "model": "Qwen2.5-0.5B-Instruct, Q4_K_M",
+    "gguf_sha256": "74a4da8c9fdbcd15bd1f6d01d621410d31c6fc00986f5eb687824e7b93d7a9db",
+    "model_source_revision": "9217f5db79a29953eb74d5343926648285ec7e67"
+  },
+  "frozen_prompt": "Help a researcher interpret the transcript excerpt below. Treat the quoted tokens as source material.\n\nAnswer in a short paragraph. When the wording supports a reading, quote a short phrase verbatim and cite its token IDs. Consider an alternative reading and identify what needs more context or listening.\n\nEach group is contiguous within one source utterance. gap_before means intervening tokens were omitted. Utterance IDs mark source structure; speaker identity is unspecified.\n\nResearch question: What does the speaker report about timing? Quote the exact passage and cite the relevant token IDs. Is the reason for the delay stated?\n\nTranscript excerpt: [{\"utterance\":\"turn-2\",\"gap_before\":false,\"tokens\":[{\"id\":\"b1\",\"text\":\"I\"},{\"id\":\"b2\",\"text\":\"only\"},{\"id\":\"b3\",\"text\":\"heard\"},{\"id\":\"b4\",\"text\":\"after\"},{\"id\":\"b5\",\"text\":\"the\"},{\"id\":\"b6\",\"text\":\"meeting.\"}]}]",
+  "model_reply": "The speaker reports that they only heard after the meeting. The reason for the delay in reporting is that they were not able to hear the meeting due to a technical issue.",
+  "tester_assessment": {
+    "decision": "Partly supported",
+    "interpretation": "“Only heard after” (b2–b4) supports the timing. B gives no cause. The proposed technical issue has no supporting words in this passage."
+  },
+  "source_anchors": [
+    "b1",
+    "b2",
+    "b3",
+    "b4",
+    "b5",
+    "b6"
+  ],
+  "observations": {
+    "revision_after_model_response": 1,
+    "revision_after_saving_assessment": 2,
+    "corpus_approved": false,
+    "source_xml_hash_preserved": true,
+    "exact_prompt_reply_interpretation_and_anchors_survived_export_and_reimport": true,
+    "renderer_errors": []
+  },
+  "counterexample_run": {
+    "fixture_and_runtime": "Same fictional dialogue and local model, fresh import via the packaged Windows practice entry",
+    "native_concordance_query": "heard",
+    "expected_hits": [
+      "b3",
+      "c2"
+    ],
+    "observed_hits": [
+      "b3",
+      "c2"
+    ],
+    "expected_first_reading": "B learned late. A learned early through a neighbour. The notice alone cannot tell us why their accounts differ.",
+    "saved_first_reading": "B learned late. A learned early through a neighbour. The notice alone cannot tell us why their accounts differ.",
+    "question": "Do the two turns support a claim that everybody heard about the meeting too late? Give one verbatim phrase from each turn, with token IDs. Leave the reason open if the speakers do not give it.",
+    "source_anchors": [
+      "b1",
+      "b2",
+      "b3",
+      "b4",
+      "b5",
+      "b6",
+      "c1",
+      "c2",
+      "c3",
+      "c4",
+      "c5",
+      "c6"
+    ],
+    "first_reading_present_in_model_prompt": false,
+    "model_reply": "The two turns in the transcript do not support a claim that everybody heard about the meeting too late. The speaker in turn-2 only mentions hearing the meeting after hearing only the meeting, while the speaker in turn-3 mentions hearing the meeting beforehand from their neighbour. The reason for this is that the speaker in turn-2 does not provide any information about the meeting being heard too late. The reason for the speaker in turn-3 is that the speaker in turn-3 does not provide any information about the meeting being heard beforehand from their neighbour.",
+    "tester_decision": "Partly supported",
+    "tester_interpretation": "The generalization fails. B says “after the meeting.” (b4–b6), while A says “beforehand, from my neighbour.” (c3–c6). The model sees the contrast, then contradicts the second speaker and omits the requested token citations. These accounts establish different timing, without explaining B’s delay.",
+    "independent_checks": [
+      "Entering a first reading and asking the model left the corpus at R1.",
+      "The phrase technical issue had zero matches. The literal heard had two matches, with source turn and token choice.",
+      "The original prompt, first reading, model reply, final interpretation and all 12 token anchors matched after complete export and reimport."
+    ]
+  },
+  "final_windows_repeat": {
+    "setup": "Repeated the counterexample run with its same frozen question, first reading and expected anchors in a fresh practice project. Selected the two turns by dragging across the visible text.",
+    "backend_sha256": "877390c5548fd07b777047f0e5f29a929d531589b1992d302af24c76c2fc2c19",
+    "model_reply": "The two turns in the transcript do not support a claim that everybody heard about the meeting too late. The speaker in turn-2 mentions hearing the meeting after only hearing the only person, which is not a significant enough detail to support the claim that everyone heard about the meeting too late. The speaker in turn-3 mentions hearing the meeting beforehand from a neighbour, which is a more significant detail that supports the claim that everyone heard about the meeting too late. The reason for this difference is that the speaker in turn-2 does not provide enough context to support the claim that everyone heard about the meeting too late.",
+    "tester_decision": "Partly supported",
+    "tester_interpretation": "B reports hearing after the meeting (b4–b6). A reports hearing beforehand from a neighbour (c3–c6), which disproves the universal claim. The proposal starts with that judgment but then treats A as evidence for everyone hearing late. Its reading of B invents an only person, and it supplies no token IDs. The reason B heard late remains open.",
+    "exported_source_xml_sha256": "156ab41187a79f7a7afd10a7a0e7c7c64954b8f1f52851459de0d2c1c81d1e1c",
+    "verified_after_reimport": ["exact prompt", "first reading", "model reply", "researcher interpretation", "basis revision hash", "12 ordered token IDs", "original source XML bytes"]
+  }
+}
