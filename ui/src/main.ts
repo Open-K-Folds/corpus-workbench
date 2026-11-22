@@ -37,6 +37,8 @@ let pinTimer:ReturnType<typeof setTimeout>|undefined;
 let pendingWrite:{command:Command;source?:HTMLFormElement;unlock:()=>void;before:number;restore:boolean}|null=null;let searchPanel:SearchPanel|null=null;let transcript:Transcript;let recording:RecordingPanel;let openDocuments:string[]=[];const documentStates=new Map<string,{selected:string[];time:number;scroll:number}>();
 const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values(),...(coanalysisDraft ? [coanalysisDraft.panel] : [])];let annotationRevision=0;let inspectorEpoch=0;
 const app=el('app');
+if(desktop)document.documentElement.classList.add('desktop-app');
+try{document.documentElement.dataset.theme=localStorage.getItem('wb-theme')??'dark'}catch{document.documentElement.dataset.theme='dark'}
 let overview:ResearchOverview|null=null;
 let readingCanvas:ReadingCanvas|null=null;
 function departure():Departure {
@@ -72,8 +74,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
   <main class="transcript">
     <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
-    <div class="transcript-title"><h2 id="document-title"></h2><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Open reading canvas" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
-    <p class="canvas-help">Drag the margin to move. Select words to correct, annotate or co-analyse.</p>
+    <div class="stage-actions">
     <details class="reading-settings"><summary>Reading controls</summary>
       <div class="location-bar">
         <fieldset id="transcript-layout" class="segmented-radio"><legend>View</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon('notes')}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon('view_agenda')}Lines</span></label></fieldset>
@@ -87,9 +88,12 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
         <label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label>
         <label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label>
       </div>
+      <p id="selection-help" class="muted">Select words to correct, annotate or co-analyse. Drag the turn handle to navigate.</p>
     </details>
-    <div class="reading-status"><span id="token-count" role="status"></span><button id="next-match" class="secondary">${icon('skip_next')}Next match</button></div>
-    <p id="selection-help" class="muted">Select transcript text to correct, annotate or start co-analysis.</p>
+    <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Open reading canvas" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
+    </div>
+    <div class="transcript-title"><h2 id="document-title"></h2></div>
+    <p class="canvas-help">Drag the margin to move. Select words to correct, annotate or co-analyse.</p>
     <div id="tokens" tabindex="-1"></div>
   </main>
   ${stageControls()}
@@ -98,7 +102,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
     <div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div>
   </section>
-  <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span></footer>
+  <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span><span id="token-count" role="status"></span></footer>
   ${workspaceSettings()}`;
   if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
   desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
@@ -178,7 +182,11 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
     if(event.key==='F3'){event.preventDefault();nextMatch();return}
     if(event.altKey&&/^[1-9]$/.test(event.key)){event.preventDefault();tab=inspectorViews[Number(event.key)-1].id;showProperties();void renderInspector();return}
     if((event.target as HTMLElement).closest('input,textarea,select,button,a,summary'))return;
-    if(event.code==='Space'){event.preventDefault();const a=el<HTMLAudioElement>('audio');a.paused?void a.play():a.pause()}
+    if(event.code==='Space'&&audio.hasAttribute('src')&&!audio.error){
+      event.preventDefault();
+      if(audio.paused)void audio.play().catch(()=>message('The recording could not be played.',true));
+      else audio.pause();
+    }
     if(event.key==='Escape'&&!transcript.dirty()){selected=[];void renderInspector()}
   });
 }
@@ -188,7 +196,7 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   el('native-problems').innerHTML=icon('fact_check')+'Package validation · '+view.issues.filter(i=>i.blocking).length+' blocking / '+view.issues.filter(i=>!i.blocking).length+' advisory';
   el('project-title').textContent=view.snapshot.project;
   el('stage-file').textContent=doc.path;
-  el('stage-metadata').textContent=`${doc.tokens.length} tokens · ${doc.spans.length} annotations`;
+  el('stage-metadata').textContent=`${doc.spans.length} ${doc.spans.length===1?'annotation':'annotations'}`;
   el('package-count').textContent=String(view.documents.length)+' docs';
   renderNavigation();
   el('package-report').innerHTML=`<p>${Object.keys(view.snapshot.files).length} preserved files</p><p>${esc(view.snapshot.index_status)}</p><p>${esc(view.snapshot.config.rights)}</p><p>Unknown structures: ${esc(doc.opaque_elements.join(', ')||'none')}</p>`;
