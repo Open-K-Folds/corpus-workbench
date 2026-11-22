@@ -9,6 +9,7 @@ import {coanalysisInspector} from './coanalysis';
 import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type RecordingCue} from './listening';
 import {ResearchOverview} from './overview';
 import {ReadingCanvas} from './reading-canvas';
+import {windowBar,activityRail,workspaceSettings,initialLayout} from './studio-shell';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
@@ -60,36 +61,18 @@ function currentDoc():Document{return view.documents.find(d=>d.path===docPath)??
 async function start(){
   const code=new URLSearchParams(location.hash.slice(1)).get('session');
   if(code){const fragment=new URLSearchParams(location.hash.slice(1));fragment.delete('session');history.replaceState({},'',location.pathname+(fragment.size?'#'+fragment.toString():''));await login(code)}
-  try{await resumeSession();view=await loadView();shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
+  try{await resumeSession();view=await loadView();
+    if(!docPath && desktop && view.snapshot.project==='synthetic' && view.documents.some(doc=>doc.path==='xmlfiles/SYNTHETIC-WORKBENCH.xml'))
+      docPath=view.documents.find(doc=>doc.path==='xmlfiles/noticeboard.xml')?.path??'';
+    shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
 }
-function loginScreen(){app.innerHTML=`<main class="login"><h1>Corpus workbench</h1><p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p><form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;el<HTMLFormElement>('login-form').onsubmit=async e=>{e.preventDefault();try{await login(formValues(e.currentTarget as HTMLFormElement).code);await start()}catch(e){el('login-error').textContent=String(e)}}}
+function loginScreen(){app.innerHTML=`${windowBar(false)}<main class="login"><h1>Corpus workbench</h1><p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p><form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;el<HTMLFormElement>('login-form').onsubmit=async e=>{e.preventDefault();try{await login(formValues(e.currentTarget as HTMLFormElement).code);await start()}catch(e){el('login-error').textContent=String(e)}}}
 function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
-  <header class="workbench-header">
-    <div class="brand"><span class="brand-mark">${icon('graphic_eq')}</span><div><h1>Corpus workbench</h1><span id="project-title"></span></div></div>
-    <span id="save-state" role="status"></span>
-    <nav class="shell-tools" aria-label="Workspace tools">
-      <button id="toggle-navigation" class="secondary" aria-expanded="true" aria-controls="projects-pane">${icon('view_sidebar')}Projects</button>
-      <button id="toggle-properties" class="secondary" aria-expanded="true" aria-controls="properties-pane">${icon('tune')}Tools</button>
-      <button id="open-overview" class="secondary" aria-label="Research overview">Overview</button>
-      <button id="open-research" class="secondary" aria-label="Research handoff">Handoff</button>
-    </nav>
-    <div class="shell-actions"><button id="export-package" aria-label="Export complete package">${icon('download')}Export</button><button id="toggle-theme" class="secondary icon-button" aria-label="Dark appearance" aria-pressed="false">${icon("dark_mode")}</button></div>
-  </header>
-  <nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls" hidden>
-    <strong>${icon('notes')}Reading canvas</strong>
-    <div class="canvas-turns">
-      <button id="canvas-prev" class="secondary" aria-label="Previous source turn" title="Previous source turn">${icon('expand_less')}</button>
-      <span id="canvas-position" role="status">No visible source turns</span>
-      <input id="canvas-scrub" type="range" min="1" max="1" value="1" aria-label="Scrub source turns">
-      <button id="canvas-next" class="secondary" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
-    </div>
-    <div class="canvas-zoom"><button id="canvas-zoom-out" class="secondary" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">−</button><output id="canvas-scale" aria-label="Text size">100%</output><button id="canvas-zoom-in" class="secondary" aria-label="Increase text size" title="Increase text size (Alt + plus)">+</button></div>
-    <button id="canvas-exit" class="secondary" aria-label="Exit reading canvas">Exit canvas</button>
-  </nav>
-  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><p class="muted">Protected research copy. Original media and raw machine drafts remain separate.</p><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
+  ${windowBar(true)}${activityRail()}
+  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
   <main class="transcript">
     <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
-    <div class="transcript-title"><h2 id="document-title"></h2><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="canvas-tools" aria-label="Open reading canvas">${icon('notes')}Reading canvas</button></div>
+    <div class="transcript-title"><h2 id="document-title"></h2><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Open reading canvas" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
     <p class="canvas-help">Drag the margin to move. Select words to correct, annotate or co-analyse.</p>
     <details class="reading-settings"><summary>Reading controls</summary>
       <div class="location-bar">
@@ -109,29 +92,58 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
     <p id="selection-help" class="muted">Select transcript text to correct, annotate or start co-analysis.</p>
     <div id="tokens" tabindex="-1"></div>
   </main>
+  <nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls" hidden>
+    <strong>${icon('notes')}Reading canvas</strong>
+    <div class="canvas-turns">
+      <button id="canvas-prev" class="secondary" aria-label="Previous source turn" title="Previous source turn">${icon('expand_less')}</button>
+      <span id="canvas-position" role="status">No visible source turns</span>
+      <input id="canvas-scrub" type="range" min="1" max="1" value="1" aria-label="Scrub source turns">
+      <button id="canvas-next" class="secondary" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
+    </div>
+    <div class="canvas-zoom"><button id="canvas-zoom-out" class="secondary" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">−</button><output id="canvas-scale" aria-label="Text size">100%</output><button id="canvas-zoom-in" class="secondary" aria-label="Increase text size" title="Increase text size (Alt + plus)">+</button></div>
+    <button id="canvas-exit" class="secondary" aria-label="Exit reading canvas">Exit canvas</button>
+  </nav>
   <aside class="inspector" aria-label="Inspector"><details class="inspector-tools" open><summary>Inspector tools</summary><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.label}</button>`).join('')}</nav></details><div id="inspector-content"></div></aside></div>
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
     <div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div>
-  </section>`;
+  </section>
+  <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span></footer>
+  ${workspaceSettings()}`;
+  if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
   desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
   readingCanvas=new ReadingCanvas(app);
   const audioPane=el('recording-pane');
   const settings=document.querySelector<HTMLDetailsElement>('.reading-settings')!;
-  const compact=matchMedia('(max-width: 1000px)');
-  const fitSettings=()=>{settings.open=!compact.matches||settings.contains(document.activeElement)};
-  fitSettings();compact.addEventListener('change',fitSettings);
+  settings.open=initialLayout()==='editing' && !matchMedia('(max-width: 1000px)').matches;
   document.querySelector('.documents')!.insertAdjacentHTML('beforeend','<div id="navigation-resizer" class="side-resizer" aria-label="Resize projects pane"></div>');
   document.querySelector('.inspector')!.insertAdjacentHTML('afterbegin','<div id="properties-resizer" class="side-resizer" aria-label="Resize properties pane"></div>');
   resizeWorkbenchSides(document.querySelector<HTMLElement>('.workspace')!,el('navigation-resizer'),el('properties-resizer'));
   document.querySelector('.documents')!.id='projects-pane';document.querySelector('.inspector')!.id='properties-pane';
   document.querySelector<HTMLElement>('.workspace')!.dataset.focus='transcript';
   const fold=(side:string)=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;if(matchMedia('(max-width:700px)').matches){workspace.dataset.focus=workspace.dataset.focus===side?'transcript':side;if(workspace.dataset.focus===side)workspace.classList.remove(side+'-folded')}else{const folded=workspace.classList.toggle(side+'-folded');workspace.dataset.focus=folded?'transcript':side}updatePaneAccessibility()};
-  el('toggle-navigation').onclick=()=>fold('navigation');el('toggle-properties').onclick=()=>fold('properties');
+  el('toggle-navigation').onclick=()=>{readingCanvas?.close(false);fold('navigation')};
+  el('window-library').onclick=()=>el('toggle-navigation').click();
+  el('toggle-properties').onclick=()=>{readingCanvas?.close(false);fold('properties')};
+  el('rail-reading').onclick=()=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;workspace.classList.add('properties-folded','navigation-folded');workspace.dataset.focus='transcript';updatePaneAccessibility();el('tokens').focus({preventScroll:true})};
+  for(const button of app.querySelectorAll<HTMLButtonElement>('.studio-rail [data-inspect]')){
+    button.onclick=()=>{const target=button.dataset.inspect;if(target && isInspectorView(target)){tab=target;showProperties();void renderInspector()}}
+  }
+  const settingsDialog=el<HTMLDialogElement>('workspace-settings');
+  el('workspace-options').onclick=()=>{const layout=settingsDialog.querySelector<HTMLInputElement>(`[value="${initialLayout()}"]`)!;layout.checked=true;settingsDialog.showModal()};
+  settingsDialog.addEventListener('change',event=>{
+    const choice=(event.target as HTMLInputElement).value;
+    if(choice!=='stage' && choice!=='editing')return;
+    try{localStorage.setItem('wb-studio-layout',choice)}catch{}
+    readingCanvas?.close(false);
+    const workspace=document.querySelector<HTMLElement>('.workspace')!;
+    for(const side of ['navigation','properties'])workspace.classList.toggle(side+'-folded',choice==='stage');
+    workspace.dataset.focus='transcript';settings.open=choice==='editing'&&!matchMedia('(max-width:1000px)').matches;updatePaneAccessibility();
+  });
   document.querySelector<HTMLAnchorElement>('.skip-link')!.onclick=()=>{showTranscript()};
   matchMedia('(max-width:700px)').addEventListener('change',updatePaneAccessibility);updatePaneAccessibility();
   const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').innerHTML=icon(theme==='dark'?'light_mode':'dark_mode');el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
-  try{setTheme(localStorage.getItem('wb-theme')??(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))}catch{setTheme('light')}
+  try{setTheme(localStorage.getItem('wb-theme')??'dark')}catch{setTheme('dark')}
   el('toggle-theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   transcript=new Transcript(el('tokens'),{view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'));
@@ -185,6 +197,8 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   el('document-title').textContent=doc.title;
   el('native-problems').innerHTML=icon('fact_check')+'Package validation · '+view.issues.filter(i=>i.blocking).length+' blocking / '+view.issues.filter(i=>!i.blocking).length+' advisory';
   el('project-title').textContent=view.snapshot.project;
+  el('stage-file').textContent=doc.path;
+  el('stage-metadata').textContent=`${doc.tokens.length} tokens · ${doc.spans.length} annotations`;
   el('package-count').textContent=String(view.documents.length)+' docs';
   renderNavigation();
   el('package-report').innerHTML=`<p>${Object.keys(view.snapshot.files).length} preserved files</p><p>${esc(view.snapshot.index_status)}</p><p>${esc(view.snapshot.config.rights)}</p><p>Unknown structures: ${esc(doc.opaque_elements.join(', ')||'none')}</p>`;
@@ -330,7 +344,7 @@ async function save(operations: Operation[], label: string, source?: HTMLFormEle
     if (staleProposal && source) markCoanalysisStale(source);
   }
 }
-async function renderInspector(committedRender=false){refreshListenControls();overview?.update();if((saving&&!committedRender)||pendingWrite||transcript.busy())return;const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab))});const content=el('inspector-content');const doc=currentDoc();content.replaceChildren();
+async function renderInspector(committedRender=false){updatePaneAccessibility();refreshListenControls();overview?.update();if((saving&&!committedRender)||pendingWrite||transcript.busy())return;const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab))});const content=el('inspector-content');const doc=currentDoc();content.replaceChildren();
   if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.innerHTML='<h2>Listen and correct</h2><p>Select a token to inspect its original reading, corrections and annotations.</p><p class="muted">Find tokens: Ctrl / Command + K. Next match: F3. Inspector views: Alt + 1 through 9.</p>';}
   if(tab==='source'){try{const panel=await sourceInspector(view,sourcePath);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
   if (coanalysisDraft && coanalysisDraft.revision !== view.revision.id) {
@@ -443,6 +457,12 @@ function updatePaneAccessibility(){
   const narrow=matchMedia('(max-width:700px)').matches;
   workspace.querySelector<HTMLElement>('.transcript')!.inert=narrow&&workspace.dataset.focus!=='transcript';
   for(const side of ['navigation','properties'])el('toggle-'+side).setAttribute('aria-expanded',String(narrow?workspace.dataset.focus===side:!workspace.classList.contains(side+'-folded')));
+  const inspecting=el('toggle-properties').getAttribute('aria-expanded')==='true';
+  const browsing=el('toggle-navigation').getAttribute('aria-expanded')==='true';
+  el('rail-reading').setAttribute('aria-pressed',String(!inspecting && !browsing));
+  app.querySelectorAll<HTMLButtonElement>('.studio-rail [data-inspect]').forEach(button=>button.setAttribute('aria-pressed',String(inspecting && button.dataset.inspect===tab)));
+  el('open-research').setAttribute('aria-pressed',String(inspecting && tab==='research'));
+
 }
 function showTranscript(){
   const workspace=document.querySelector<HTMLElement>('.workspace')!;
