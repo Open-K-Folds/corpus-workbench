@@ -35,6 +35,15 @@ test('training reviews survive native rereads, retain historical evidence and re
   expect(rows).toHaveLength(1);
   expect(rows[0]).toMatchObject({...input, id: operation.id, reviewer: actor, kind: 'pair'});
   expect(trainingCounts(rows)).toEqual({examples: 1, utterances: 2, unknownUtterances: 0, speakers: 2, unknownSpeakers: 0});
+  const imported = structuredClone(reviewed);
+  const stored = imported.documents.find(d => d.path === path)!.spans.find(s => s.id === operation.id)!;
+  const old = JSON.parse(stored.fields.note);
+  delete old.seed.readings;
+  stored.fields.note = JSON.stringify(old);
+  expect(trainingCollections(imported).get(collection)).toHaveLength(1);
+  old.seed.readings = [{id: 'wrong-id', original: 'invented', corrected: null, language: null}];
+  stored.fields.note = JSON.stringify(old);
+  expect(trainingCollections(imported).has(collection)).toBe(false);
   expect(() => trainingOperation(reviewed, input, actor)).toThrow(/different revision/);
   expect((await save(base, operation)).status()).toBe(409);
   expect(() => trainingOperation(reviewed, {...input, seed: passage(reviewed, candidate.tokenIds),

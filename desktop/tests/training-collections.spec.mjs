@@ -55,7 +55,7 @@ test('packaged practice corpus retains reviewed pairs and passage labels after r
     expect(reply.trim()).not.toBe('');
     info.annotations.push({type: 'model source', description: (process.env.WB_TRAINING_MODEL === '1' ? 'Local llama.cpp · ' : 'Manual · ') + model});
     await expect(panel.getByLabel('Relationship')).toHaveValue('');
-    await expect(page.locator('#save-state')).toContainText('Saved R1');
+    expect(await page.evaluate(async () => (await (await fetch('/api/view')).json()).revision.id)).toBe(1);
     await panel.getByLabel('Collection name').fill(collection);
     await panel.getByLabel('Relationship').fill('Different');
     await panel.getByLabel('Review note (optional)').fill(note);
@@ -75,7 +75,7 @@ test('packaged practice corpus retains reviewed pairs and passage labels after r
     await page.locator('#rail-training').click();
     panel = page.locator('#training-panel');
     await panel.getByRole('button', {name: 'Saved collections'}).click();
-    await expect(panel.getByLabel('Saved collection', {exact: true})).toHaveValue(collection);
+    await expect(panel.getByRole('combobox', {name: 'Saved collection', exact: true})).toHaveValue(collection);
     await expect(panel.locator('.training-counts')).toContainText('2 reviewed');
     await expect(panel.locator('.training-counts')).toContainText('2 identified utterance');
     await expect(panel.locator('.training-counts')).toContainText('2 document-scoped speaker');
