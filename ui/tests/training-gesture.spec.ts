@@ -33,12 +33,38 @@ test('a held second press on a selected turn steers a bounded candidate search',
     await page.mouse.move(origin.x+radius*dx/distance,origin.y+radius*dy/distance,{steps:4});
     await expect(target).toHaveAttribute('data-active','');
     await expect(fan(page).locator('output')).toHaveText(`Contrast · up to ${limit} candidates`);
+    await expect(fan(page).locator('.training-fan-ray[data-active]')).toHaveCount(1);
+    await expect(fan(page).locator('small')).toContainText('Release to compare');
   }
   await page.mouse.up();
   await expect(fan(page)).toHaveCount(0);
   await expect(panel(page)).toHaveAttribute('data-mode','contrast');
   await expect(panel(page)).toHaveAttribute('data-limit','12');
   await expect(panel(page).locator('[data-training-seed]')).toContainText('I only heard after the meeting.');
+});
+
+test('the fan keeps a wrapped selected passage readable at the edges of a phone viewport',async({page,practiceUrl})=>{
+  await page.setViewportSize({width:320,height:568});
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.goto(practiceUrl);
+  await selectTurn(page);
+  await holdSecondPress(page,'b6');
+  const geometry=await fan(page).evaluate(node=>{
+    const controls=[...node.querySelectorAll('.training-fan-lens,.training-fan-feedback')].map(n=>n.getBoundingClientRect());
+    const words=[...document.querySelectorAll('#tokens .lexeme.selected')].flatMap(n=>[...n.getClientRects()]);
+    const overlaps=(a:DOMRect,b:DOMRect)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+    return {
+      rows:new Set(words.map(r=>Math.round(r.top))).size,
+      inside:controls.every(rect=>rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight),
+      readable:controls.every((rect,i)=>!words.some(word=>overlaps(rect,word))&&!controls.slice(i+1).some(other=>overlaps(rect,other))),
+      motion:node.getAnimations({subtree:true}).length,
+    };
+  });
+  expect(geometry.rows).toBeGreaterThan(1);
+  expect(geometry).toMatchObject({inside:true,readable:true,motion:0});
+  await page.keyboard.press('Escape');await page.mouse.up();
+  await expect(fan(page)).toHaveCount(0);
+  await expect(page.locator('#tokens .selected')).toHaveCount(6);
 });
 
 test('Escape and returning to the start cancel while quick double-click preserves native text selection',async({page,practiceUrl})=>{

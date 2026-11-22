@@ -40,11 +40,12 @@ export class TrainingGesture {
     }
     this.suppressUntil = 0;
     const target = event.target;
-    const token = target instanceof Element && target.closest('.reading-text')?.closest<HTMLElement>('[data-token]')?.dataset.token;
+    const word = target instanceof Element ? target.closest<HTMLElement>('.reading-text') : null;
+    const token = word?.closest<HTMLElement>('[data-token]')?.dataset.token;
     const point = {x:event.clientX,y:event.clientY};
     const first = this.first;
     this.cancel();
-    if (!token) return;
+    if (!token || !word) return;
     const again = first && first.token === token && performance.now()-first.when <= 500 && Math.hypot(point.x-first.point.x,point.y-first.point.y) <= 8;
     const passage = again ? first.passage : this.pin(token);
     if (!passage?.valid()) return;
@@ -70,12 +71,13 @@ export class TrainingGesture {
     this.stopPress = finish;
     if (again) timer = window.setTimeout(()=>{
       if (!this.surface.isConnected || !passage.valid()) {finish();return}
-      fan = showFan(point);
+      passage.activate();
+      if (events.signal.aborted || !passage.valid()) {finish();return}
+      fan = showFan(point, word);
       this.held = true;
       this.surface.dataset.trainingGesture = '';
       this.surface.setPointerCapture(pointer);
       window.getSelection()?.removeAllRanges();
-      passage.activate();
     },holdMs);
     window.addEventListener('pointermove',move=>{
       if (move.pointerId !== pointer) return;
@@ -136,45 +138,110 @@ export class TrainingGesture {
   }
 }
 
-// Place the four labeled rays into the roomier half of the viewport. Their actual
-// on-screen directions also drive hit testing, including when near a corner.
-function showFan(origin:Point) {
+
+const clamp = (value:number, min:number, max:number) => Math.max(min, Math.min(value,max));
+
+function fanPoints(origin:Point, selectionTop:number, selectionBottom:number):Point[] {
+  const roomX=Math.min(origin.x,innerWidth-origin.x);
+  const inwardX=origin.x<innerWidth/2 ? 1 : -1;
+  const inwardY=origin.y<innerHeight/2 ? 1 : -1;
+  let offsets:number[][];
+  if(roomX>=80) {
+    offsets=[[-110,65],[-40,113],[40,113],[110,65]];
+  } else {
+    // At a corner the whole fan turns inward. Each label has its own angle.
+    offsets=[[146,29],[133,75],[86,119],[32,151]].map(([x,y])=>[x*inwardX,y]);
+  }
+  const clearance=inwardY>0 ? selectionBottom-origin.y : origin.y-selectionTop;
+  return offsets.map(([x,y])=>({x:clamp(origin.x+x,42,innerWidth-42),y:clamp(origin.y+inwardY*(y+clearance),17,innerHeight-17)}));
+}
+
+function showFan(origin:Point, word:HTMLElement) {
   const layer=document.createElement('div');
-  layer.className='training-fan';layer.setAttribute('aria-hidden','true');
-  const side=origin.x < innerWidth/2 ? 1 : -1;
-  const rows=[-67,-23,23,67];
-  const centerY=Math.max(83,Math.min(origin.y,innerHeight-83));
-  const nodes=lenses.map(([lens,name],i)=>{
-    const x=Math.max(43,Math.min(innerWidth-43,origin.x+side*(i===0||i===3?79:132)));
-    const y=centerY+rows[i];
-    const dx=x-origin.x,dy=y-origin.y;
+  layer.className='training-fan';
+  layer.setAttribute('aria-hidden','true');
+  const selected=word.closest('.reading-content')?.querySelectorAll<HTMLElement>('.lexeme.selected') ?? [];
+  // Include the neighbouring lines of a wrapped selection. Very long passages
+  // keep a local opening around the pointer.
+  const line=Array.from(word.getClientRects()).find(r=>r.top<=origin.y&&r.bottom>=origin.y) ?? word.getBoundingClientRect();
+  let left=line.left,right=line.right,top=line.top,bottom=line.bottom;
+  for(const token of selected)for(const rect of token.getClientRects()){
+    if(rect.bottom>line.top-line.height*2 && rect.top<line.bottom+line.height*2){
+      left=Math.min(left,rect.left);right=Math.max(right,rect.right);
+      top=Math.min(top,rect.top);bottom=Math.max(bottom,rect.bottom);
+    }
+  }
+  layer.style.setProperty('--opening-x',((left+right)/2)+'px');
+  layer.style.setProperty('--opening-y',((top+bottom)/2)+'px');
+  layer.style.setProperty('--opening-width',Math.max(90,right-left+48)+'px');
+  layer.style.setProperty('--opening-height',Math.max(48,bottom-top+30)+'px');
+  const points=fanPoints(origin,top,bottom);
+  const nodes=lenses.map(([lens,name],index)=>{
+    const {x,y}=points[index];
+    const dx=x-origin.x,dy=y-origin.y,angle=Math.atan2(dy,dx);
     const ray=document.createElement('i');
-    ray.style.cssText=`left:${origin.x}px;top:${origin.y}px;width:${Math.hypot(dx,dy)}px;transform:rotate(${Math.atan2(dy,dx)}rad)`;
+    ray.className='training-fan-ray';
+    ray.style.left=origin.x+'px';ray.style.top=origin.y+'px';
+    ray.style.width=Math.hypot(dx,dy)+'px';
+    ray.style.transform='rotate('+angle+'rad)';
+    // Leave a clear gap over the word where the pointer is resting.
+    const clear=Math.abs((dy<0 ? top-3 : bottom+3)-origin.y)/Math.max(.12,Math.abs(Math.sin(angle)));
+    ray.style.setProperty('--word-clearance',Math.max(20,clear)+'px');
     const tag=document.createElement('span');
     tag.className='training-fan-lens';tag.dataset.lens=lens;tag.textContent=name;
     tag.style.left=x+'px';tag.style.top=y+'px';
     layer.append(ray,tag);
-    return {lens,name,tag,angle:Math.atan2(dy,dx)};
+    return {lens,name,tag,ray,angle};
   });
-  const hub=document.createElement('i');hub.className='training-fan-hub';hub.style.left=origin.x+'px';hub.style.top=origin.y+'px';
-  const status=document.createElement('output');status.textContent='Drag toward a lens';
-  status.style.left=Math.max(81,Math.min(innerWidth-81,origin.x))+'px';
-  status.style.top=(origin.y<innerHeight/2?Math.min(innerHeight-16,centerY+100):Math.max(16,centerY-100))+'px';
-  layer.append(hub,status);document.body.append(layer);
+
+  const upward=points.reduce((sum,p)=>sum+p.y-origin.y,0)<0;
+  const hub=document.createElement('i');
+  hub.className='training-fan-hub';
+  hub.style.left=origin.x+'px';hub.style.top=(upward ? line.top-2 : line.bottom+2)+'px';
+  const feedback=document.createElement('div');
+  feedback.className='training-fan-feedback';
+  const status=document.createElement('output'),hint=document.createElement('small');
+  status.textContent='Drag toward a lens';
+  hint.textContent='Release here to cancel';
+  feedback.append(status,hint);layer.append(hub,feedback);
+  document.body.append(layer);
+
+  const labels=nodes.map(node=>node.tag.getBoundingClientRect());
+  const above=Math.min(top,...labels.map(r=>r.top));
+  const below=Math.max(bottom,...labels.map(r=>r.bottom));
+  const box=feedback.getBoundingClientRect(),gutter=8;
+  const aboveY=above-10-box.height,belowY=below+10;
+  const placeAbove=aboveY>=gutter && (upward || belowY+box.height>innerHeight-gutter);
+  feedback.style.left=clamp(origin.x-box.width/2,gutter,innerWidth-box.width-gutter)+'px';
+  feedback.style.top=clamp(placeAbove?aboveY:belowY,gutter,innerHeight-box.height-gutter)+'px';
+
   return {
     remove:()=>layer.remove(),
     update(point:Point) {
       const dx=point.x-origin.x,dy=point.y-origin.y;
       const distance=Math.hypot(dx,dy),angle=Math.atan2(dy,dx);
-      let choice:typeof nodes[number] | null=null;
+      let choice:typeof nodes[number]|null=null;
       let best=Math.cos(Math.PI/6);
-      if(distance>=22) for(const item of nodes){
-        const score=Math.cos(angle-item.angle);if(score>best){best=score;choice=item}
+      if(distance>=22)for(const item of nodes){
+        const score=Math.cos(angle-item.angle);
+        if(score>best){best=score;choice=item;}
       }
-      for(const item of nodes)item.tag.toggleAttribute('data-active',item===choice);
-      const limit=choice?.lens==='label'?1:reachLevels[distance<62?0:distance<112?1:2];
-      status.textContent=choice ? (choice.lens==='label'?'Label this passage':`${choice.name} · up to ${limit} candidates`) : 'Release to cancel';
-      return choice?{lens:choice.lens,limit}:null;
+      for(const item of nodes){
+        item.tag.toggleAttribute('data-active',item===choice);
+        item.ray.toggleAttribute('data-active',item===choice);
+      }
+      const limit=choice?.lens==='label' ? 1 : reachLevels[distance<62 ? 0 : distance<112 ? 1 : 2];
+      if(!choice){
+        status.textContent='Release to cancel';
+        hint.textContent='Drag toward a lens to continue';
+      } else if(choice.lens==='label'){
+        status.textContent='Label this passage';
+        hint.textContent='Release to label · return to start to cancel';
+      } else {
+        status.textContent=choice.name+' · up to '+limit+' candidates';
+        hint.textContent=limit===12 ? 'Release to compare · return to start to cancel' : 'Release to compare · drag farther for '+(limit===3 ? 6 : 12);
+      }
+      return choice ? {lens:choice.lens,limit} : null;
     },
   };
 }

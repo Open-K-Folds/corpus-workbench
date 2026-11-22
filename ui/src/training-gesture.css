@@ -1,56 +1,89 @@
 .training-fan {
+  --fan-shade: rgb(26 40 32 / 16%);
+  --fan-stroke: color-mix(in srgb, var(--indicator) 60%, var(--paper));
   position: fixed;
   inset: 0;
   z-index: 110;
+  overflow: hidden;
   pointer-events: none;
   user-select: none;
-  color: var(--text, #eef2ed);
-  font: 600 .78rem/1.2 var(--ui-font, system-ui, sans-serif);
+  background: radial-gradient(ellipse var(--opening-width) var(--opening-height) at var(--opening-x) var(--opening-y),
+    transparent 51%, var(--fan-shade) 100%);
+  color: var(--ink);
+  font: 550 13px/1.35 system-ui, sans-serif;
 }
 
-.training-fan i {
+:root[data-theme=dark] .training-fan { --fan-shade: rgb(0 5 3 / 32%); }
+
+.training-fan-ray {
   position: absolute;
-  height: 1px;
-  background: var(--accent, #90e3b7);
-  opacity: .72;
+  height: 0;
   transform-origin: 0 50%;
 }
-
-.training-fan .training-fan-hub {
-  width: 19px;
-  height: 19px;
-  box-sizing: border-box;
-  border: 2px solid #c0fadb;
-  border-radius: 50%;
-  background: #26382e;
-  opacity: 1;
-  transform: translate(-50%, -50%);
-}
-
-.training-fan-lens, .training-fan output {
+.training-fan-ray::before {
+  content: "";
   position: absolute;
-  transform: translate(-50%, -50%);
-  padding: 5px 9px;
-  color: #eff9f3;
-  background: #1a2420;
-  border: 1px solid #638174;
+  right: 0;
+  top: -.5px;
+  width: min(47px, 44%);
+  height: 1px;
+  background: var(--fan-stroke);
+}
+.training-fan-ray[data-active]::before {
+  width: max(1px, calc(100% - var(--word-clearance)));
+  height: 2px;
+  top: -1px;
+  background: var(--indicator);
+}
+
+.training-fan-hub {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border: 1px solid var(--paper);
+  background: var(--indicator);
+  box-shadow: 0 0 0 1px var(--indicator);
+  border-radius: 50%;
+  transform: translate(-50%,-50%);
+}
+
+.training-fan-lens {
+  position: absolute;
+  transform: translate(-50%,-50%);
+  padding: 4px 10px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--fan-stroke);
   border-radius: 1rem;
-  box-shadow: 0 2px 9px #0005;
+  box-shadow: 0 1px 3px #08110b26;
+  white-space: nowrap;
 }
-
-.training-fan-lens { white-space: nowrap; }
 .training-fan-lens[data-active] {
-  color: #0e2c1c;
-  background: #a5ecc3;
-  border-color: #e6ffef;
+  color: var(--paper);
+  background: var(--indicator);
+  border-color: var(--indicator);
+  font-weight: 700;
 }
 
-.training-fan output {
+.training-fan-feedback {
+  position: absolute;
   box-sizing: border-box;
-  width: max-content;
-  max-width: min(156px, calc(100vw - 12px));
-  text-align: center;
-  font-weight: 400;
+  width: min(254px, calc(100vw - 16px));
+  display: grid;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--control-edge);
+  border-radius: 7px;
+  background: var(--paper);
+  box-shadow: 0 3px 12px #07110b26;
+}
+.training-fan-feedback output { color: var(--ink); font-weight: 650; }
+.training-fan-feedback small { color: var(--muted); font: 400 11px/1.4 system-ui,sans-serif; }
+
+@media (forced-colors: active) {
+  .training-fan-lens[data-active] { outline: 2px solid Highlight; }
+  .training-fan-ray::before,.training-fan-hub { forced-color-adjust: none; background: GrayText; }
+  .training-fan-ray[data-active]::before,.training-fan-hub { background: Highlight; }
 }
 
 #tokens[data-training-gesture], #tokens[data-training-gesture] * {
