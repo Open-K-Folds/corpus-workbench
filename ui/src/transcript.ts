@@ -48,6 +48,13 @@ export class Transcript {
       if(event.button!==0||!(event.target instanceof Element)||event.target.closest('input,button'))return;
       const token=event.target.closest<HTMLElement>('.lexeme[tabindex]');
       if(!token)return;
+      // Modified clicks operate on complete saved tokens. Chromium otherwise
+      // extends its text caret on Shift+click before our range command runs.
+      if(!this.draft&&(event.shiftKey||event.ctrlKey||event.metaKey)){
+        event.preventDefault();
+        window.getSelection()?.removeAllRanges();
+        return;
+      }
       const tabIndex=token.tabIndex;token.removeAttribute('tabindex');
       requestAnimationFrame(()=>{if(token.isConnected)token.tabIndex=tabIndex});
     });
