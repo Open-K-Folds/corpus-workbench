@@ -21,7 +21,7 @@ export interface Passage {
 export const lensDescriptions: Record<TrainingLens, string> = {
   meaning: 'Uses shared vocabulary and the wording of neighbouring passages to suggest related material. Check the meaning in context.',
   wording: 'Ranks shared words and adjacent word pairs, giving more weight to words that occur in fewer passages.',
-  contrast: 'Looks for different wording in related contexts, including nearby changes of recorded speaker. Decide whether the passages actually contrast.',
+  contrast: 'Looks for repeated wording with changed terms, and nearby changes of recorded speaker. Decide whether the passages are easy to confuse.',
 };
 
 interface Range {start: number; end: number} // Half-open token positions in one document.
@@ -164,10 +164,15 @@ function manual(view: View, index: Index, seed: Passage, exclude: Range, query: 
   return found;
 }
 
-function neighbours(source: IndexedDocument, range: Range): Set<string> {
+function neighbours(source: IndexedDocument, range: Range, omit?: Range): Set<string> {
   const before = source.excerpts[source.excerptAt[range.start] - 1];
   const after = source.excerpts[source.excerptAt[range.end - 1] + 1];
-  return new Set([...(before?.vocabulary ?? []), ...(after?.vocabulary ?? [])]);
+  const result = new Set<string>();
+  for (const row of [before, after]) {
+    if (!row || omit && row.start < omit.end && row.end > omit.start) continue;
+    for (const term of row.vocabulary) result.add(term);
+  }
+  return result;
 }
 
 function overlap(a: Set<string>, b: Set<string>, weights: Map<string, number>): number {
@@ -210,8 +215,10 @@ export function findCandidates(view: View, seed: Passage, lens: TrainingLens, op
       if (lens === 'wording') {
         score = direct + 0.35 * overlap(seedPairs, pairs(terms), index.weights);
       } else {
-        const surrounding = neighbours(candidate, range);
-        const related = Math.max(overlap(context, surrounding, index.weights), overlap(context, words, index.weights),
+        // Neither quote may supply its own contextual evidence merely by sitting next to the other.
+        const surrounding = neighbours(candidate, range, sameDocument ? exclude : undefined);
+        const seedContext = sameDocument ? neighbours(source, exclude, range) : context;
+        const related = Math.max(overlap(seedContext, surrounding, index.weights), overlap(seedContext, words, index.weights),
           overlap(vocabulary, surrounding, index.weights));
         const distance = sameDocument ? Math.max(0, candidate.excerptAt[range.start] - source.excerptAt[exclude.end - 1],
           source.excerptAt[exclude.start] - candidate.excerptAt[range.end - 1]) : Infinity;
@@ -220,8 +227,10 @@ export function findCandidates(view: View, seed: Passage, lens: TrainingLens, op
         else {
           const turn = candidate.doc.tokens[range.start].utterance;
           const speaker = turn ? candidate.segments.get(turn)?.attrs.who : null;
-          const change = sameDocument && speaker && anchor.speaker && speaker !== anchor.speaker ? 0.2 * local : 0;
-          score = (0.5 * related + 0.25 * direct + 0.4 * local + change) * (1 - 0.8 * direct);
+          const change = sameDocument && speaker && anchor.speaker && speaker !== anchor.speaker ? 0.3 * local : 0;
+          const sharedPairs = overlap(seedPairs, pairs(terms), index.weights);
+          const repeatsSeed = terms.length === seedTerms.length && terms.every((term, i) => term === seedTerms[i]);
+          score = (0.25 * related + 0.4 * local + change + 0.75 * direct + 0.4 * sharedPairs) * (repeatsSeed ? 0.05 : 1);
         }
       }
       if (score > 0) ranked.push({score, source: candidate, range});
