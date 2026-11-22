@@ -32,6 +32,7 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     const word = page.locator('.lexeme[data-playback-word]');
     const turn = page.locator('.reading-block[data-playback-turn]');
     const caret = page.locator('.playback-caret');
+    const inkOpacity = id => page.locator(`[data-token="${id}"] > .reading-text`).evaluate(node => Number(getComputedStyle(node).opacity));
     const time = () => audio.evaluate(media => media.currentTime);
     await expect(follow).toHaveAttribute('aria-pressed', 'true');
     await expect(play).toBeEnabled();
@@ -60,6 +61,8 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await seek(1);
     await expect(word).toHaveText('librarian');
     await expect(caret).toBeVisible();
+    await expect.poll(() => inkOpacity('w1-1')).toBe(1);
+    await expect.poll(() => inkOpacity('w1-5')).toBeCloseTo(.74);
     await expect.poll(() => word.evaluate(node => {
       const text = node.querySelector('.reading-text').getClientRects()[0];
       const marker = document.querySelector('.playback-caret').getBoundingClientRect();
@@ -73,6 +76,8 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await expect(word).toHaveCount(0);
     await expect(turn).toHaveCount(0);
     await expect(caret).toBeHidden();
+    await expect.poll(() => inkOpacity('w1-5')).toBe(1);
+    await expect.poll(() => inkOpacity('w2-1')).toBeCloseTo(.74);
     await seek(14);
     await expect(turn).toHaveAttribute('data-utterance', 'u4');
     await expect(page.locator('#canvas-position')).toContainText('4 of 8');
@@ -91,6 +96,7 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
       await expect(follow).toHaveAttribute('aria-pressed', 'false');
     }
     await scrollAway();
+    await expect.poll(() => inkOpacity('w5-1')).toBe(1);
     await follow.click();
     await expect(follow).toHaveAttribute('aria-pressed', 'true');
     await play.click();
@@ -103,6 +109,7 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await follow.click();
     await expect(follow).toHaveAttribute('aria-pressed', 'true');
     await expect(word).toBeInViewport();
+    await expect.poll(() => inkOpacity('w1-5')).toBeCloseTo(.74);
     await expect(page.locator('#canvas-location')).toHaveText('u1');
     expect(await page.evaluate(async () => (await (await fetch('/api/view')).json()).revision.id)).toBe(1);
     expect(errors).toEqual([]);

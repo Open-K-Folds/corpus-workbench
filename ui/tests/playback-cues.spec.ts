@@ -23,6 +23,10 @@ test('word boundaries are end-exclusive; turn-only and uncovered periods retain 
     segments: [turn('speaker', 1_000_000, 1_700_000)],
   }, 3);
   expect(cues.available).toBe(true);
+  expect(cues.wordStarts).toEqual([
+    {id:'untimed',seconds:1}, {id:'first',seconds:1.000001},
+    {id:'next',seconds:1.2}, {id:'standalone',seconds:2},
+  ]);
   expect(cues.at(0.75)).toBeNull();
   expect(cues.at(1)).toEqual({wordIds: [], turnIds: ['speaker']});
   const first = cues.at(1.000001);
@@ -64,6 +68,7 @@ test('rejects incomplete, invalid and out-of-recording intervals without stretch
   for (const duration of [3, 0, Infinity, Number.NaN]) {
     const cues = buildPlaybackCues(observed, duration);
     expect(cues.available).toBe(false);
+    expect(cues.wordStarts).toEqual([]);
     expect(cues.at(2.5)).toBeNull();
   }
 });

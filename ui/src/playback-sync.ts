@@ -68,6 +68,7 @@ export class PlaybackSync {
   }
 
   private refresh() {
+    const previous = this.cues;
     if(this.ready() && this.doc) {
       if(!this.cues || this.duration!==this.audio.duration) {
         this.duration=this.audio.duration;
@@ -77,6 +78,7 @@ export class PlaybackSync {
       this.cues=null;
       this.duration=0;
     }
+    if (this.cues !== previous) this.reader.setWordStarts(this.cues?.wordStarts ?? [], this.audio.currentTime);
     this.updateControls();
     this.tick();
   }
@@ -109,6 +111,7 @@ export class PlaybackSync {
   }
 
   private tick(jump=false) {
+    this.reader.updateClock(this.audio.currentTime);
     const cue=this.cues?.at(this.audio.currentTime)??null;
     const follow=this.following && !!this.cues?.available;
     if(cue!==this.lastCue || follow!==this.lastFollow || jump) {

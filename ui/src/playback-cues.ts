@@ -8,6 +8,7 @@ export interface PlaybackCue {
 
 export interface PlaybackCues {
   readonly available: boolean;
+  readonly wordStarts: readonly {id:string; seconds:number}[];
   at(seconds: number): PlaybackCue | null;
 }
 
@@ -28,6 +29,7 @@ interface Boundary {
  * supplied intervals in the saved source, including simultaneous speech. */
 export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, durationSeconds: number): PlaybackCues {
   const boundaries: Boundary[] = [];
+  const wordStarts: {id:string; seconds:number}[] = [];
   if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
     const turns = new Map(doc.segments.map(turn => [turn.id, turn]));
     const wholeTurnWords = new Set<string>();
@@ -40,18 +42,22 @@ export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, du
     }
     const add = (value: {start_us: number | null; end_us: number | null}, target: Target) => {
       const bounds = boundsOnRecording(value, durationSeconds);
-      if (!bounds) return;
+      if (!bounds) return null;
       boundaries.push({time: bounds.start, enters: true, target}, {time: bounds.end, enters: false, target});
+      return bounds;
     };
     doc.segments.forEach((turn, order) => add(turn, {id: turn.id, level: 'turn', parentTurn: null, order}));
     doc.tokens.forEach((word, order) => {
       const turn = word.utterance === null ? undefined : turns.get(word.utterance);
       // Some imports stamp the same enclosing interval onto several words.
       // That window locates the turn, but cannot distinguish those words.
-      if (turn && repeatedTurnBounds.has(turn.id) && word.start_us === turn.start_us && word.end_us === turn.end_us) return;
-      add(word, {id: word.id, level: 'word', parentTurn: word.utterance, order});
+      const inherited = turn && repeatedTurnBounds.has(turn.id) && word.start_us === turn.start_us && word.end_us === turn.end_us;
+      const exact = inherited ? null : add(word, {id: word.id, level: 'word', parentTurn: word.utterance, order});
+      const timing = exact ?? (turn && boundsOnRecording(turn, durationSeconds));
+      if (timing) wordStarts.push({id:word.id, seconds:timing.start});
     });
     boundaries.sort((a, b) => a.time - b.time);
+    wordStarts.sort((a,b) => a.seconds - b.seconds);
   }
 
   const active = new Set<Target>();
@@ -59,6 +65,7 @@ export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, du
   let current: PlaybackCue | null = null;
   return {
     available: boundaries.length > 0,
+    wordStarts,
     at(seconds) {
       if (!Number.isFinite(seconds) || seconds < 0 || seconds >= durationSeconds) return null;
       const previous = next;

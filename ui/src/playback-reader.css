@@ -1,8 +1,8 @@
 /* Audio position is visually independent of the orange evidence selection. */
 .workspace > .transcript {--playback-ink:#f2d479}
 :root[data-theme=light] .workspace > .transcript {--playback-ink:#745500}
-.workspace .transcript #tokens[data-playback-evidence][data-playback-following]:not([data-training-gesture],.moving-passage-pin) .reading-block:not([data-playback-turn]) .lexeme:not([data-playback-word],.selected,.passage-pinned) > .reading-text {
-  color:var(--stage-soft);
+.workspace .transcript #tokens[data-playback-following]:not([data-training-gesture],.moving-passage-pin) .lexeme[data-playback-upcoming]:not([data-playback-word],.selected,.passage-pinned) > .reading-text {
+  opacity:.74;
 }
 .workspace .transcript #tokens .lexeme[data-playback-word]:not(.selected,.passage-pinned) > .reading-text {
   color:var(--stage-ink);
@@ -32,9 +32,11 @@
   z-index:1;
 }
 @media (prefers-reduced-motion:no-preference) {
-  .workspace .transcript > .playback-caret[data-glide] {transition:transform 65ms ease-out}
+  .workspace .transcript > .playback-caret[data-glide] {transition:transform 72ms ease-out}
+  .workspace .transcript #tokens[data-playback-following] .reading-text {transition:opacity 100ms ease-out}
 }
 @media (forced-colors:active) {
+  .workspace .transcript #tokens[data-playback-following] .lexeme[data-playback-upcoming] > .reading-text {opacity:1}
   .workspace .transcript > .playback-caret,
   .workspace .transcript #tokens .reading-block[data-playback-turn]::after {
     background:Highlight;

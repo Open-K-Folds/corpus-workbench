@@ -1,5 +1,5 @@
 import './playback-reader.css';
-import type {PlaybackCue} from './playback-cues';
+import type {PlaybackCue, PlaybackCues} from './playback-cues';
 
 /** Places the recording clock in the reading column without moving its editing caret. */
 export class PlaybackReader {
@@ -16,6 +16,10 @@ export class PlaybackReader {
   private resize: ResizeObserver;
   private projection: MutationObserver;
   private previousLine: number | null = null;
+  private wordStarts: PlaybackCues['wordStarts'] = [];
+  private nextWord = 0;
+  private clock = 0;
+  private scrollTarget: number | null = null;
 
   constructor(private surface: HTMLElement, onSuspendFollowing: () => void,
     private onFollowTurn?: (turn: HTMLElement | null) => void) {
@@ -28,6 +32,7 @@ export class PlaybackReader {
     const suspend = () => {
       if (!this.following) return;
       this.following = false;
+      this.scrollTarget = null;
       this.surface.removeAttribute('data-playback-following');
       this.onFollowTurn?.(null);
       // A smooth line advance may still be running when the reader takes over.
@@ -53,6 +58,7 @@ export class PlaybackReader {
 
     this.projection = new MutationObserver(() => this.refresh());
     this.projection.observe(surface,{childList:true});
+    this.pane.addEventListener('scrollend', () => {this.scrollTarget = null}, options);
     this.resize = new ResizeObserver(() => this.position(true));
     this.resize.observe(this.pane);
     this.resize.observe(surface);
@@ -73,15 +79,37 @@ export class PlaybackReader {
   /** A projection or filter replaced the actual source nodes. Resolve identities again. */
   refresh() {
     this.indexed = false;
+    if (this.wordStarts.length) this.index();
     this.paint();
     this.position(true);
   }
 
   reset() {
     this.show(null,false);
+    this.setWordStarts([], 0);
+    this.scrollTarget = null;
     this.words.clear();
     this.turns.clear();
     this.indexed = false;
+  }
+
+  setWordStarts(starts:PlaybackCues['wordStarts'], seconds:number) {
+    for (const word of this.words.values()) word.removeAttribute('data-playback-upcoming');
+    this.wordStarts = starts;
+    this.clock = seconds;
+    if (starts.length) this.index();
+    else this.nextWord = 0;
+  }
+
+  updateClock(seconds:number) {
+    this.clock = seconds;
+    // Only words crossed by the playhead change, including on backwards seeks.
+    while (this.nextWord > 0 && this.wordStarts[this.nextWord - 1].seconds > seconds) {
+      this.words.get(this.wordStarts[--this.nextWord].id)?.setAttribute('data-playback-upcoming','');
+    }
+    while (this.nextWord < this.wordStarts.length && this.wordStarts[this.nextWord].seconds <= seconds) {
+      this.words.get(this.wordStarts[this.nextWord++].id)?.removeAttribute('data-playback-upcoming');
+    }
   }
 
   destroy() {
@@ -104,6 +132,12 @@ export class PlaybackReader {
       this.turns.set(id,blocks);
     }
     this.indexed = true;
+    this.nextWord = 0;
+    for (const {id, seconds} of this.wordStarts) {
+      const upcoming = seconds > this.clock;
+      this.words.get(id)?.toggleAttribute('data-playback-upcoming', upcoming);
+      if (!upcoming) this.nextWord++;
+    }
   }
 
   private paint() {
@@ -158,6 +192,9 @@ export class PlaybackReader {
       const x = (start.height ? start.left : line.left) - bounds.left - this.pane.clientLeft + this.pane.scrollLeft - 1;
       const y = line.top - bounds.top - this.pane.clientTop + this.pane.scrollTop;
       const glide = !jump && !this.caret.hidden && this.previousLine !== null && Math.abs(y - this.previousLine) < 1;
+      if (!jump && this.previousLine !== null && !glide && matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+        this.caret.animate([{opacity:.35},{opacity:1}], {duration:100,easing:'ease-out'});
+      }
       this.caret.toggleAttribute('data-glide', glide);
       this.caret.style.transform = `translate(${x}px,${y}px)`;
       this.caret.style.height = `${line.height}px`;
@@ -174,7 +211,10 @@ export class PlaybackReader {
     // valid position until another timed source is reached.
     if (line.top <= bottom && line.bottom >= top) return;
     const delta = line.top - (bounds.top + bounds.height * .42);
-    const smooth = !jump && Math.abs(delta) < bounds.height && matchMedia('(prefers-reduced-motion: no-preference)').matches;
-    this.pane.scrollTo({top:this.pane.scrollTop + delta, behavior:smooth ? 'smooth' : 'instant'});
+    const destination = Math.max(0, Math.min(this.pane.scrollHeight - this.pane.clientHeight, this.pane.scrollTop + delta));
+    if (this.scrollTarget !== null && Math.abs(this.scrollTarget - destination) < 2) return;
+    const smooth = matchMedia('(prefers-reduced-motion: no-preference)').matches;
+    this.scrollTarget = destination;
+    this.pane.scrollTo({top:destination, behavior:smooth ? 'smooth' : 'instant'});
   }
 }

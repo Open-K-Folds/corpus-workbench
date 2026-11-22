@@ -31,6 +31,7 @@ export function stageControls() {
 export class ReadingCanvas {
   private turns: HTMLElement[] = [];
   private current = -1;
+  private destination: number | null = null;
   private playbackTurn: HTMLElement | null = null;
   private zoom = 100;
   private frame = 0;
@@ -51,7 +52,7 @@ export class ReadingCanvas {
     el('canvas-exit').onclick = () => this.close();
     el('canvas-prev').onclick = () => this.go(this.current - 1);
     el('canvas-next').onclick = () => this.go(this.current + 1);
-    this.scrub.oninput = () => this.go(this.scrub.valueAsNumber - 1);
+    this.scrub.oninput = () => this.go(this.scrub.valueAsNumber - 1, false);
     el('canvas-zoom-in').onclick = () => this.setZoom(10);
     el('canvas-zoom-out').onclick = () => this.setZoom(-10);
     this.handle.type = 'button';
@@ -60,7 +61,7 @@ export class ReadingCanvas {
     this.handle.setAttribute('aria-keyshortcuts','ArrowUp ArrowDown Home End');
     this.handle.onclick = () => {
       const turn = this.turns[this.current];
-      if (turn) this.pane.scrollTop += turn.getBoundingClientRect().top - this.guide();
+      if (turn) this.go(this.current);
     };
     this.handle.onkeydown = event => {
       const movements:Record<string,number> = {ArrowUp:this.current-1, ArrowDown:this.current+1, Home:0, End:this.turns.length-1};
@@ -68,14 +69,18 @@ export class ReadingCanvas {
       event.preventDefault();event.stopPropagation();this.go(movements[event.key]);
     };
     this.pane.addEventListener('scroll', () => this.followScroll(), {...options, passive:true});
-    this.pane.addEventListener('pointerdown', event => this.panStart(event), options);
+    const releaseDestination = () => {this.destination = null};
+    this.pane.addEventListener('wheel', releaseDestination, {...options, passive:true});
+    this.pane.addEventListener('keydown', releaseDestination, {...options, capture:true});
+    this.pane.addEventListener('pointerdown', event => {releaseDestination(); this.panStart(event)}, options);
+    this.pane.addEventListener('scrollend', releaseDestination, options);
     this.pane.addEventListener('pointermove', event => {
       const drag = this.drag;
       if (!drag || drag.id !== event.pointerId) return;
       if (drag.turn === null) this.pane.scrollTop = drag.scroll + drag.y - event.clientY;
       else {
         const target = Math.max(0,Math.min(this.turns.length-1,drag.turn + Math.round((event.clientY-drag.y)/24)));
-        if (target !== this.current) this.go(target);
+        if (target !== this.current) this.go(target, false);
       }
     }, options);
     this.pane.addEventListener('pointerup', event => {
@@ -151,6 +156,7 @@ export class ReadingCanvas {
   }
 
   private collect() {
+    this.destination = null;
     // Filtered-out evidence and inter-block whitespace are not navigation stops.
     this.turns = [...this.text.querySelectorAll<HTMLElement>(':scope > .reading-block:not(.literal-block):has([data-token])')];
     this.endPan();
@@ -164,7 +170,7 @@ export class ReadingCanvas {
 
   private readingIndex() {
     const timed = this.playbackTurn ? this.turns.indexOf(this.playbackTurn) : -1;
-    return timed >= 0 ? timed : this.nearest();
+    return timed >= 0 ? timed : this.destination ?? this.nearest();
   }
 
   private nearest() {
@@ -206,15 +212,18 @@ export class ReadingCanvas {
     el<HTMLButtonElement>('canvas-next').disabled = index < 0 || index >= total - 1;
   }
 
-  private align(turn:HTMLElement) {
-    if (turn === this.turns[0]) this.pane.scrollTop = 0;
-    else this.pane.scrollTop += turn.getBoundingClientRect().top - this.guide();
+  private align(turn:HTMLElement, animate=false) {
+    const top = turn === this.turns[0] ? 0 : this.pane.scrollTop + turn.getBoundingClientRect().top - this.guide();
+    this.pane.scrollTo({top, behavior:animate ? 'smooth' : 'instant'});
   }
 
-  private go(index:number) {
+  private go(index:number, animate=true) {
     const turn = this.turns[index];
     if (!turn) return;
-    this.align(turn);this.mark(index);
+    const smooth = animate && matchMedia('(prefers-reduced-motion: no-preference)').matches;
+    this.destination = smooth ? index : null;
+    this.align(turn, smooth);
+    this.mark(index);
   }
 
   private followScroll() {
