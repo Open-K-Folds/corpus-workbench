@@ -60,6 +60,11 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await seek(1);
     await expect(word).toHaveText('librarian');
     await expect(caret).toBeVisible();
+    await expect.poll(() => word.evaluate(node => {
+      const text = node.querySelector('.reading-text').getClientRects()[0];
+      const marker = document.querySelector('.playback-caret').getBoundingClientRect();
+      return Math.abs(marker.left - text.left) <= 3 && Math.abs(marker.top - text.top) <= 2;
+    })).toBe(true);
     await expect(waveform).toBeFocused();
     await page.screenshot({path:join(evidence, 'spoken-word.png')});
     await page.locator('.reading-block[data-utterance="u1"]').screenshot({path:join(evidence,'spoken-word-detail.png')});
