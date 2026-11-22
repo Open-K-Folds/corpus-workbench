@@ -1,21 +1,87 @@
-.coanalysis { display: grid; gap: 0.9rem; min-width: 0; overflow-wrap: anywhere; }
-.coanalysis h2, .coanalysis h3, .coanalysis p, .coanalysis blockquote { margin: 0; }
-.coanalysis .ca-source { display: grid; gap: 0.7rem; padding: 0.85rem; border-left: 3px solid var(--correction); background: var(--rail); }
-.ca-basis { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 0.35rem; }
-.ca-basis span, .coanalysis small, .coanalysis .ca-credit { color: var(--muted); }
-.coanalysis blockquote { font-size: 1rem; line-height: 1.55; white-space: pre-wrap; }
-.coanalysis form, .coanalysis fieldset, .coanalysis [data-review], .ca-history { display: grid; gap: 0.75rem; min-width: 0; }
-.coanalysis form { margin: 0; }
-.coanalysis fieldset { padding: 0; border: 0; margin: 0; }
-.coanalysis legend { font-weight: 650; margin-bottom: 0.65rem; }
-.coanalysis label { display: grid; gap: 0.35rem; margin: 0; }
-.coanalysis textarea { display: block; width: 100%; box-sizing: border-box; min-width: 0; resize: vertical; line-height: 1.4; }
-.coanalysis details, .coanalysis input, .coanalysis select { min-width: 0; max-width: 100%; }
-.coanalysis details[open] > :not(summary) { margin-top: 0.55rem; }
-.coanalysis [data-review] blockquote { font: inherit; line-height: 1.55; border-left: 2px solid var(--border); padding-left: 0.7rem; }
-.coanalysis [data-initial-comparison] { display: grid; gap: 0.35rem; }
-.coanalysis [data-initial-comparison] blockquote { border-color: var(--correction); }
-.coanalysis button { justify-self: start; white-space: normal; }
-.coanalysis .ca-history, .coanalysis .ca-credit { border-top: 1px solid var(--border); padding-top: 0.75rem; }
+.coanalysis {
+  --ca-accent: #286243;
+  --ca-accent-fill: #d7efdc;
+  --ca-accent-ink: #143c25;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+:root[data-theme=dark] .coanalysis {
+  --ca-accent: #a8f2be;
+  --ca-accent-fill: #253b2c;
+  --ca-accent-ink: #d7f7df;
+}
+.coanalysis :is(h2, h3, h4, p, blockquote) { margin: 0; }
+.coanalysis h2, .coanalysis h4, .ca-basis strong { display: flex; align-items: center; gap: .5rem; }
+.coanalysis #ca-heading { font-size: 1.18rem; font-weight: 640; letter-spacing: -.025em; }
+.coanalysis #ca-heading .material-symbol { color: var(--ca-accent); font-size: 1.25rem; }
+.coanalysis .ca-empty { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem; border: 1px dashed var(--control-edge); border-radius: .75rem; color: var(--muted); font-size: .92rem; line-height: 1.55; }
+.coanalysis .ca-empty .material-symbol { flex: none; color: var(--ca-accent); }
+
+.coanalysis .ca-source { min-width: 0; padding: .9rem 1rem; border: 1px solid var(--border); border-inline-start: 3px solid var(--ca-accent); border-radius: .7rem; background: var(--rail); }
+.ca-basis { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem .6rem; }
+.ca-basis strong { color: var(--ca-accent); font-size: .85rem; font-weight: 650; }
+.ca-basis .material-symbol { font-size: 1.15rem; }
+.ca-basis > span { font: .76rem/1.45 ui-monospace, Consolas, monospace; color: var(--muted); }
+.ca-document { margin-block: .75rem .35rem; font-size: .87rem; font-weight: 600; }
+.coanalysis small, .coanalysis .ca-credit { font-size: .78rem; line-height: 1.5; color: var(--muted); }
+.ca-document small { display: block; margin-top: .12rem; font-weight: 400; overflow-wrap: anywhere; }
+.ca-excerpt { margin-block: .7rem; }
+.ca-excerpt small { display: block; font: .72rem/1.5 ui-monospace, Consolas, monospace; }
+.ca-excerpt blockquote { font: 1.13rem/1.55 Georgia, serif; white-space: pre-wrap; }
+.ca-excerpt > span { color: var(--muted); }
+.coanalysis details { min-width: 0; max-width: 100%; }
+.coanalysis summary { margin: 0; padding: .4rem 0; color: var(--ink); font-size: .85rem; font-weight: 550; cursor: pointer; }
+.coanalysis summary::marker { color: var(--muted); }
+.coanalysis details[open] > :not(summary) { margin-block-start: .5rem; }
+.coanalysis .ca-source details { border-top: 1px solid var(--border); }
+.coanalysis [data-listen-pinned] { margin-block-start: .35rem; }
+.coanalysis #pinned-cue-basis { display: block; margin-block-start: .35rem; }
+.coanalysis button { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; justify-self: start; white-space: normal; }
+.coanalysis button .material-symbol { font-size: 1.1rem; }
+
+#coanalysis-form, #coanalysis-form [data-setup], #coanalysis-form [data-review], .ca-history, .ca-judgment { display: grid; gap: 1rem; min-width: 0; }
+#coanalysis-form { margin: 0; max-width: none; }
+#coanalysis-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+#coanalysis-form legend { float: none; margin: 0 0 .6rem; padding: 0; color: var(--ink); font-size: .95rem; font-weight: 650; }
+#coanalysis-form [data-setup] > legend, #coanalysis-form [data-review-heading] { line-height: 1.35; font-size: 1.08rem; font-weight: 650; letter-spacing: -.015em; }
+#coanalysis-form label { display: grid; gap: .35rem; margin: 0; font-size: .9rem; line-height: 1.4; font-weight: 550; color: var(--ink); }
+#coanalysis-form :is(textarea, select, input:not([type=radio])) { display: block; box-sizing: border-box; width: 100%; min-width: 0; margin: 0; padding: .55rem .7rem; border: 1px solid var(--control-edge); border-radius: .45rem; background: var(--paper); font-family: inherit; font-weight: 400; font-size: .93rem; line-height: 1.5; color: var(--ink); }
+#coanalysis-form textarea { resize: vertical; }
+#coanalysis-form [data-prompt] { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+#coanalysis-form .ca-private { display: grid; gap: .4rem; }
+#coanalysis-form .ca-lenses legend { margin-bottom: .4rem; font-size: .9rem; }
+.ca-lens-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+.ca-lens-option { position: relative; min-width: 0; }
+#coanalysis-form .ca-lens-option label { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: .5rem; height: 100%; min-height: 4.8rem; padding: .58rem; border: 1px solid var(--control-edge); border-radius: .5rem; font-size: .79rem; line-height: 1.25; color: var(--muted); cursor: pointer; }
+.ca-lens-option .material-symbol { font-size: 1.25rem; }
+#coanalysis-form .ca-lens-option input { position: absolute; inset: .68rem .5rem auto auto; width: .87rem; height: .87rem; min-height: 0; margin: 0; padding: 0; accent-color: var(--ca-accent); }
+#coanalysis-form .ca-lens-option input:checked + label { color: var(--ca-accent-ink); background: var(--ca-accent-fill); border-color: var(--ca-accent); }
+#coanalysis-form .ca-lens-option input:focus-visible + label { outline: 2px solid var(--ca-accent); outline-offset: 2px; }
+#coanalysis-form .ca-lens-option input:disabled + label { cursor: default; opacity: .65; }
+#coanalysis-form .ca-local { display: grid; gap: .45rem; }
+#coanalysis-form :is([data-prompt-details], .ca-manual), .coanalysis .ca-reading, .coanalysis .ca-saved { padding: .6rem .85rem; border: 1px solid var(--border); border-radius: .6rem; background: var(--rail); }
+#coanalysis-form .ca-manual[open] > :not(summary) { margin-top: .7rem; }
+.coanalysis .ca-review-question { margin-top: -.55rem; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+.coanalysis .ca-reading { display: grid; gap: .4rem; padding: .85rem; }
+.coanalysis .ca-reading h4 { color: var(--ca-accent); font-size: .92rem; font-weight: 650; }
+.coanalysis .ca-reading h4 .material-symbol { font-size: 1.1rem; }
+.coanalysis .ca-model h4 { color: var(--ink); }
+.coanalysis .ca-reading blockquote { font-size: .98rem; line-height: 1.6; white-space: pre-wrap; }
+.coanalysis .ca-reading details { margin-top: .3rem; border-top: 1px solid var(--border); }
+.coanalysis .ca-reading [role=status]:empty { display: none; }
+.coanalysis .ca-judgment { padding-top: 1rem; border-top: 1px solid var(--border); }
+#coanalysis-form :is([data-run], [data-use], [data-save]):not(:disabled) { background: var(--ca-accent); border-color: var(--ca-accent); color: var(--paper); }
+#coanalysis-form [data-status]:not(:empty) { padding: .65rem .8rem; border-left: 2px solid var(--ca-accent); background: var(--rail); color: var(--ink); }
+.coanalysis .ca-history { padding-top: .8rem; border-top: 1px solid var(--border); }
 .coanalysis .ca-saved p { white-space: pre-wrap; }
-.coanalysis [hidden], .coanalysis [data-status]:empty { display: none; }
+.coanalysis .ca-credit { padding-top: .8rem; border-top: 1px solid var(--border); }
+.coanalysis [hidden], #coanalysis-form [hidden], #coanalysis-form [data-status]:empty { display: none; }
+@media (max-width: 700px) {
+  #coanalysis-form :is(textarea, select, input:not([type=radio])) { font-size: max(16px, 1rem); }
+  #coanalysis-form :is(button, summary), .coanalysis .ca-source summary { min-height: 44px; align-content: center; }
+}
+@media (forced-colors: active) {
+  #coanalysis-form .ca-lens-option input:checked + label { border-color: Highlight; }
+}

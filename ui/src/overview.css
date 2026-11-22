@@ -1,14 +1,14 @@
 /* A local research instrument. All visual activity is supplied by the overview
    controller; this stylesheet never creates a decorative activity state. */
 #research-overview.overview {
-  --ov-bg: #fff;
-  --ov-ink: #242424;
-  --ov-muted: #626262;
-  --ov-line: #dedede;
-  --ov-faint: #efefef;
-  --ov-panel: #fafafa;
-  --ov-link: #b3b3b3;
-  --ov-focus: #111;
+  --ov-bg: #f5f6ef;
+  --ov-ink: #19251e;
+  --ov-muted: #526256;
+  --ov-line: #cbd5ca;
+  --ov-faint: #e6eae1;
+  --ov-panel: #edf1e8;
+  --ov-link: #83988a;
+  --ov-focus: #286243;
   --ov-mono: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
   width: min(1240px, 96vw);
   max-width: 96vw;
@@ -19,10 +19,10 @@
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   border: 1px solid var(--ov-line);
-  border-radius: 3px;
+  border-radius: 14px;
   background: var(--ov-bg);
   color: var(--ov-ink);
-  box-shadow: 0 18px 80px #0004;
+  box-shadow: 0 24px 88px #0006;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 12px;
   line-height: 1.6;
@@ -30,14 +30,14 @@
 }
 
 :root[data-theme="dark"] #research-overview.overview {
-  --ov-bg: #111;
-  --ov-ink: #ededed;
-  --ov-muted: #adadad;
-  --ov-line: #373737;
-  --ov-faint: #252525;
-  --ov-panel: #151515;
-  --ov-link: #575757;
-  --ov-focus: #fff;
+  --ov-bg: #0c100e;
+  --ov-ink: #e2eae3;
+  --ov-muted: #a1b0a5;
+  --ov-line: #344039;
+  --ov-faint: #252f28;
+  --ov-panel: #141916;
+  --ov-link: #586d5f;
+  --ov-focus: #a8f2be;
   color-scheme: dark;
 }
 
@@ -49,7 +49,7 @@
   margin: 0;
   padding: 7px 11px;
   border: 1px solid var(--ov-line);
-  border-radius: 3px;
+  border-radius: 6px;
   background: transparent;
   color: var(--ov-ink);
   font-size: 11px;
@@ -86,9 +86,9 @@
 #research-overview .overview-title h2 {
   margin: 0 0 5px;
   color: var(--ov-ink);
-  font-size: 23px;
+  font-size: 27px;
   line-height: 1.25;
-  letter-spacing: -.65px;
+  letter-spacing: -.9px;
   font-weight: 550;
 }
 #research-overview :is(.overview-project, .overview-title > p) {
@@ -100,7 +100,7 @@
   overflow-wrap: anywhere;
 }
 #research-overview .overview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
-#research-overview #overview-close { border-color: var(--ov-ink); }
+#research-overview #overview-close { background: var(--ov-focus); color: var(--ov-bg); border-color: var(--ov-focus); font-weight: 650; }
 #research-overview .overview-basis {
   margin: 0;
   padding: 11px 28px;
@@ -123,14 +123,14 @@
   gap: 4px 12px;
   margin: 0 0 8px;
   color: var(--ov-ink);
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.5;
-  font-weight: 550;
+  font-weight: 620;
   letter-spacing: .1px;
 }
 #research-overview .overview-label {
   color: var(--ov-muted);
-  font: 9px/1.6 var(--ov-mono);
+  font: 10px/1.6 var(--ov-mono);
   font-weight: 400;
   letter-spacing: 0;
 }
@@ -158,16 +158,16 @@
 #research-overview #overview-map .overview-map-meta { fill: var(--ov-muted); font-size: 8px; }
 #research-overview #overview-map .overview-svg-file { fill: var(--ov-ink); font-size: 9px; }
 #research-overview #overview-map .overview-svg-small { fill: var(--ov-muted); font-size: 7.5px; letter-spacing: .1px; }
-#research-overview #overview-map .overview-revision { fill: var(--ov-ink); font-size: 19px; letter-spacing: -.5px; }
+#research-overview #overview-map .overview-revision { fill: var(--ov-focus); font-size: 19px; letter-spacing: -.5px; }
 #research-overview #overview-map .overview-orbit { fill: none; stroke: var(--ov-line); stroke-width: .7; }
 #research-overview #overview-map .overview-core { fill: var(--ov-panel); stroke: var(--ov-muted); stroke-width: .7; }
 #research-overview #overview-map .overview-node { fill: var(--ov-bg); stroke: var(--ov-muted); stroke-width: 1; }
 #research-overview #overview-map .overview-node[r="3"] { fill: var(--ov-ink); stroke: var(--ov-ink); }
-#research-overview #overview-map .overview-node-current { fill: var(--ov-ink); stroke: var(--ov-ink); }
+#research-overview #overview-map .overview-node-current { fill: var(--ov-focus); stroke: var(--ov-focus); }
 #research-overview #overview-map .overview-map-guide { fill: none; stroke: var(--ov-faint); stroke-width: 1; }
 #research-overview .overview-link { fill: none; stroke: var(--ov-link); stroke-width: .8; vector-effect: non-scaling-stroke; }
-#research-overview .overview-link-current { stroke: var(--ov-ink); stroke-width: 1.15; }
-#research-overview .overview-flow { fill: none; stroke: var(--ov-ink); stroke-width: 1.6; stroke-dasharray: 3 31; opacity: 0; vector-effect: non-scaling-stroke; }
+#research-overview .overview-link-current { stroke: var(--ov-focus); stroke-width: 1.15; }
+#research-overview .overview-flow { fill: none; stroke: var(--ov-focus); stroke-width: 1.6; stroke-dasharray: 3 31; opacity: 0; vector-effect: non-scaling-stroke; }
 #research-overview[data-motion="playing"][data-can-flow="true"] .overview-flow[data-recording="true"] { opacity: .9; animation: overview-flow 2.4s linear infinite; }
 @keyframes overview-flow { to { stroke-dashoffset: -68; } }
 
@@ -214,13 +214,13 @@
   height: 18px;
   margin: 6px 0 0;
   padding: 0;
-  accent-color: var(--ov-ink);
+  accent-color: var(--ov-focus);
   border: 0;
   border-radius: 0;
   background: transparent;
 }
 #research-overview .overview-player time { font-variant-numeric: tabular-nums; }
-#research-overview #overview-time { color: var(--ov-muted); font: 9px/1.6 var(--ov-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#research-overview #overview-time { color: var(--ov-muted); font: 10px/1.6 var(--ov-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 #research-overview #overview-analysis-status { min-height: 34px; margin-top: 9px; }
 #research-overview #overview-motion-status { margin-top: 8px; }
 #research-overview .overview-player > p, #research-overview .overview-player > small { grid-column: 1 / -1; color: var(--ov-muted); font: 10px/1.6 var(--ov-mono); }
@@ -234,7 +234,7 @@
 }
 #research-overview .overview-instrument { min-width: 0; padding: 17px 28px 18px; border-right: 1px solid var(--ov-line); }
 #research-overview .overview-instrument:last-child { border-right: 0; }
-#research-overview .overview-instrument > :is(label, span) { display: block; margin: 0; color: var(--ov-muted); font: 9px/1.6 var(--ov-mono); }
+#research-overview .overview-instrument > :is(label, span) { display: block; margin: 0; color: var(--ov-muted); font: 10px/1.6 var(--ov-mono); }
 #research-overview .overview-instrument strong { display: block; margin: 5px 0 4px; color: var(--ov-ink); font: 400 27px/1.2 var(--ov-mono); letter-spacing: -1px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 #research-overview .overview-instrument small { display: block; color: var(--ov-muted); font-size: 10px; line-height: 1.6; overflow-wrap: anywhere; }
 #research-overview .overview-instrument button { min-height: 28px; margin-top: 9px; padding: 5px 8px; font-size: 10px; }

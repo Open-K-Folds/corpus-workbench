@@ -1,15 +1,36 @@
-/* Native entry and project navigation use the same local workbench tokens. */
-.desktop-welcome{width:min(720px,100%);max-height:100%;overflow:auto;margin:auto;padding:56px;color:var(--ink);scrollbar-gutter:stable}
-.welcome-brand{display:flex;align-items:center;gap:10px;font-size:10px;font-weight:650;letter-spacing:1.8px;color:var(--muted);margin-bottom:28px}
-.welcome-brand .material-symbol{font-size:25px}
-.desktop-welcome h1{font-size:38px;font-weight:620;line-height:1.15;letter-spacing:-1.1px;margin-bottom:18px}
-.welcome-intro{font-size:17px;line-height:1.65;color:var(--muted);margin-bottom:30px}
-.welcome-actions{display:flex;flex-wrap:wrap;gap:9px}
-.desktop-welcome .welcome-actions button{min-height:40px;padding:9px 14px;font-size:12px;font-weight:550;gap:7px}
-.welcome-actions button:not(.secondary){background:var(--ink);color:var(--paper);border-color:var(--ink)}
-.welcome-actions .secondary,.desktop-recent.secondary,.desktop-project-actions .secondary{background:var(--paper);color:var(--ink);border-color:var(--control-edge)}
-.welcome-actions .secondary:hover,.desktop-recent.secondary:hover,.desktop-project-actions .secondary:hover{background:var(--control-hover)}
-.welcome-note{font-size:11px;color:var(--muted);margin:13px 0 26px}
+/* Native entry uses the same paper, graphite and mint roles as the workspace. */
+.desktop-welcome {
+  --welcome-accent: #286243;
+  --welcome-fill: #d7efdc;
+  width: min(780px, 100%);
+  max-height: 100%;
+  margin: auto;
+  padding: clamp(22px, 5vw, 64px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  color: var(--ink);
+}
+:root[data-theme=dark] .desktop-welcome { --welcome-accent: #a8f2be; --welcome-fill: #253b2c; }
+.welcome-brand { display: flex; align-items: center; gap: .5rem; margin-bottom: 1.4rem; color: var(--muted); font-size: .86rem; font-weight: 600; }
+.welcome-brand .material-symbol { display: inline-grid; place-items: center; width: 30px; height: 30px; background: var(--welcome-fill); border-radius: 8px; color: var(--welcome-accent); font-size: 19px; }
+.desktop-welcome .welcome-heading { margin: 0 0 .45rem; font-size: clamp(2rem,5vw,3.2rem); font-weight: 580; line-height: 1.12; letter-spacing: -.055em; }
+.welcome-intro { margin: 0 0 1.8rem; color: var(--muted); font-size: 1.04rem; line-height: 1.6; }
+.welcome-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: .7rem; }
+.desktop-welcome .welcome-actions button {
+  display: grid; grid-template-columns: auto minmax(0,1fr); grid-template-rows: auto 1fr;
+  align-items: start; justify-content: start; gap: .38rem .65rem; min-width: 0;
+  padding: 1.05rem; border: 1px solid var(--control-edge); border-radius: .72rem;
+  text-align: start; white-space: normal; font-size: .96rem; line-height: 1.4;
+  background: var(--rail); color: var(--ink);
+}
+.desktop-welcome .welcome-actions button span:not(.material-symbol) { font-weight: 620; }
+.welcome-actions .material-symbol { grid-row: 1 / span 2; color: var(--muted); font-size: 1.35rem; }
+.welcome-actions button small { grid-column: 2; color: var(--muted); font-size: .83rem; line-height: 1.5; }
+.desktop-welcome .welcome-actions button:hover { border-color: var(--muted); background: var(--control-hover); }
+.desktop-welcome .welcome-actions #desktop-prepare { background: var(--welcome-fill); border-color: var(--welcome-accent); }
+.welcome-actions #desktop-prepare .material-symbol { color: var(--welcome-accent); }
+.desktop-recent.secondary,.desktop-project-actions .secondary { background:var(--paper);color:var(--ink);border-color:var(--control-edge); }
+.desktop-recent.secondary:hover,.desktop-project-actions .secondary:hover { background:var(--control-hover); }
 .desktop-status{font-size:12px;min-height:22px;color:var(--muted)}
 .desktop-status:empty{display:none}
 .desktop-welcome .notice{padding:10px 12px;border:1px solid var(--border);border-radius:5px;margin:12px 0;overflow-wrap:anywhere}
@@ -33,7 +54,8 @@
 .desktop-project-switcher .desktop-recent{padding:8px;gap:3px 6px}
 .desktop-project-switcher .desktop-recent strong{font-size:11px}
 .desktop-project-switcher .desktop-recent span:not(.material-symbol){font-size:10px}
-@media(max-width:900px){.desktop-welcome{padding:36px 28px}.desktop-welcome h1{font-size:32px}.welcome-intro{font-size:15px}}
+@media(max-width:900px){.desktop-welcome{padding:36px 28px}.desktop-welcome .welcome-heading{font-size:32px}.welcome-intro{font-size:15px}}
+@media(max-width:510px){.welcome-actions{grid-template-columns:1fr}.desktop-welcome .welcome-actions button{padding:.8rem 1rem}}
 @media(max-height:660px){.desktop-welcome{padding-top:26px;padding-bottom:26px}.welcome-brand{margin-bottom:20px}.desktop-welcome footer{margin-top:24px}}
 .preparation-dialog{padding:0;width:min(620px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);border:1px solid var(--control-edge);border-radius:8px;background:var(--paper);color:var(--ink);box-shadow:0 14px 65px #0003;overflow:auto;scrollbar-gutter:stable}
 .preparation-dialog::backdrop{background:#0006}
