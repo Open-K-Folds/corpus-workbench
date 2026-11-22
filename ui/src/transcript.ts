@@ -229,6 +229,11 @@ export class Transcript {
     const id=span.dataset.token!,doc=this.host.doc();let ids=[id];
     if(modifiers?.ctrlKey||modifiers?.metaKey)ids=this.host.selected().includes(id)?this.host.selected().filter(t=>t!==id):[...this.host.selected(),id];
     else if(modifiers?.shiftKey&&this.host.selected().length){const all=doc.tokens.map(t=>t.id),a=all.indexOf(this.host.selected()[0]),b=all.indexOf(id);ids=all.slice(Math.min(a,b),Math.max(a,b)+1)}
+    // Removing the focused endpoint leaves keyboard commands on the surviving passage.
+    if(ids.length && !ids.includes(id)) {
+      const survivor=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(ids[ids.length-1])}"]`);
+      if(survivor){if(!survivor.hasAttribute('tabindex'))survivor.tabIndex=-1;survivor.focus({preventScroll:true})}
+    }
     this.menu.hidden=true;this.details.hidden=true;
     if(!this.pin.matches(ids))this.pin.clear();
     this.host.select(ids);if(!ids.length){this.selection=null;this.menu.hidden=true;this.paintSelection();return}
