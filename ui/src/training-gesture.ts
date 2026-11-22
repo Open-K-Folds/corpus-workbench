@@ -147,19 +147,33 @@ export class TrainingGesture {
 
 const clamp = (value:number, min:number, max:number) => Math.max(min, Math.min(value,max));
 
-function fanPoints(origin:Point, selectionTop:number, selectionBottom:number):Point[] {
-  const roomX=Math.min(origin.x,innerWidth-origin.x);
-  const inwardX=origin.x<innerWidth/2 ? 1 : -1;
-  const inwardY=origin.y<innerHeight/2 ? 1 : -1;
-  let offsets:number[][];
-  if(roomX>=80) {
-    offsets=[[-110,65],[-40,113],[40,113],[110,65]];
-  } else {
-    // At a corner the whole fan turns inward. Each label has its own angle.
-    offsets=[[146,29],[133,75],[86,119],[32,151]].map(([x,y])=>[x*inwardX,y]);
+function fanPoints(origin:Point, top:number, bottom:number, viewport:HTMLElement, labels:DOMRect[]):Point[] {
+  const width=viewport.clientWidth,height=viewport.clientHeight,gutter=6,gap=8;
+  const down=height-bottom>=top;
+  const y=(distance:number,index:number)=>clamp(down?bottom+distance:top-distance,
+    gutter+labels[index].height/2,height-gutter-labels[index].height/2);
+  // Keep each pair on its arc, shifting the pair as a unit at a viewport edge.
+  const pair=(a:number,b:number,span:number)=>{
+    const min=gutter+labels[a].width/2,max=width-gutter-labels[b].width/2;
+    const separation=Math.min(max-min,Math.max(span,(labels[a].width+labels[b].width)/2+gap));
+    const left=clamp(origin.x-separation/2,min,max-separation);
+    return [left,left+separation];
+  };
+  const pairWidth=Math.max(labels[0].width+labels[3].width,labels[1].width+labels[2].width)+gap;
+  if(Math.min(origin.x,width-origin.x)>=80 && pairWidth<=width-2*gutter){
+    const [outerLeft,outerRight]=pair(0,3,220),[innerLeft,innerRight]=pair(1,2,80);
+    const innerDistance=Math.max(113,65+Math.max(...labels.map(label=>label.height))+gap);
+    return [outerLeft,innerLeft,innerRight,outerRight].map((x,i)=>({x,y:y(i===1||i===2?innerDistance:65,i)}));
   }
-  const clearance=inwardY>0 ? selectionBottom-origin.y : origin.y-selectionTop;
-  return offsets.map(([x,y])=>({x:clamp(origin.x+x,42,innerWidth-42),y:clamp(origin.y+inwardY*(y+clearance),17,innerHeight-17)}));
+  // At an edge, step the lenses inward on separate rows.
+  const inward=origin.x<width/2?1:-1;
+  let lastBottom=0;
+  return [[146,29],[133,75],[86,119],[32,151]].map(([dx,dy],i)=>{
+    const {width:labelWidth,height:labelHeight}=labels[i];
+    const distance=Math.max(dy,lastBottom+gap+labelHeight/2);
+    lastBottom=distance+labelHeight/2;
+    return {x:clamp(origin.x+inward*dx,gutter+labelWidth/2,width-gutter-labelWidth/2),y:y(distance,i)};
+  });
 }
 
 function showFan(origin:Point, word:HTMLElement) {
@@ -181,8 +195,16 @@ function showFan(origin:Point, word:HTMLElement) {
   layer.style.setProperty('--opening-y',((top+bottom)/2)+'px');
   layer.style.setProperty('--opening-width',Math.max(90,right-left+48)+'px');
   layer.style.setProperty('--opening-height',Math.max(48,bottom-top+30)+'px');
-  const points=fanPoints(origin,top,bottom);
-  const nodes=lenses.map(([lens,name],index)=>{
+  const tags=lenses.map(([lens,name])=>{
+    const tag=document.createElement('span');
+    tag.className='training-fan-lens';tag.dataset.lens=lens;tag.textContent=name;
+    layer.append(tag);
+    return tag;
+  });
+  document.body.append(layer);
+  const points=fanPoints(origin,top,bottom,layer,tags.map(tag=>tag.getBoundingClientRect()));
+  const nodes=tags.map((tag,index)=>{
+    const [lens,name]=lenses[index];
     const {x,y}=points[index];
     const dx=x-origin.x,dy=y-origin.y,angle=Math.atan2(dy,dx);
     const ray=document.createElement('i');
@@ -193,10 +215,8 @@ function showFan(origin:Point, word:HTMLElement) {
     // Leave a clear gap over the word where the pointer is resting.
     const clear=Math.abs((dy<0 ? top-3 : bottom+3)-origin.y)/Math.max(.12,Math.abs(Math.sin(angle)));
     ray.style.setProperty('--word-clearance',Math.max(20,clear)+'px');
-    const tag=document.createElement('span');
-    tag.className='training-fan-lens';tag.dataset.lens=lens;tag.textContent=name;
     tag.style.left=x+'px';tag.style.top=y+'px';
-    layer.append(ray,tag);
+    layer.prepend(ray);
     return {lens,name,tag,ray,angle};
   });
 
@@ -210,19 +230,23 @@ function showFan(origin:Point, word:HTMLElement) {
   status.textContent='Drag toward a lens';
   hint.textContent='Release here to cancel';
   feedback.append(status,hint);layer.append(hub,feedback);
-  document.body.append(layer);
 
   const labels=nodes.map(node=>node.tag.getBoundingClientRect());
   const above=Math.min(top,...labels.map(r=>r.top));
   const below=Math.max(bottom,...labels.map(r=>r.bottom));
-  const box=feedback.getBoundingClientRect(),gutter=8;
-  const aboveY=above-10-box.height,belowY=below+10;
-  const placeAbove=aboveY>=gutter && (upward || belowY+box.height>innerHeight-gutter);
-  feedback.style.left=clamp(origin.x-box.width/2,gutter,innerWidth-box.width-gutter)+'px';
-  feedback.style.top=clamp(placeAbove?aboveY:belowY,gutter,innerHeight-box.height-gutter)+'px';
+  const positionFeedback=()=>{
+    const box=feedback.getBoundingClientRect(),gutter=8;
+    const aboveY=above-10-box.height,belowY=below+10;
+    const placeAbove=aboveY>=gutter && (upward || belowY+box.height>layer.clientHeight-gutter);
+    feedback.style.left=clamp(origin.x-box.width/2,gutter,layer.clientWidth-box.width-gutter)+'px';
+    feedback.style.top=clamp(placeAbove?aboveY:belowY,gutter,layer.clientHeight-box.height-gutter)+'px';
+  };
+  positionFeedback();
+  const feedbackResize=new ResizeObserver(positionFeedback);
+  feedbackResize.observe(feedback);
 
   return {
-    remove:()=>layer.remove(),
+    remove:()=>{feedbackResize.disconnect();layer.remove()},
     update(point:Point) {
       const dx=point.x-origin.x,dy=point.y-origin.y;
       const distance=Math.hypot(dx,dy),angle=Math.atan2(dy,dx);

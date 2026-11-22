@@ -49,6 +49,7 @@
 
 .training-fan-lens {
   position: absolute;
+  inline-size: max-content;
   transform: translate(-50%,-50%);
   padding: 4px 10px;
   color: var(--ink);
@@ -62,7 +63,6 @@
   color: var(--paper);
   background: var(--indicator);
   border-color: var(--indicator);
-  font-weight: 700;
 }
 
 .training-fan-feedback {
