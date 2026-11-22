@@ -9,6 +9,7 @@ export interface PlaybackCue {
 export interface PlaybackCues {
   readonly available: boolean;
   readonly wordStarts: readonly {id:string; seconds:number}[];
+  readonly turnBoundaries: readonly {id:string; seconds:number; enters:boolean}[];
   at(seconds: number): PlaybackCue | null;
 }
 
@@ -30,6 +31,7 @@ interface Boundary {
 export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, durationSeconds: number): PlaybackCues {
   const boundaries: Boundary[] = [];
   const wordStarts: {id:string; seconds:number}[] = [];
+  const turnBoundaries: {id:string; seconds:number; enters:boolean}[] = [];
   if (Number.isFinite(durationSeconds) && durationSeconds > 0) {
     const turns = new Map(doc.segments.map(turn => [turn.id, turn]));
     const wholeTurnWords = new Set<string>();
@@ -46,18 +48,37 @@ export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, du
       boundaries.push({time: bounds.start, enters: true, target}, {time: bounds.end, enters: false, target});
       return bounds;
     };
-    doc.segments.forEach((turn, order) => add(turn, {id: turn.id, level: 'turn', parentTurn: null, order}));
+    const turnWindows = new Map<string, ReturnType<typeof boundsOnRecording>>();
+    doc.segments.forEach((turn, order) => {
+      const bounds = add(turn, {id: turn.id, level: 'turn', parentTurn: null, order});
+      if (bounds) turnWindows.set(turn.id, bounds);
+    });
     doc.tokens.forEach((word, order) => {
       const turn = word.utterance === null ? undefined : turns.get(word.utterance);
       // Some imports stamp the same enclosing interval onto several words.
       // That window locates the turn, but cannot distinguish those words.
       const inherited = turn && repeatedTurnBounds.has(turn.id) && word.start_us === turn.start_us && word.end_us === turn.end_us;
       const exact = inherited ? null : add(word, {id: word.id, level: 'word', parentTurn: word.utterance, order});
+      // Without supplied turn bounds, every word must be timed before its
+      // outer limits can mark reading progress. Gaps still have no active cue.
+      if (turn && turn.start_us === null && turn.end_us === null) {
+        const window = turnWindows.get(turn.id);
+        if (!exact) turnWindows.set(turn.id, null);
+        else if (window === undefined) turnWindows.set(turn.id, exact);
+        else if (window) {
+          window.start = Math.min(window.start, exact.start);
+          window.end = Math.max(window.end, exact.end);
+        }
+      }
       const timing = exact ?? (turn && boundsOnRecording(turn, durationSeconds));
       if (timing) wordStarts.push({id:word.id, seconds:timing.start});
     });
+    for (const [id, window] of turnWindows) {
+      if (window) turnBoundaries.push({id, seconds:window.start, enters:true}, {id, seconds:window.end, enters:false});
+    }
     boundaries.sort((a, b) => a.time - b.time);
     wordStarts.sort((a,b) => a.seconds - b.seconds);
+    turnBoundaries.sort((a,b) => a.seconds - b.seconds);
   }
 
   const active = new Set<Target>();
@@ -66,6 +87,7 @@ export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, du
   return {
     available: boundaries.length > 0,
     wordStarts,
+    turnBoundaries,
     at(seconds) {
       if (!Number.isFinite(seconds) || seconds < 0 || seconds >= durationSeconds) return null;
       const previous = next;

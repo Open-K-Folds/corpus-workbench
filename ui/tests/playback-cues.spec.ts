@@ -69,8 +69,35 @@ test('rejects incomplete, invalid and out-of-recording intervals without stretch
     const cues = buildPlaybackCues(observed, duration);
     expect(cues.available).toBe(false);
     expect(cues.wordStarts).toEqual([]);
+    expect(cues.turnBoundaries).toEqual([]);
     expect(cues.at(2.5)).toBeNull();
   }
+});
+
+test('turn progress uses the source interval or the extent of a fully aligned untimed utterance', () => {
+  const cues = buildPlaybackCues({
+    segments: [turn('source', 1_000_000, 3_000_000), turn('aligned', null, null)],
+    tokens: [word('last', 3_500_000, 3_900_000, 'aligned'), word('first', 2_500_000, 2_700_000, 'aligned'),
+      word('source-word', 1_300_000, 1_600_000, 'source')],
+  }, 4);
+  expect(cues.turnBoundaries).toEqual([
+    {id:'source', seconds:1, enters:true}, {id:'aligned', seconds:2.5, enters:true},
+    {id:'source', seconds:3, enters:false}, {id:'aligned', seconds:3.9, enters:false},
+  ]);
+  expect(cues.at(3.2)).toBeNull();
+  expect(cues.at(2.6)).toEqual({wordIds:['first'], turnIds:['source']});
+});
+
+test('incomplete word coverage and invalid explicit turn bounds leave whole-turn progress unknown', () => {
+  const cues = buildPlaybackCues({
+    segments: [turn('mixed', null, null), turn('partial', null, 2_500_000), turn('past-end', 0, 4_000_000),
+      turn('invalid-word', null, null), turn('empty', null, null)],
+    tokens: [word('before', 100_000, 300_000, 'mixed'), word('unknown', null, null, 'mixed'),
+      word('after', 500_000, 700_000, 'mixed'), word('partial-word', 1_000_000, 1_100_000, 'partial'),
+      word('past-end-word', 1_200_000, 1_300_000, 'past-end'), word('invalid', 0, 5_000_000, 'invalid-word')],
+  }, 3);
+  expect(cues.turnBoundaries).toEqual([]);
+  expect(cues.at(.6)).toEqual({wordIds:['after'], turnIds:[]});
 });
 
 test('repeated full-turn windows and prepared chunks give passage cues, with individually timed words still eligible', () => {
@@ -94,6 +121,9 @@ test('a short decoder endpoint difference preserves the final chunk through nati
   expect(cues.at(235)).toEqual({wordIds: [], turnIds: ['chunk']});
   expect(cues.at(duration - 0.000001)).toEqual({wordIds: [], turnIds: ['chunk']});
   expect(cues.at(duration)).toBeNull();
+  expect(cues.turnBoundaries).toEqual([
+    {id:'chunk', seconds:235, enters:true}, {id:'chunk', seconds:duration, enters:false},
+  ]);
   expect(suppliedCue(doc, ['last'], duration)).toEqual({basis:'utterance', start:235, end:duration});
   // The saved-context preflight runs before media metadata is loaded.
   expect(suppliedCue(doc, ['last'], Infinity)).toEqual({basis:'utterance', start:235, end:262.595875});
