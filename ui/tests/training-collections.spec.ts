@@ -73,7 +73,7 @@ test('a reviewed pair, negative pair and passage label survive reload and export
   await page.reload();
   await page.locator('#rail-training').click();
   await trainer.getByRole('button', {name: 'Saved collections'}).click();
-  await expect(trainer.getByLabel('Saved collection', {exact: true})).toHaveValue(collection);
+  await expect(trainer.getByRole('combobox', {name: 'Saved collection', exact: true})).toHaveValue(collection);
   await expect(trainer.locator('.training-counts')).toContainText('3 reviewed');
   await expect(trainer.locator('.training-record')).toHaveCount(3);
   const savedPair = trainer.locator('.training-record').filter({has: page.getByText('Needs context', {exact: true})});
@@ -98,6 +98,8 @@ test('a reviewed pair, negative pair and passage label survive reload and export
     assistance: {model: 'Local fixture model', reply: proposal},
   });
   expect(pair.assistance.prompt).toContain('follow-1');
+  expect(pair.seed.readings.map((r: {id: string}) => r.id)).toEqual(seedIds);
+  expect(pair.seed.readings[2]).toEqual({id: 'b3', original: 'heard', corrected: null, language: null, languageSource: 'unknown'});
   expect(pair.assistance.prompt).toContain('turn-2');
   expect(rows.find(row => row.label === 'Different')).toMatchObject({kind: 'pair', lens: 'contrast', seed: {revision: 2}, candidate: {utterance: 'follow-2', quote: nearMiss}});
   expect(rows.find(row => row.label === 'Public notice')).toMatchObject({kind: 'classification', candidate: null, seed: {utterance: 'turn-1', revision: 3}});
