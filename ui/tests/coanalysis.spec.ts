@@ -10,7 +10,7 @@ test('a model reply becomes a revision-bound annotation only after human assessm
   await page.goto(practiceUrl);
   await expect(page).toHaveTitle('Corpus workbench');
   await page.locator('#rail-coanalysis').click();
-  await expect(page.locator('.coanalysis')).toContainText('Select a word');
+  await expect(page.locator('.ca-empty')).toContainText('Select words in the transcript and choose Co-analyse.');
   await page.locator('[data-token="a7"]').click();
   await page.locator('[data-token="b2"]').click({modifiers: ['Shift']});
   const panel = page.locator('.coanalysis');
