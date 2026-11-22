@@ -362,7 +362,6 @@
   #app[data-reading-canvas] .workspace .canvas-tools {visibility:visible}
   .workspace .canvas-tools {padding:4px 10px 7px}
   #app[data-reading-canvas] .workspace > .transcript {padding-inline:16px}
-  body:has(#app[data-reading-canvas]) :is(.selection-tools,.change-popover) {bottom:12px}
 }
 @media (forced-colors:active) {
   .canvas-tools #canvas-scrub {appearance:auto}

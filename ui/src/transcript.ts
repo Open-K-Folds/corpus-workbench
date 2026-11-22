@@ -270,16 +270,27 @@ export class Transcript {
   private readingGeometry(){const pane=this.surface.closest<HTMLElement>('.transcript'),rect=pane?.getBoundingClientRect();return [window.innerWidth,window.innerHeight,rect?.left,rect?.top,rect?.width,rect?.height,pane?.scrollLeft,pane?.scrollTop].join(':')}
   private position(element:HTMLElement,rect:DOMRect){
     element.hidden=false;
-    const popup = element.getBoundingClientRect();
-    const pane = this.surface.closest('.transcript')!.getBoundingClientRect();
+    const pane = this.surface.closest<HTMLElement>('.transcript')!;
+    const frame = pane.getBoundingClientRect();
     const gutter = 8;
-    const ceiling = Math.max(gutter, pane.top + gutter);
-    const floor = Math.min(window.innerHeight, pane.bottom) - gutter;
-    const below = rect.bottom + gutter;
-    const above = rect.top - popup.height - gutter;
-    const top = below + popup.height <= floor ? below : Math.max(ceiling, above);
-    element.style.left = Math.max(gutter, Math.min(rect.left, window.innerWidth - popup.width - gutter)) + 'px';
-    element.style.top = Math.max(gutter, Math.min(top, window.innerHeight - popup.height - gutter)) + 'px';
+    const left = Math.max(0, frame.left + pane.clientLeft) + gutter;
+    const right = Math.min(innerWidth, frame.left + pane.clientLeft + pane.clientWidth) - gutter;
+    const top = Math.max(0, frame.top + pane.clientTop) + gutter;
+    const bottom = Math.min(innerHeight, frame.top + pane.clientTop + pane.clientHeight) - gutter;
+    element.style.maxWidth = Math.max(0,Math.min(340,right-left)) + 'px';
+    element.style.maxHeight = Math.max(0,bottom-top) + 'px';
+    const width = element.offsetWidth, height = element.offsetHeight;
+    const above = rect.top - gutter - top, below = bottom - rect.bottom - gutter;
+    let x = rect.left, y = rect.bottom + gutter, side = 'below';
+    if (below < height) {
+      if (above >= height) {y = rect.top - gutter - height; side = 'above'}
+      else if (right - rect.right >= width + gutter) {x = rect.right + gutter; y = rect.top; side = 'right'}
+      else if (rect.left - left >= width + gutter) {x = rect.left - gutter - width; y = rect.top; side = 'left'}
+      else if (above > below) {y = rect.top - gutter - height; side = 'above'}
+    }
+    element.dataset.side = side;
+    element.style.left = Math.max(left,Math.min(x,right-width)) + 'px';
+    element.style.top = Math.max(top,Math.min(y,bottom-height)) + 'px';
     this.popoverGeometry.set(element,this.readingGeometry());
   }
   private showMenu(rect:DOMRect){

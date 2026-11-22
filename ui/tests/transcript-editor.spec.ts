@@ -158,12 +158,16 @@ test('mobile projects and tools open on the first click and report the visible f
 test('deselecting either endpoint corrects only the remaining complete token',async({page})=>{
   await open(page);const before=await head(page),tokens=before.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens;
   await page.locator('[data-token="w1"]').click();await page.locator('[data-token="w2"]').click({modifiers:['Control']});
+  await page.keyboard.press('Shift+F10');
   await expect(page.getByRole('button',{name:'Correct',exact:true})).toBeDisabled();
-  await page.locator('[data-token="w1"]').click({modifiers:['Control']});await page.getByRole('button',{name:'Correct',exact:true}).click();
+  await page.locator('[data-token="w1"]').click({modifiers:['Control']});
+  await page.keyboard.press('Shift+F10');
+  await page.getByRole('button',{name:'Correct',exact:true}).click();
   await expect(page.locator('.draft-ghost')).toHaveText(tokens.find((t:any)=>t.id==='w2').corrected??tokens.find((t:any)=>t.id==='w2').original);
   await page.getByLabel('Proposed correction').fill('remainingSecond');await page.locator('#accept-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);
   let after=await head(page);expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('remainingSecond');
   await page.locator('[data-token="w1"]').click();await page.locator('[data-token="w2"]').click({modifiers:['Control']});await page.locator('[data-token="w2"]').click({modifiers:['Control']});
+  await page.keyboard.press('Shift+F10');
   await page.getByRole('button',{name:'Correct',exact:true}).click();await expect(page.locator('.draft-ghost')).toHaveText(tokens.find((t:any)=>t.id==='w1').corrected??tokens.find((t:any)=>t.id==='w1').original);
   await page.getByLabel('Proposed correction').fill('remainingFirst');await page.locator('#accept-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);
   after=await head(page);expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w1').corrected).toBe('remainingFirst');expect(after.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').tokens.find((t:any)=>t.id==='w2').corrected).toBe('remainingSecond');expect(after.revision.id).toBe(before.revision.id+2);

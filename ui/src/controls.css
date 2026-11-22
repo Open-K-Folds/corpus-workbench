@@ -246,6 +246,8 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 
 /* Keep the selection actions together on narrow and magnified displays. */
 .selection-tools[role=toolbar], .change-popover:not([hidden]) {
+  box-sizing:border-box;
+  overscroll-behavior:contain;
   width: max-content;
   max-width: min(340px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
@@ -257,6 +259,37 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   color: var(--ink);
   box-shadow: 0 8px 28px #0003;
 }
+@media (prefers-reduced-motion:no-preference) {
+  .selection-tools:not([hidden]), .change-popover:not([hidden]) {
+    animation:open-passage-tools 115ms ease-out;
+    --tools-entry-y:-3px;
+  }
+  :is(.selection-tools,.change-popover)[data-side=above] {--tools-entry-y:3px}
+  @keyframes open-passage-tools {
+    from {opacity:0;transform:translateY(var(--tools-entry-y))}
+    to {opacity:1;transform:translateY(0)}
+  }
+}
+.workspace .transcript #tokens .lexeme:has(#inline-replacement) {
+  display:inline-block;
+  vertical-align:baseline;
+  max-inline-size:100%;
+  margin-block:3px;
+  padding:.25em .55em .35em;
+  border-inline-start:2px solid var(--stage-hot);
+  background:var(--paper);
+  color:var(--stage-ink);
+  text-decoration:none;
+  box-shadow:0 1px 4px #0002;
+}
+.lexeme:has(#inline-replacement) .draft-actions {
+  display:flex;
+  align-items:center;
+  gap:4px 6px;
+  margin:.35em 0 0;
+}
+.lexeme .draft-actions :is(small,pre) {max-inline-size:100%;white-space:pre-wrap;overflow-wrap:anywhere}
+.lexeme .draft-actions small:empty {display:none}
 .selection-tools[role=toolbar] :is(.tool-primary,.tool-secondary) {
   display: flex;
   flex-wrap: wrap;
