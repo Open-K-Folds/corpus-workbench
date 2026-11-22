@@ -5,6 +5,7 @@ export interface PassageRequest {
   snapshot_hash: string;
   document: string;
   token_ids: string[];
+  comparison?: {document: string; token_ids: string[]};
   question: string;
 }
 export function preparePassage(view: View, request: PassageRequest): {

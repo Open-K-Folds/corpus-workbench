@@ -21,6 +21,11 @@ test('a prompt binds the exact saved reading, separates utterances and marks omi
     {utterance: 'turn-2', gap_before: true, tokens: [{id: 'd', text: 'now'}]},
   ]);
   assert.ok(!prompt.includes('never include this'));
+  const comparison = {document:'another', token_ids:['a']};
+  const twoDocs = {...view, documents:[...view.documents, {path:'another', tokens:[{id:'a', original:'later'}]}]};
+  const pair = preparePassage(twoDocs, {...request, comparison}).prompt;
+  assert.ok(pair.includes('Comparison excerpt:') && pair.includes('later') && !pair.includes('never include this'));
+  assert.throws(() => preparePassage(view, {...request, comparison}), /unavailable/);
   assert.equal(preparePassage(view, {...request, first_reading: 'A private initial observation.'}).prompt, prompt);
   for (const patch of [{project: 'other'}, {revision: 2}, {snapshot_hash: 'other'}, {document: 'other'}, {token_ids: ['a', 'a']}, {token_ids: ['missing']}, {question: ' '}]) {
     assert.throws(() => preparePassage(view, {...request, ...patch}));

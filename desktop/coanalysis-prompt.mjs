@@ -1,9 +1,5 @@
-// Used by the prompt preview and the desktop process that reconstructs each request.
-export function preparePassage(view, request) {
-  if (request?.project !== view.snapshot.project || request.revision !== view.revision.id ||
-      request.snapshot_hash !== view.revision.snapshot_hash) {
-    throw new Error('The transcript revision changed. Open a fresh passage to continue.');
-  }
+// Both the renderer preview and the desktop process resolve IDs against saved readings.
+function resolveGroups(view, request) {
   const ids = request.token_ids;
   if (!Array.isArray(ids) || !ids.length || ids.length > 64 || new Set(ids).size !== ids.length) {
     throw new Error('Select between one and 64 distinct transcript tokens.');
@@ -26,6 +22,15 @@ export function preparePassage(view, request) {
     previousIndex = index;
   }
   if (found.size !== ids.length) throw new Error('The selected source tokens are unavailable.');
+  return groups;
+}
+
+export function preparePassage(view, request) {
+  if (request?.project !== view.snapshot.project || request.revision !== view.revision.id ||
+      request.snapshot_hash !== view.revision.snapshot_hash) {
+    throw new Error('The transcript revision changed. Open a fresh passage to continue.');
+  }
+  const groups = resolveGroups(view, request);
   if (typeof request.question !== 'string' || !request.question.trim() || request.question.length > 600) {
     throw new Error('Enter a research question of up to 600 characters.');
   }
@@ -35,6 +40,7 @@ export function preparePassage(view, request) {
     'Each group is contiguous within one source utterance. gap_before means intervening tokens were omitted. Utterance IDs mark source structure; speaker identity is unspecified.',
     'Research question: ' + request.question.trim(),
     'Transcript excerpt: ' + JSON.stringify(groups),
+    ...(request.comparison ? ['Comparison excerpt: ' + JSON.stringify(resolveGroups(view, request.comparison))] : []),
   ].join('\n\n');
   if (prompt.length > 16000) throw new Error('This passage is too long. Select a shorter excerpt.');
   return {groups, prompt};
