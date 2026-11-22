@@ -35,11 +35,13 @@ test('proved split and merge preserve annotations, history and complete reopened
   execFileSync('python',['-c',`import zipfile; zipfile.ZipFile(r'${archive}').extractall(r'${resolve(runtime,'reopened-package')}')`]);execFileSync(binary,['import','--store',resolve(runtime,'reopened'),'--package',resolve(runtime,'reopened-package'),'--project','structural']);
   const reopened=JSON.parse(execFileSync(binary,['view','--store',resolve(runtime,'reopened'),'--project','structural'],{encoding:'utf8'}));expect(reopened.documents[0].tokens[0].original).toBe('é🙂');expect(reopened.documents[0].spans[1].fields.wb_quote).toBe('🙂');expect(Object.keys(reopened.snapshot.files).some(p=>p.startsWith('Resources/retokenization/'))).toBe(true);
   await page.setViewportSize({width:390,height:844});await page.locator('#toggle-properties').click();await page.locator('[data-token="fresh-a"]').click();
+  const passageTools=page.getByRole('button',{name:'Open tools for 1 selected word',exact:true});
+  await passageTools.click();
   const tokenize=page.getByRole('button',{name:'Tokenize',exact:true});await expect(tokenize).toBeVisible();
   // A queued notification without further movement must retain the fresh menu.
   await page.locator('.transcript').evaluate(pane=>pane.dispatchEvent(new Event('scroll')));await expect(tokenize).toBeVisible();
   // A subsequent viewport change still dismisses stale selection tools.
-  await page.setViewportSize({width:391,height:844});await expect(tokenize).toBeHidden();await page.setViewportSize({width:390,height:844});await page.locator('[data-token="fresh-a"]').click();
+  await page.setViewportSize({width:391,height:844});await expect(tokenize).toBeHidden();await page.setViewportSize({width:390,height:844});await passageTools.click();
   await tokenize.click();await expect(page.getByLabel('New token ID 1',{exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);await page.screenshot({path:resolve(root,'.runtime','retokenization-mobile.png'),fullPage:true});expect(errors).toEqual([]);
 });
 test('structural drafts survive navigation and stale proofs require fresh preview',async({page,context})=>{

@@ -34,13 +34,16 @@ test('drag across words, move the pin and co-analyse the new passage', async () 
       await page.mouse.move(target.x, target.y, {steps: 8});
     };
     await expect(word('b2')).toBeVisible();
-    await moveTo(word('b2'));
-    await page.mouse.down();
-    await moveTo(word('b4'));
-    await expect(tools).toBeHidden();
-    await page.mouse.up();
-    await tools.getByRole('button', {name: 'Pin on canvas'}).click();
-    await expect.poll(pinned).toEqual(['b2','b3','b4']);
+    const pinPassage=async()=>{
+      await moveTo(word('b2'));
+      await page.mouse.down();
+      await moveTo(word('b4'));
+      await expect(tools).toBeHidden();
+      await page.mouse.up();
+      await tools.getByRole('button', {name: 'Pin on canvas'}).click();
+      await expect.poll(pinned).toEqual(['b2','b3','b4']);
+    };
+    await pinPassage();
     const handle = page.locator('.passage-pin-handle');
     await expect(handle).toHaveAccessibleName(/Pinned word “heard”/);
     await moveTo(handle);
@@ -51,8 +54,10 @@ test('drag across words, move the pin and co-analyse the new passage', async () 
     await page.screenshot({path: join(evidence, 'drag-between-words.png')});
     await page.keyboard.press('Escape');
     await page.mouse.up();
-    await expect.poll(pinned).toEqual(['b2','b3','b4']);
+    await expect.poll(pinned).toEqual([]);
+    await expect(page.locator('#tokens .selected')).toHaveCount(0);
     await expect(page.locator('.passage-pin-tether')).toHaveCount(0);
+    await pinPassage();
     await moveTo(handle);
     await page.mouse.down();
     await moveTo(word('c3'));

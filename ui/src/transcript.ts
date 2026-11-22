@@ -1,6 +1,7 @@
 import {api,ApiError,commit,draftContext,loadView,makeCommand} from './api';
 import type {Command,Diff,Document,Revision,Token,View} from './contracts';
 import {esc} from './dom';
+import {icon} from './icons';
 import {passageAnchor,type Listening} from './listening';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
 import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
@@ -21,6 +22,7 @@ export class Transcript {
   private persistence:Promise<void>=Promise.resolve();private finalizing=false;
   private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
+  private selectionButton=document.createElement('button');
   private training?:TrainingGesture;
   private pin:PassagePin;
   private drag:TranscriptDrag;
@@ -32,6 +34,17 @@ export class Transcript {
     this.recovery.className='local-draft-recovery';this.recovery.setAttribute('aria-live','polite');this.surface.before(this.recovery);
     window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
+    this.selectionButton.type='button';
+    this.selectionButton.className='selected-passage-tools';
+    this.selectionButton.addEventListener('mousedown',event=>event.preventDefault());
+    this.selectionButton.onclick=()=>{
+      if(!this.currentProjection()||this.draft||this.host.busy())return;
+      const ids=this.host.selected();
+      const word=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(ids[0]??'')}"]`);
+      if(!word)return;
+      if(!this.selection)this.selection=this.tokenBasis(ids);
+      this.openWordTools(word);
+    };
     this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
     this.pin=new PassagePin(this.surface,(words,showTools)=>this.selectPin(words,showTools),
       ()=>this.currentProjection()&&!this.dirty()&&!this.host.busy());
@@ -188,7 +201,7 @@ export class Transcript {
           const shown=visibleToken(t,this.host.preferences);return `<span class="lexeme ${shown?'':'filtered'} ${this.host.selected().includes(t.id)?'selected':''}" ${shown?'data-token':'data-filtered-token'}="${esc(t.id)}" tabindex="-1" title="${esc(t.id)} · ${esc(t.language_effective??'Unknown language')}"><span class="reading-text">${esc(reading(t,this.host.preferences.layer))}</span>${this.interlinear?`<span class="interlinear" aria-hidden="true"><span>Raw ${esc(t.original)}</span><span>Normalized ${esc(t.normalized??'—')}${t.attrs.wb_normalized_status==='unresolved'?' · unresolved':''}</span><span>${esc(t.language_effective??'Unknown language')}</span></span>`:''}</span>`;
         }).join('')}</span></section>`;
       }).join('');
-      const shown=doc.tokens.filter(t=>visibleToken(t,this.host.preferences));document.getElementById('token-count')!.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${this.host.selected().length} selected`;
+      const shown=doc.tokens.filter(t=>visibleToken(t,this.host.preferences));this.updateCount(shown.length);
       (document.getElementById('next-match') as HTMLButtonElement).disabled=!shown.length;
       if(!shown.length)this.surface.insertAdjacentHTML('afterbegin','<p class="empty-state">No matching tokens. Clear the filter to return to the transcript.</p>');
       this.offerRecovery();try{await this.markHistory(view,doc,epoch)}catch{if(epoch===this.epoch)this.host.message('Transcript loaded. Correction history decoration is unavailable; inspect History to retry.')}
@@ -237,9 +250,13 @@ export class Transcript {
     this.menu.hidden=true;this.details.hidden=true;
     if(!this.pin.matches(ids))this.pin.clear();
     this.host.select(ids);if(!ids.length){this.selection=null;this.menu.hidden=true;this.paintSelection();return}
-    const remaining=doc.tokens.find(t=>t.id===ids.at(-1))!,text=reading(remaining,this.host.preferences.layer);
-    this.selection={view:this.host.view(),document:doc.path,ids,start:0,end:Array.from(text).length,quote:ids.length===1?text:'',layer:this.host.preferences.layer,range:null};
+    this.selection=this.tokenBasis(ids);
     this.paintSelection();
+  }
+  private tokenBasis(ids:string[]):SelectionBasis{
+    const doc=this.host.doc(),last=doc.tokens.find(token=>token.id===ids.at(-1))!;
+    const layer=this.host.preferences.layer,text=reading(last,layer);
+    return {view:this.host.view(),document:doc.path,ids,start:0,end:Array.from(text).length,quote:ids.length===1?text:'',layer,range:null};
   }
   private openWordTools(word:HTMLElement){
     if(!this.selection?.ids.includes(word.dataset.token!)){
@@ -281,8 +298,21 @@ export class Transcript {
     const selected=this.host.selected(),selectedIds=new Set(selected);
     for(const span of this.surface.querySelectorAll<HTMLElement>('[data-token]'))span.classList.toggle('selected',selectedIds.has(span.dataset.token!));
     const doc=this.host.doc(),shown=doc.tokens.filter(token=>visibleToken(token,this.host.preferences));
+    this.updateCount(shown.length);
+  }
+  private updateCount(visible:number){
     const status=document.getElementById('token-count');
-    if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
+    if(!status)return;
+    const ids=this.host.selected();
+    const prefix=`${visible} of ${this.host.doc().tokens.length} tokens · `;
+    const label=`${ids.length} selected`;
+    if(!ids.length||this.draft||this.surface.querySelector('.selected[data-filtered-token]')){
+      status.textContent=prefix+label;return;
+    }
+    this.selectionButton.innerHTML=label+icon('expand_less');
+    this.selectionButton.setAttribute('aria-label',`Open tools for ${ids.length} selected ${ids.length===1?'word':'words'}`);
+    this.selectionButton.title='Open passage tools';
+    status.replaceChildren(prefix,this.selectionButton);
   }
   private selectPin(words:HTMLElement[],showTools:boolean){
     const first=words[0].querySelector('.reading-text')?.firstChild;
@@ -412,6 +442,7 @@ export class Transcript {
     this.pin.clear();this.menu.hidden=true;this.details.hidden=true;this.persist();this.drawDraft();
   }
   private drawDraft(){
+    this.selectionButton.replaceWith(`${this.host.selected().length} selected`);
     const d=this.draft!;const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(d.basis.ids[0])}"]`)!;
     span.innerHTML=`<span class="draft-prefix reading-text">${esc(d.prefix)}</span><s class="draft-ghost" aria-hidden="true">${esc(d.basis.quote)}</s><input id="inline-replacement" aria-label="Proposed correction" autocomplete="off" spellcheck="false" value="${esc(d.replacement)}"><span class="draft-suffix reading-text">${esc(d.suffix)}</span><span class="draft-actions"><button id="undo-draft" type="button">Undo draft</button><button id="accept-draft" type="button">Accept ↵</button><button id="retry-draft" type="button" hidden>Resolve save outcome</button><button id="compare-draft" type="button" hidden>Compare current revision</button><button id="reapply-draft" type="button" hidden>Reapply after comparison</button><small id="draft-explanation" role="status"></small><pre id="draft-comparison" hidden></pre></span>`;
     const input=span.querySelector<HTMLInputElement>('input')!;
