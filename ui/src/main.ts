@@ -8,7 +8,7 @@ import {researchInspector} from './research';
 import {coanalysisInspector} from './coanalysis';
 import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type RecordingCue} from './listening';
 import {ResearchOverview} from './overview';
-import {ReadingCanvas} from './reading-canvas';
+import {ReadingCanvas,stageControls} from './reading-canvas';
 import {windowBar,activityRail,workspaceSettings,initialLayout} from './studio-shell';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
@@ -92,17 +92,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
     <p id="selection-help" class="muted">Select transcript text to correct, annotate or start co-analysis.</p>
     <div id="tokens" tabindex="-1"></div>
   </main>
-  <nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls" hidden>
-    <strong>${icon('notes')}Reading canvas</strong>
-    <div class="canvas-turns">
-      <button id="canvas-prev" class="secondary" aria-label="Previous source turn" title="Previous source turn">${icon('expand_less')}</button>
-      <span id="canvas-position" role="status">No visible source turns</span>
-      <input id="canvas-scrub" type="range" min="1" max="1" value="1" aria-label="Scrub source turns">
-      <button id="canvas-next" class="secondary" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
-    </div>
-    <div class="canvas-zoom"><button id="canvas-zoom-out" class="secondary" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">−</button><output id="canvas-scale" aria-label="Text size">100%</output><button id="canvas-zoom-in" class="secondary" aria-label="Increase text size" title="Increase text size (Alt + plus)">+</button></div>
-    <button id="canvas-exit" class="secondary" aria-label="Exit reading canvas">Exit canvas</button>
-  </nav>
+  ${stageControls()}
   <aside class="inspector" aria-label="Inspector"><details class="inspector-tools" open><summary>Inspector tools</summary><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.label}</button>`).join('')}</nav></details><div id="inspector-content"></div></aside></div>
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
