@@ -31,3 +31,29 @@ for (const width of [390, 1160]) {
     await expect(replacement).toHaveValue('a newly heard wording for this recording');
   });
 }
+
+test.describe('touch passage tools',()=>{
+  test.use({hasTouch:true,isMobile:true,viewport:{width:390,height:844}});
+  for(const focus of [false,true]){
+    test(`tapping the selected count opens passage actions in ${focus?'focus mode':'the workspace'}`,async({page,practiceUrl})=>{
+      await page.goto(practiceUrl);
+      if(focus)await page.getByRole('button',{name:'Open reading canvas'}).tap();
+      const dock=page.locator('#canvas-tools');
+      const before=await dock.boundingBox();
+      await page.locator('[data-token="b3"] .reading-text').tap();
+      const trigger=page.getByRole('button',{name:'Open tools for 1 selected word',exact:true});
+      await expect(trigger).toBeInViewport();
+      const box=(await trigger.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(await dock.boundingBox()).toEqual(before);
+      const tools=page.getByRole('toolbar',{name:'Selection tools'});
+      await expect(tools).toBeHidden();
+      await trigger.tap();
+      await expect(tools).toBeVisible();
+      await tools.getByRole('button',{name:'Tokenize',exact:true}).tap();
+      await expect(page.getByLabel('New token ID 1',{exact:true})).toBeVisible();
+      await expect(page.locator('[data-token="b3"]')).toHaveClass(/selected/);
+    });
+  }
+});
