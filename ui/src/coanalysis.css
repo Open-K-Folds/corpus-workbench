@@ -70,7 +70,7 @@
 .coanalysis .ca-model h4 { color: var(--ink); }
 .coanalysis .ca-reading blockquote { font-size: .98rem; line-height: 1.6; white-space: pre-wrap; }
 .coanalysis .ca-reading details { margin-top: .3rem; border-top: 1px solid var(--border); }
-.coanalysis .ca-reading [role=status]:empty { display: none; }
+.coanalysis .ca-reading [role=status]:empty { margin: 0; padding: 0; }
 .coanalysis .ca-judgment { padding-top: 1rem; border-top: 1px solid var(--border); }
 #coanalysis-form :is([data-run], [data-use], [data-save]):not(:disabled) { background: var(--ca-accent); border-color: var(--ca-accent); color: var(--paper); }
 #coanalysis-form [data-status]:not(:empty) { padding: .65rem .8rem; border-left: 2px solid var(--ca-accent); background: var(--rail); color: var(--ink); }
