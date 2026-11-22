@@ -83,7 +83,7 @@ test('both themes and mobile widths keep custom controls within the pane and Mat
 });
 
 test('missing and failed media have honest unavailable states and never expose native controls',async({page})=>{
-  await open(page);await page.locator('[data-document="xmlfiles/silent.xml"]').click();await expect(page.locator('#audio-availability')).toBeVisible();await expect(page.getByRole('group',{name:'Recording playback',exact:true})).toBeHidden();await expect(page.getByRole('switch',{name:'Loop selection',exact:true})).toBeDisabled();
+  await open(page);await page.locator('[data-document="xmlfiles/silent.xml"]').click();await expect(page.locator('#audio-availability')).toBeVisible();await expect(page.getByRole('group',{name:'Recording playback',exact:true})).toBeHidden();await expect(page.locator('#loop-selection')).toBeHidden();await expect(page.locator('#loop-selection')).toBeDisabled();
   await page.route('**/api/media?**',route=>route.abort());await page.locator('[data-document="xmlfiles/controls.xml"]').click();await expect(page.locator('#audio-status')).toContainText('Recording unavailable');await expect(page.locator('#audio-play')).toBeDisabled();expect(await page.locator('#audio').evaluate((a:HTMLAudioElement)=>a.controls)).toBe(false);
 });
 

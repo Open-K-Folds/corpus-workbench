@@ -19,7 +19,7 @@ test.beforeAll(async()=>{
 test.afterAll(async()=>{if(service&&service.exitCode===null){service.kill();await new Promise<void>(resolve=>service.once('exit',()=>resolve()))}});
 
 test('corpus/source navigation, reading layers and keyboard selection use actual evidence',async({page})=>{
-  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R1');await expect(page.locator('#audio-availability')).toBeVisible();await expect(page.getByRole('button',{name:'Listen to selection',exact:true})).toBeDisabled();
+  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R1');await expect(page.locator('#audio-availability')).toBeVisible();await expect(page.locator('#listen-selected')).toBeHidden();await expect(page.locator('#listen-selected')).toBeDisabled();
   await page.getByLabel('Find documents or sources').fill('beta');await expect(page.locator('[data-document]')).toHaveCount(1);await page.locator('[data-document]').click();await expect(page.locator('[data-token="other"]')).toContainText('SECOND-DOCUMENT');
   await page.getByLabel('Find documents or sources').fill('');await page.locator('[data-document="xmlfiles/alpha.xml"]').click();
   await page.getByLabel('Reading layer').selectOption('original');await expect(page.locator('[data-token="w1"]')).toContainText('Original 🙂');await page.getByLabel('Reading layer').selectOption('normalized');await expect(page.locator('[data-token="w1"]')).toContainText('Normalized 🙂');
