@@ -92,7 +92,7 @@ function shell(){overview?.dispose();playbackSync?.destroy();readingCanvas?.disp
         <label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label>
         <label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label>
       </div>
-      <p id="selection-help" class="muted">Drag from one word to another to select a passage. Choose Pin on canvas to move it by its underlined word.</p>
+      <p id="selection-help" class="muted">Click a word to select it. Drag across words for a passage. Right-click or press Shift+F10 for tools. Hold a word for training lenses. Escape clears the selection.</p>
     </details>
     <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Open reading canvas" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
     </div>
@@ -206,7 +206,6 @@ function shell(){overview?.dispose();playbackSync?.destroy();readingCanvas?.disp
       if(audio.paused)void audio.play().catch(()=>message('The recording could not be played.',true));
       else audio.pause();
     }
-    if(event.key==='Escape'&&!transcript.dirty()){selected=[];void renderInspector()}
   });
 }
 function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.path;selected=selected.filter(id=>doc.tokens.some(t=>t.id===id));

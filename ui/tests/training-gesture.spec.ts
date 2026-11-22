@@ -64,7 +64,7 @@ test('the fan keeps a wrapped selected passage readable at the edges of a phone 
   expect(geometry).toMatchObject({inside:true,readable:true,motion:0});
   await page.keyboard.press('Escape');await page.mouse.up();
   await expect(fan(page)).toHaveCount(0);
-  await expect(page.locator('#tokens .selected')).toHaveCount(6);
+  await expect(page.locator('#tokens .selected')).toHaveCount(0);
 });
 
 test('Escape and returning to the start cancel while quick double-click preserves native text selection',async({page,practiceUrl})=>{
@@ -74,7 +74,7 @@ test('Escape and returning to the start cancel while quick double-click preserve
   await page.keyboard.press('Escape');
   await page.mouse.up();
   await expect(fan(page)).toHaveCount(0);
-  await expect(page.locator('#tokens .selected')).toHaveCount(6);
+  await expect(page.locator('#tokens .selected')).toHaveCount(0);
   const origin=await holdSecondPress(page,'b3');
   const target=(await fan(page).locator('[data-lens=meaning]').boundingBox())!;
   await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:4});
@@ -108,4 +108,24 @@ test('keyboard and touch-sized controls can label an identical selected passage 
   await expect(panel(page)).toHaveAttribute('data-mode','label');
   await expect(panel(page)).toHaveAttribute('data-limit','1');
   await expect(panel(page).locator('[data-training-seed]')).toContainText('I only heard after the meeting.');
+});
+
+test('a stationary touch opens and steers the fan without showing a context toolbar',async({page,practiceUrl,browserName})=>{
+  test.skip(browserName!=='chromium','Uses Chromium touchscreen input.');
+  await page.goto(practiceUrl);
+  const text=word(page,'b3');
+  const box=(await text.boundingBox())!;
+  const finger={x:box.x+box.width/2,y:box.y+box.height/2};
+  const cdp=await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTouchEmulationEnabled',{enabled:true});
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[finger]});
+  await expect(fan(page)).toBeVisible();
+  await expect(page.getByRole('toolbar',{name:'Selection tools'})).toBeHidden();
+  const lens=(await fan(page).locator('[data-lens=label]').boundingBox())!;
+  const endpoint={x:lens.x+lens.width/2,y:lens.y+lens.height/2};
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[endpoint]});
+  await expect(fan(page).locator('[data-lens=label]')).toHaveAttribute('data-active','');
+  await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await expect(panel(page)).toHaveAttribute('data-mode','label');
+  await expect(panel(page).locator('[data-training-seed]')).toContainText('heard');
 });

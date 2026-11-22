@@ -12,7 +12,8 @@ const lenses = [
   ['meaning', 'Meaning'], ['wording', 'Wording'], ['contrast', 'Contrast'], ['label', 'Label'],
 ] as const;
 const reachLevels = [3, 6, 12] as const;
-const holdMs = 360;
+const holdMs = 460;
+const repeatHoldMs = 360;
 type Point = {x:number; y:number};
 
 export class TrainingGesture {
@@ -69,7 +70,7 @@ export class TrainingGesture {
       this.stopPress = undefined;
     };
     this.stopPress = finish;
-    if (again) timer = window.setTimeout(()=>{
+    timer = window.setTimeout(()=>{
       if (!this.surface.isConnected || !passage.valid()) {finish();return}
       passage.activate();
       if (events.signal.aborted || !passage.valid()) {finish();return}
@@ -78,7 +79,12 @@ export class TrainingGesture {
       this.surface.dataset.trainingGesture = '';
       this.surface.setPointerCapture(pointer);
       window.getSelection()?.removeAllRanges();
-    },holdMs);
+    },again ? repeatHoldMs : holdMs);
+    // Reserve touch scrolling only once a stationary finger has opened a lens.
+    // Native scrolling stays available during ordinary movement across the page.
+    if(event.pointerType==='touch')this.surface.addEventListener('touchmove',move=>{
+      if(fan&&move.cancelable)move.preventDefault();
+    },{passive:false,signal:events.signal});
     window.addEventListener('pointermove',move=>{
       if (move.pointerId !== pointer) return;
       const delta = Math.hypot(move.clientX-point.x,move.clientY-point.y);
@@ -88,7 +94,7 @@ export class TrainingGesture {
     },opts);
     window.addEventListener('pointerup',up=>{
       if (up.pointerId !== pointer) return;
-      if (!again && Math.hypot(up.clientX-point.x,up.clientY-point.y)<=8) this.first={token,point,when:performance.now(),passage};
+      if (!again && !fan && Math.hypot(up.clientX-point.x,up.clientY-point.y)<=8) this.first={token,point,when:performance.now(),passage};
       if (fan) {up.preventDefault();selected=fan.update({x:up.clientX,y:up.clientY})}
       finish();
       if (selected && passage.valid()) passage.choose(selected.lens,selected.limit);
@@ -118,7 +124,7 @@ export class TrainingGesture {
       <label>Lens<select name="lens">${lenses.map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</select></label>
       <label data-reach>Search reach<select name="limit">${reachLevels.map(limit=>`<option value="${limit}">Up to ${limit} candidates</option>`).join('')}</select></label>
       <p data-label hidden>Classify the selected passage.</p>
-      <p>On a selected word, click twice and hold the second press. Drag toward a lens. Drag farther for more candidates, or return to the start to cancel.</p>
+      <p>Hold a word in your selection. Drag toward a lens. Drag farther for more candidates, or return to the start to cancel.</p>
       <div><button value="cancel" type="submit" class="secondary">Cancel</button><button value="apply" type="submit">Use lens</button></div>
     </form>`;
     const lens=dialog.querySelector<HTMLSelectElement>('[name=lens]')!;
