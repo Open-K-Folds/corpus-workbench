@@ -1,10 +1,37 @@
 import {expect, type Locator, type Page} from '@playwright/test';
+import {resolve} from 'node:path';
 import {test} from './practice-fixture';
 
 const launcher = (page: Page) => page.getByRole('button', {name: 'Open reading canvas'});
 const token = (page: Page, id: string) => page.locator(`#tokens [data-token="${id}"] .reading-text`);
 const head = (page: Page) => page.evaluate(async () => (await (await fetch('/api/view')).json()).revision);
 const fontSize = (element: Locator) => element.evaluate(node => parseFloat(getComputedStyle(node).fontSize));
+
+test.describe('dock position during timed listening', () => {
+  test.use({practicePackage:resolve('../fixtures/spoken-reading')});
+
+  test('the turn wheel follows paused audio and keyboard steering begins at that turn', async ({page,practiceUrl}) => {
+    await page.goto(practiceUrl);
+    const follow = page.locator('#follow-audio'), wheel = page.locator('.canvas-turn-handle');
+    await expect(follow).toBeEnabled();
+    const seek = (seconds:number) => page.locator('audio#audio').evaluate((media:HTMLAudioElement, time)=>{media.currentTime=time},seconds);
+    await seek(14);
+    await expect(page.locator('[data-playback-turn]')).toHaveAttribute('data-utterance','u4');
+    await expect(page.locator('#canvas-position')).toHaveText('Turn 4 of 8');
+    await expect(page.locator('#canvas-scrub')).toHaveValue('4');
+    await expect(page.locator('[data-utterance="u4"] .canvas-turn-handle')).toBeVisible();
+    await wheel.press('ArrowDown');
+    await expect(follow).toHaveAttribute('aria-pressed','false');
+    await expect(page.locator('#canvas-location')).toHaveText('u5');
+    await expect(page.locator('#tokens')).not.toHaveAttribute('data-playback-following','');
+    await seek(1);
+    await expect(page.locator('[data-playback-word]')).toHaveText('librarian');
+    await expect(page.locator('#canvas-location')).toHaveText('u5');
+    await follow.click();
+    await expect(page.locator('#canvas-location')).toHaveText('u1');
+    await expect(page.locator('#tokens')).toHaveAttribute('data-playback-following','');
+  });
+});
 
 async function nativeSelection(page: Page, from: string, to: string) {
   const first = token(page, from), last = token(page, to);

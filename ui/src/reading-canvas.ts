@@ -31,6 +31,7 @@ export function stageControls() {
 export class ReadingCanvas {
   private turns: HTMLElement[] = [];
   private current = -1;
+  private playbackTurn: HTMLElement | null = null;
   private zoom = 100;
   private frame = 0;
   private drag: {id:number; y:number; scroll:number; turn:number | null} | null = null;
@@ -79,7 +80,7 @@ export class ReadingCanvas {
     }, options);
     this.pane.addEventListener('pointerup', event => {
       if (this.drag?.id !== event.pointerId) return;
-      if (this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.handle.click();
+      if (this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.go(this.drag.turn);
       this.endPan();
     }, options);
     const cancelPan = (event:PointerEvent) => {if (event.pointerId === this.drag?.id) this.endPan()};
@@ -106,17 +107,27 @@ export class ReadingCanvas {
 
   get active() {return this.toolbar.isConnected && this.app.hasAttribute('data-reading-canvas')}
 
+  setPlaybackTurn(turn: HTMLElement | null) {
+    if (turn === this.playbackTurn) return;
+    this.playbackTurn = turn;
+    // Manual wheel/keyboard events finish relative to the turn they started on.
+    // Read the new scroll position after their default action.
+    if (!turn) {this.followScroll(); return}
+    const index = this.readingIndex();
+    if (this.current !== index) this.mark(index);
+  }
+
   private open() {
     if (this.active) return;
     this.collect();
     const selected = this.text.querySelector('.lexeme.selected');
-    const anchor = selected?.closest<HTMLElement>('.reading-block') ?? (this.pane.scrollTop > 0 ? this.turns[this.nearest()] : null);
+    const anchor = this.playbackTurn ?? selected?.closest<HTMLElement>('.reading-block') ?? (this.pane.scrollTop > 0 ? this.turns[this.nearest()] : null);
     this.app.dataset.readingCanvas = '';
     el('canvas-exit').hidden = false;
     this.enter.setAttribute('aria-expanded','true');
     this.pane.scrollTop = 0;
     if (anchor) this.align(anchor);
-    this.mark(this.nearest());
+    this.mark(this.readingIndex());
     el('canvas-exit').focus({preventScroll:true});
   }
 
@@ -129,7 +140,7 @@ export class ReadingCanvas {
     el('canvas-exit').hidden = true;
     this.enter.setAttribute('aria-expanded','false');
     if (anchor?.isConnected) anchor.scrollIntoView({block:'nearest'});
-    this.mark(this.nearest());
+    this.mark(this.readingIndex());
     if (focusEntry) this.enter.focus({preventScroll:true});
   }
 
@@ -143,12 +154,17 @@ export class ReadingCanvas {
     // Filtered-out evidence and inter-block whitespace are not navigation stops.
     this.turns = [...this.text.querySelectorAll<HTMLElement>(':scope > .reading-block:not(.literal-block):has([data-token])')];
     this.endPan();
-    this.mark(this.nearest());
+    this.mark(this.readingIndex());
   }
 
   private guide() {
     const rect = this.pane.getBoundingClientRect();
     return rect.top + Math.min(120,rect.height * .2);
+  }
+
+  private readingIndex() {
+    const timed = this.playbackTurn ? this.turns.indexOf(this.playbackTurn) : -1;
+    return timed >= 0 ? timed : this.nearest();
   }
 
   private nearest() {
@@ -205,7 +221,7 @@ export class ReadingCanvas {
     if (this.frame) return;
     this.frame = requestAnimationFrame(() => {
       this.frame = 0;
-      const index = this.nearest();
+      const index = this.readingIndex();
       if (index !== this.current) this.mark(index);
     });
   }
