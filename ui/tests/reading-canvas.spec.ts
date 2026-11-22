@@ -33,6 +33,43 @@ test.describe('dock position during timed listening', () => {
   });
 });
 
+test.describe('touch dock with a linked recording', () => {
+  test.use({practicePackage:resolve('../fixtures/spoken-reading'), hasTouch:true, isMobile:true, viewport:{width:320,height:700}});
+
+  for (const mode of ['workspace', 'focus']) {
+    test(`each control has a separate touch target in a 320px ${mode}`, async ({page,practiceUrl}) => {
+      await page.goto(practiceUrl);
+      await expect(page.locator('#canvas-play')).toBeEnabled();
+      if (mode === 'focus') await launcher(page).tap();
+      const dock = page.getByRole('navigation', {name:'Reading canvas controls'});
+      const next = dock.getByRole('button', {name:'Next source turn'});
+      await next.tap();
+      const scrubber = dock.getByRole('slider', {name:'Scrub source turns'});
+      await expect(scrubber).toHaveValue('2');
+
+      const problems = await dock.evaluate(nav => {
+        const pane = nav.getBoundingClientRect();
+        const targets = [...nav.querySelectorAll<HTMLElement>('button,input')]
+          .filter(control => control.getClientRects().length)
+          .map(control => ({control,box:control.getBoundingClientRect()}));
+        return targets.flatMap(({control,box},index) => {
+          const hit = document.elementFromPoint(box.x+box.width/2, box.y+box.height/2);
+          const fits = box.left >= pane.left && box.right <= pane.right && box.top >= pane.top && box.bottom <= pane.bottom;
+          const overlaps = targets.slice(index+1).some(({box:other}) =>
+            box.left < other.right && other.left < box.right && box.top < other.bottom && other.top < box.bottom);
+          return fits && !overlaps && box.width >= 44 && box.height >= 44 && control.contains(hit) ? [] : [control.id];
+        });
+      });
+      expect(problems).toEqual([]);
+      const play = dock.getByRole('button', {name:'Play audio on canvas'});
+      await play.tap();
+      await dock.getByRole('button', {name:'Pause audio on canvas'}).tap();
+      await dock.getByRole('button', {name:'Increase text size'}).tap();
+      await expect(dock.locator('#canvas-scale')).toHaveText('110%');
+    });
+  }
+});
+
 async function nativeSelection(page: Page, from: string, to: string) {
   const first = token(page, from), last = token(page, to);
   await first.scrollIntoViewIfNeeded();
