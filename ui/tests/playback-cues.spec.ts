@@ -1,5 +1,6 @@
 import {expect, test} from '@playwright/test';
-import type {Segment, Token} from '../src/contracts';
+import type {Document, Segment, Token} from '../src/contracts';
+import {suppliedCue} from '../src/listening';
 import {buildPlaybackCues} from '../src/playback-cues';
 
 function word(id: string, start_us: number | null, end_us: number | null, utterance: string | null = null): Token {
@@ -9,6 +10,10 @@ function word(id: string, start_us: number | null, end_us: number | null, uttera
 
 function turn(id: string, start_us: number | null, end_us: number | null): Segment {
   return {id, start_us, end_us, attrs: {}};
+}
+
+function documentWith(tokens: Token[], segments: Segment[] = []): Document {
+  return {path:'record.xml',title:'Recording',tokens,segments,spans:[],media:[],metadata:{},opaque_elements:[]};
 }
 
 test('word boundaries are end-exclusive; turn-only and uncovered periods retain their true precision', () => {
@@ -75,4 +80,29 @@ test('repeated full-turn windows and prepared chunks give passage cues, with ind
   expect(cues.at(2.5)).toEqual({wordIds: [], turnIds: ['chunk-000001']});
   expect(cues.at(3)).toBeNull();
   expect(cues.at(4)).toEqual({wordIds: ['one-word'], turnIds: []});
+});
+
+test('a short decoder endpoint difference preserves the final chunk through native audio end', () => {
+  const duration = 262.593016;
+  const doc = documentWith([word('last', null, null, 'chunk')], [turn('chunk', 235_000_000, 262_595_875)]);
+  const cues = buildPlaybackCues(doc, duration);
+  expect(cues.at(235)).toEqual({wordIds: [], turnIds: ['chunk']});
+  expect(cues.at(duration - 0.000001)).toEqual({wordIds: [], turnIds: ['chunk']});
+  expect(cues.at(duration)).toBeNull();
+  expect(suppliedCue(doc, ['last'], duration)).toEqual({basis:'utterance', start:235, end:duration});
+  // The saved-context preflight runs before media metadata is loaded.
+  expect(suppliedCue(doc, ['last'], Infinity)).toEqual({basis:'utterance', start:235, end:262.595875});
+});
+
+test('decoder allowance is bounded, end-only and checked on every selected word', () => {
+  const duration = 262.593016, endUs = 262_593_016;
+  const accepted = documentWith([word('within', endUs - 1_000, endUs + 5_000)]);
+  expect(suppliedCue(accepted, ['within'], duration)).toEqual({basis:'word', start:262.592016, end:duration});
+  expect(buildPlaybackCues(accepted, duration).at(duration - 0.0005)).toEqual({wordIds:['within'], turnIds:[]});
+  for (const invalid of [word('beyond', endUs - 1_000, endUs + 5_001), word('at-end', endUs, endUs + 1),
+    word('past-end', endUs + 1, endUs + 2), word('reversed', endUs + 1, endUs)]) {
+    expect(buildPlaybackCues(documentWith([invalid]), duration).available).toBe(false);
+    const doc = documentWith([word('first', 0, 1_000), invalid]);
+    expect(suppliedCue(doc, ['first', invalid.id], duration)).toHaveProperty('reason');
+  }
 });

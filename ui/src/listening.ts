@@ -23,15 +23,27 @@ export function suppliedCue(doc:Document, ids:string[], duration:number):CueStat
     const wordTimed = validInterval(token);
     const interval = wordTimed ? token : segments.get(token.utterance ?? '');
     if (!interval || !validInterval(interval)) return {reason:'No complete supplied timing for this passage.'};
+    const bounds = boundsOnRecording(interval, duration);
+    if (!bounds) return {reason:'The supplied timing extends beyond this recording.'};
     if (!wordTimed) basis = 'utterance';
-    start = Math.min(start,interval.start_us/1e6);
-    end = Math.max(end,interval.end_us/1e6);
+    start = Math.min(start, bounds.start);
+    end = Math.max(end, bounds.end);
   }
-  if (end > duration) return {reason:'The supplied timing extends beyond this recording.'};
   return {basis,start,end};
 }
 
 export function validInterval(value:{start_us:number|null;end_us:number|null}):value is {start_us:number;end_us:number} {
   return value.start_us !== null && value.end_us !== null && Number.isFinite(value.start_us)
     && Number.isFinite(value.end_us) && value.start_us >= 0 && value.end_us > value.start_us;
+}
+
+// A hash-matched AAC reported a duration 2,859 µs shorter than its decoded
+// PCM's supplied endpoint. Limit that allowance to the last 5 ms of playback.
+const decoderEndToleranceUs = 5_000;
+
+export function boundsOnRecording(value:{start_us:number|null;end_us:number|null}, duration:number) {
+  if (!validInterval(value) || !(duration > 0)) return null;
+  const start = value.start_us / 1e6;
+  if (start >= duration || (value.end_us - decoderEndToleranceUs) / 1e6 > duration) return null;
+  return {start, end: Math.min(value.end_us / 1e6, duration)};
 }
