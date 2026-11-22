@@ -43,29 +43,44 @@ test('a held second press on a selected turn steers a bounded candidate search',
   await expect(panel(page).locator('[data-training-seed]')).toContainText('I only heard after the meeting.');
 });
 
-test('the fan keeps a wrapped selected passage readable at the edges of a phone viewport',async({page,practiceUrl})=>{
-  await page.setViewportSize({width:320,height:568});
-  await page.emulateMedia({reducedMotion:'reduce'});
-  await page.goto(practiceUrl);
-  await selectTurn(page);
-  await holdSecondPress(page,'b6');
-  const geometry=await fan(page).evaluate(node=>{
-    const controls=[...node.querySelectorAll('.training-fan-lens,.training-fan-feedback')].map(n=>n.getBoundingClientRect());
-    const words=[...document.querySelectorAll('#tokens .lexeme.selected')].flatMap(n=>[...n.getClientRects()]);
-    const overlaps=(a:DOMRect,b:DOMRect)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
-    return {
-      rows:new Set(words.map(r=>Math.round(r.top))).size,
-      inside:controls.every(rect=>rect.left>=0&&rect.top>=0&&rect.right<=innerWidth&&rect.bottom<=innerHeight),
-      readable:controls.every((rect,i)=>!words.some(word=>overlaps(rect,word))&&!controls.slice(i+1).some(other=>overlaps(rect,other))),
-      motion:node.getAnimations({subtree:true}).length,
-    };
+for (const spacing of ['normal', '0.12em']) {
+  test(`the fan keeps a wrapped selected passage readable at the edges of a phone viewport with ${spacing} text spacing`,async({page,practiceUrl})=>{
+    await page.setViewportSize({width:320,height:568});
+    await page.emulateMedia({reducedMotion:'reduce'});
+    await page.goto(practiceUrl);
+    // Wider system fonts and user text spacing both change the measured label width.
+    await page.evaluate(value=>{document.body.style.letterSpacing=value},spacing);
+    await selectTurn(page);
+    await holdSecondPress(page,'b6');
+    const overlay=fan(page);
+    const geometry=()=>overlay.evaluate(node=>{
+      const controls=[...node.querySelectorAll<HTMLElement>('.training-fan-lens,.training-fan-feedback')].map(n=>({
+        name:n.dataset.lens??'feedback',rect:n.getBoundingClientRect(),
+      }));
+      const words=[...document.querySelectorAll('#tokens .lexeme.selected')].flatMap(n=>[...n.getClientRects()]);
+      const overlaps=(a:DOMRect,b:DOMRect)=>a.left<b.right&&a.right>b.left&&a.top<b.bottom&&a.bottom>b.top;
+      return {
+        rows:new Set(words.map(r=>Math.round(r.top))).size,
+        clipped:controls.filter(({rect:r})=>r.left<0||r.top<0||r.right>innerWidth||r.bottom>innerHeight).map(c=>c.name),
+        covered:controls.filter(({rect},i)=>words.some(word=>overlaps(rect,word))||controls.slice(i+1).some(c=>overlaps(rect,c.rect))).map(c=>c.name),
+        motion:node.getAnimations({subtree:true}).length,
+      };
+    });
+    const initial=await geometry();
+    expect(initial.rows).toBeGreaterThan(1);
+    expect(initial).toMatchObject({clipped:[],covered:[],motion:0});
+    for(const lens of ['meaning','wording','contrast','label']){
+      const label=overlay.locator(`[data-lens="${lens}"]`);
+      const box=(await label.boundingBox())!;
+      await page.mouse.move(box.x+box.width/2,box.y+box.height/2);
+      await expect(label).toHaveAttribute('data-active','');
+      expect(await geometry()).toMatchObject({clipped:[],covered:[],motion:0});
+    }
+    await page.keyboard.press('Escape');await page.mouse.up();
+    await expect(overlay).toHaveCount(0);
+    await expect(page.locator('#tokens .selected')).toHaveCount(0);
   });
-  expect(geometry.rows).toBeGreaterThan(1);
-  expect(geometry).toMatchObject({inside:true,readable:true,motion:0});
-  await page.keyboard.press('Escape');await page.mouse.up();
-  await expect(fan(page)).toHaveCount(0);
-  await expect(page.locator('#tokens .selected')).toHaveCount(0);
-});
+}
 
 test('Escape and returning to the start cancel while quick double-click preserves native text selection',async({page,practiceUrl})=>{
   await page.goto(practiceUrl);
