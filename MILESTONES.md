@@ -1,5 +1,9 @@
 # Migration milestones
 
+The [transcript co-analysis guide and practice observations](docs/CO-ANALYSIS.md)
+cover passage selection, model proposals, exact quotation checks and
+researcher assessments saved against the original evidence.
+
 The [transcript editor milestone](docs/TRANSCRIPT-EDITOR-MILESTONE.md) records the integrated authoring slice, including native faithful layout, correction drafts
 and the remaining publication/qualification gates.
 

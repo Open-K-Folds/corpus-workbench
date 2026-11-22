@@ -177,6 +177,16 @@ async function runSemantica(basis) {
   if (typeof basis.snapshot_hash !== 'string' || !/^[a-f0-9]{64}$/.test(basis.snapshot_hash)) throw new Error('Invalid snapshot identity');
   return operation(async () => semantica.run(await cleanHandoff(), basis));
 }
+async function askLocalModel(request) {
+  return operation(async () => {
+    handoffProject();
+    const response = await backend.request('/api/view');
+    if (!response.ok) throw new Error('The current saved transcript is unavailable.');
+    const {preparePassage} = await import('./coanalysis-prompt.mjs');
+    const {prompt} = preparePassage(await response.json(), request);
+    return require('./local-model.cjs').queryModel(prompt);
+  });
+}
 async function exportSemantica(basis) {
   if (!basis || Object.keys(basis).join(',') !== 'generation_id' || typeof basis.generation_id !== 'string' || !/^[a-f0-9]{64}$/.test(basis.generation_id)) throw new Error('Invalid generation identity');
   return operation(async () => {
@@ -211,7 +221,7 @@ async function requestQuit() {
   } finally {quitRequested = false;}
 }
 function installIPC() {
-  const handlers = {state: () => publicState(), previewPreparation, commitPreparation, cancelPreparation: token => operation(() => preparation.cancel(token)), semanticaState: () => semantica.state(handoffProject()), configureSemantica, runSemantica, exportSemantica, revealSemantica, chooseOpen, importPackage, createDemo: () => operation(() => importDirectory(path.join(resources, 'demo'), 'Synthetic practice corpus')), openRecent: id => operation(async () => {const entry = registry.get(security.recentId(id)); if (!entry) throw new Error('Project is no longer in the recent list'); return switchProject(entry);}), exportRevision, backup, retry: () => operation(async () => {
+  const handlers = {state: () => publicState(), askLocalModel, previewPreparation, commitPreparation, cancelPreparation: token => operation(() => preparation.cancel(token)), semanticaState: () => semantica.state(handoffProject()), configureSemantica, runSemantica, exportSemantica, revealSemantica, chooseOpen, importPackage, createDemo: () => operation(() => importDirectory(path.join(resources, 'demo'), 'Synthetic practice corpus')), openRecent: id => operation(async () => {const entry = registry.get(security.recentId(id)); if (!entry) throw new Error('Project is no longer in the recent list'); return switchProject(entry);}), exportRevision, backup, retry: () => operation(async () => {
     if (!current) return publicState();
     status = 'loading'; error = null; sendState();
     try {await backend.stop(); await backend.start(current.store, current.project); status = 'ready'; sendState(); sendMenu('backend-reconnected');}
@@ -220,7 +230,7 @@ function installIPC() {
   }), readDraftJournal: () => journal.read(), persistDraftJournal: raw => journal.write(raw), reportDraft: value => {drafts = security.draftState(value); return true;}, reportAppearance: value => {if (!['light', 'dark', 'system'].includes(value)) throw new Error('Invalid appearance'); nativeTheme.themeSource = value; window.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151c25' : '#f5f6f8'); return true;}};
   for (const [name, handler] of Object.entries(handlers)) ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
     if (!security.trustedSender(event, window)) throw new Error('Desktop command denied');
-    const expected = ['openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal', 'runSemantica', 'exportSemantica', 'previewPreparation', 'commitPreparation', 'cancelPreparation'].includes(name) ? 1 : 0;
+    const expected = ['askLocalModel', 'openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal', 'runSemantica', 'exportSemantica', 'previewPreparation', 'commitPreparation', 'cancelPreparation'].includes(name) ? 1 : 0;
     if (args.length !== expected) throw new Error('Invalid desktop command arguments');
     return handler(...args);
   });

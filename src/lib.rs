@@ -6,6 +6,7 @@ pub mod reading;
 pub mod reconcile;
 pub mod retokenize;
 pub mod search;
+pub mod staging;
 pub mod store;
 pub mod teitok_reader;
 pub mod xml;

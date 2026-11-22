@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('workbenchDesktop', Object.freeze({
   exportRevision: revision => call('exportRevision', revision),
   backup: () => call('backup'),
   retry: () => call('retry'),
+  askLocalModel: request => call('askLocalModel', request),
   semanticaState: () => call('semanticaState'),
   configureSemantica: () => call('configureSemantica'),
   runSemantica: basis => call('runSemantica', basis),

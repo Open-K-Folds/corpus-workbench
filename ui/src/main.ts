@@ -5,7 +5,10 @@ import {tokenInspector,annotationInspector} from './inspector';
 import {historyInspector} from './history';
 import {reviewInspector} from './review';
 import {researchInspector} from './research';
+import {coanalysisInspector} from './coanalysis';
+import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type RecordingCue} from './listening';
 import {ResearchOverview} from './overview';
+import {ReadingCanvas} from './reading-canvas';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
@@ -19,16 +22,22 @@ import './style.css';
 import './editor.css';
 import './controls.css';
 import './review.css';
+import './workbench-shell.css';
 import {icon} from './icons';
 import {buttonGroup,scrollIndicators} from './controls';
 import {desktop,desktopNavigation,initializeDesktop,type Departure} from './desktop';
 let view:View;let docPath='';let selected:string[]=[];let tab:InspectorView|'source'='token';let sourcePath='';let navigationMode:'documents'|'sources'='documents';let navigationQuery='';const readingPreferences:ReadingPreferences={query:'',layer:'corrected',filter:'all'};let saving=false;let loop=false;let redoRevision:number|null=null;let conflict:{operations:Operation[];label:string;latest:View;source?:HTMLFormElement;sourceValues:string|null}|null=null;
 const tokenDrafts=new Map<string,HTMLElement>();const annotationDrafts=new Map<string,HTMLElement>();const structuralDrafts=new Map<string,HTMLElement>();
 const returnDrafts=new Map<number,HTMLElement>();
-let pendingWrite:{command:Command;unlock:()=>void;before:number;restore:boolean}|null=null;let searchPanel:SearchPanel|null=null;let transcript:Transcript;let recording:RecordingPanel;let openDocuments:string[]=[];const documentStates=new Map<string,{selected:string[];time:number;scroll:number}>();
-const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values()];let annotationRevision=0;let inspectorEpoch=0;
+let coanalysisDraft: {key: string; revision: number; document: string; panel: HTMLElement} | null = null;
+let cueMedia: {document:string;snapshot:string;scope:string}|null = null;
+let pinnedPlayback: {anchor:PassageAnchor;cue:RecordingCue}|null = null;
+let pinTimer:ReturnType<typeof setTimeout>|undefined;
+let pendingWrite:{command:Command;source?:HTMLFormElement;unlock:()=>void;before:number;restore:boolean}|null=null;let searchPanel:SearchPanel|null=null;let transcript:Transcript;let recording:RecordingPanel;let openDocuments:string[]=[];const documentStates=new Map<string,{selected:string[];time:number;scroll:number}>();
+const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values(),...(coanalysisDraft ? [coanalysisDraft.panel] : [])];let annotationRevision=0;let inspectorEpoch=0;
 const app=el('app');
 let overview:ResearchOverview|null=null;
+let readingCanvas:ReadingCanvas|null=null;
 function departure():Departure {
   const inline=transcript?.departureState()??{dirty:false,recoverable:true,saving:false};
   const memory=draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')!==null)||app.querySelector('form[data-desktop-dirty="true"]:not([data-dirty])')!==null;
@@ -54,39 +63,85 @@ async function start(){
   try{await resumeSession();view=await loadView();shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
 }
 function loginScreen(){app.innerHTML=`<main class="login"><h1>Corpus workbench</h1><p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p><form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;el<HTMLFormElement>('login-form').onsubmit=async e=>{e.preventDefault();try{await login(formValues(e.currentTarget as HTMLFormElement).code);await start()}catch(e){el('login-error').textContent=String(e)}}}
-function shell(){overview?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a><header><div class="brand"><h1>Corpus workbench</h1><span id="project-title"></span></div><span id="save-state" role="status"></span><button id="export-package" aria-label="Export complete package">${icon('download')}<span class="export-label">Export complete package</span><span class="export-short" aria-hidden="true">Export</span></button></header>
+function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
+  <header class="workbench-header">
+    <div class="brand"><span class="brand-mark">${icon('graphic_eq')}</span><div><h1>Corpus workbench</h1><span id="project-title"></span></div></div>
+    <span id="save-state" role="status"></span>
+    <nav class="shell-tools" aria-label="Workspace tools">
+      <button id="toggle-navigation" class="secondary" aria-expanded="true" aria-controls="projects-pane">${icon('view_sidebar')}Projects</button>
+      <button id="toggle-properties" class="secondary" aria-expanded="true" aria-controls="properties-pane">${icon('tune')}Tools</button>
+      <button id="open-overview" class="secondary" aria-label="Research overview">Overview</button>
+      <button id="open-research" class="secondary" aria-label="Research handoff">Handoff</button>
+    </nav>
+    <div class="shell-actions"><button id="export-package" aria-label="Export complete package">${icon('download')}Export</button><button id="toggle-theme" class="secondary icon-button" aria-label="Dark appearance" aria-pressed="false">${icon("dark_mode")}</button></div>
+  </header>
+  <nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls" hidden>
+    <strong>${icon('notes')}Reading canvas</strong>
+    <div class="canvas-turns">
+      <button id="canvas-prev" class="secondary" aria-label="Previous source turn" title="Previous source turn">${icon('expand_less')}</button>
+      <span id="canvas-position" role="status">No visible source turns</span>
+      <input id="canvas-scrub" type="range" min="1" max="1" value="1" aria-label="Scrub source turns">
+      <button id="canvas-next" class="secondary" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
+    </div>
+    <div class="canvas-zoom"><button id="canvas-zoom-out" class="secondary" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">−</button><output id="canvas-scale" aria-label="Text size">100%</output><button id="canvas-zoom-in" class="secondary" aria-label="Increase text size" title="Increase text size (Alt + plus)">+</button></div>
+    <button id="canvas-exit" class="secondary" aria-label="Exit reading canvas">Exit canvas</button>
+  </nav>
   <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><p class="muted">Protected research copy. Original media and raw machine drafts remain separate.</p><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
-  <main class="transcript"><div class="audio"><h2 id="document-title"></h2><audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p><div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div></div><p id="selection-help" class="muted">Click a token to correct it. Shift-click selects a range; Ctrl / Command-click adds tokens.</p><div class="reading-toolbar"><label>Find tokens<input id="token-query" type="search" autocomplete="off" placeholder="Reading, ID or variety"></label><label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label><label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label></div><div class="reading-status"><span id="token-count" role="status"></span><button id="next-match" class="secondary">${icon('skip_next')}Next match</button></div><div id="tokens" tabindex="-1"></div></main>
-  <aside class="inspector"><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.id==='history'?icon('history'):item.id==='review'?icon('fact_check'):item.id==='references'?icon('link'):item.id==='search'?icon('search'):''}${item.label}</button>`).join('')}</nav><div id="inspector-content"></div></aside></div>`;
-  const main=document.querySelector<HTMLElement>('.transcript')!;
+  <main class="transcript">
+    <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
+    <div class="transcript-title"><h2 id="document-title"></h2><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="canvas-tools" aria-label="Open reading canvas">${icon('notes')}Reading canvas</button></div>
+    <p class="canvas-help">Drag the margin to move. Select words to correct, annotate or co-analyse.</p>
+    <details class="reading-settings"><summary>Reading controls</summary>
+      <div class="location-bar">
+        <fieldset id="transcript-layout" class="segmented-radio"><legend>View</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon('notes')}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon('view_agenda')}Lines</span></label></fieldset>
+        <label class="switch-field interlinear-toggle"><input id="show-interlinear" type="checkbox" role="switch"><span>Interlinear</span></label>
+        <div class="source-location-controls"><label>Go to source<input id="source-location" placeholder="Utterance or token ID" autocomplete="off"></label><button id="jump-source" class="secondary">Go</button></div>
+        <button id="copy-citation" class="secondary">${icon('link')}Copy link</button><button id="native-problems" class="secondary">Package validation</button>
+      </div>
+      <p id="source-location-status" class="muted" role="status"></p>
+      <div class="reading-toolbar">
+        <label>Find tokens<input id="token-query" type="search" autocomplete="off" placeholder="Reading, ID or variety"></label>
+        <label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label>
+        <label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label>
+      </div>
+    </details>
+    <div class="reading-status"><span id="token-count" role="status"></span><button id="next-match" class="secondary">${icon('skip_next')}Next match</button></div>
+    <p id="selection-help" class="muted">Select transcript text to correct, annotate or start co-analysis.</p>
+    <div id="tokens" tabindex="-1"></div>
+  </main>
+  <aside class="inspector" aria-label="Inspector"><details class="inspector-tools" open><summary>Inspector tools</summary><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.label}</button>`).join('')}</nav></details><div id="inspector-content"></div></aside></div>
+  <section id="recording-pane" class="audio" aria-label="Recording">
+    <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
+    <div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div>
+  </section>`;
   desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
-  const audioPane=document.querySelector<HTMLElement>('.audio')!;const title=el('document-title');main.prepend(title);
-  audioPane.id='recording-pane';document.querySelector('.workspace')!.after(audioPane);
-  title.insertAdjacentHTML('beforebegin','<div id="document-tabs" role="tablist" aria-label="Open documents"></div>');
-  title.insertAdjacentHTML('afterend',`<div class="location-bar"><fieldset id="transcript-layout" class="segmented-radio"><legend>View</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon("notes")}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon("view_agenda")}Lines</span></label></fieldset><label class="switch-field interlinear-toggle"><input id="show-interlinear" type="checkbox" role="switch"><span>Interlinear</span></label><div class="source-location-controls"><label>Go to source<input id="source-location" placeholder="Utterance or token ID" autocomplete="off"></label><button id="jump-source" class="secondary">Go</button></div><button id="copy-citation" class="secondary">${icon('link')}Copy link</button><button id="native-problems" class="secondary">Package validation</button></div><p id="source-location-status" class="muted">Small numbers are display order; source IDs stay stable across layouts.</p>`);
-  el('selection-help').textContent='Select transcript text to correct or annotate. Original source and recording stay unchanged.';
-  document.querySelector('header')!.insertAdjacentHTML('beforeend',`<button id="toggle-navigation" class="secondary" aria-expanded="true">${icon('view_sidebar')}Projects</button><button id="toggle-properties" class="secondary" aria-expanded="true">${icon('tune')}Tools</button><button id="toggle-theme" class="secondary icon-button" aria-label="Dark appearance" aria-pressed="false">${icon("dark_mode")}</button>`);
+  readingCanvas=new ReadingCanvas(app);
+  const audioPane=el('recording-pane');
+  const settings=document.querySelector<HTMLDetailsElement>('.reading-settings')!;
+  const compact=matchMedia('(max-width: 1000px)');
+  const fitSettings=()=>{settings.open=!compact.matches||settings.contains(document.activeElement)};
+  fitSettings();compact.addEventListener('change',fitSettings);
   document.querySelector('.documents')!.insertAdjacentHTML('beforeend','<div id="navigation-resizer" class="side-resizer" aria-label="Resize projects pane"></div>');
   document.querySelector('.inspector')!.insertAdjacentHTML('afterbegin','<div id="properties-resizer" class="side-resizer" aria-label="Resize properties pane"></div>');
   resizeWorkbenchSides(document.querySelector<HTMLElement>('.workspace')!,el('navigation-resizer'),el('properties-resizer'));
   document.querySelector('.documents')!.id='projects-pane';document.querySelector('.inspector')!.id='properties-pane';
-  el('toggle-navigation').setAttribute('aria-controls','projects-pane');el('toggle-properties').setAttribute('aria-controls','properties-pane');
   document.querySelector<HTMLElement>('.workspace')!.dataset.focus='transcript';
   const fold=(side:string)=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;if(matchMedia('(max-width:700px)').matches){workspace.dataset.focus=workspace.dataset.focus===side?'transcript':side;if(workspace.dataset.focus===side)workspace.classList.remove(side+'-folded')}else{const folded=workspace.classList.toggle(side+'-folded');workspace.dataset.focus=folded?'transcript':side}updatePaneAccessibility()};
   el('toggle-navigation').onclick=()=>fold('navigation');el('toggle-properties').onclick=()=>fold('properties');
+  document.querySelector<HTMLAnchorElement>('.skip-link')!.onclick=()=>{showTranscript()};
   matchMedia('(max-width:700px)').addEventListener('change',updatePaneAccessibility);updatePaneAccessibility();
   const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').innerHTML=icon(theme==='dark'?'light_mode':'dark_mode');el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
   try{setTheme(localStorage.getItem('wb-theme')??(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'))}catch{setTheme('light')}
   el('toggle-theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
-  transcript=new Transcript(el('tokens'),{view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listen:()=>void listen(),projection:unsupported=>configureMedia(unsupported)});
+  transcript=new Transcript(el('tokens'),{view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'));
   overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:target=>{tab=target;showProperties();void renderInspector()}});
-  document.querySelector('header')!.insertAdjacentHTML('beforeend','<button id="open-overview" class="secondary">Research overview</button>');el('open-overview').onclick=()=>overview?.open();
+  el('open-overview').onclick=()=>overview?.open();
   el('transcript-layout').onchange=e=>transcript.setLayout((e.target as HTMLInputElement).value as 'lines'|'paragraphs');
-  buttonGroup(document.querySelector('.navigation-modes')!);buttonGroup(el('document-tabs'));scrollIndicators(app);
+  buttonGroup(document.querySelector('.navigation-modes')!);buttonGroup(el('document-tabs'));
+  buttonGroup(document.querySelector('.inspector nav')!);scrollIndicators(app);
   el<HTMLInputElement>('show-interlinear').onchange=e=>transcript.setInterlinear((e.target as HTMLInputElement).checked);
   el('native-problems').onclick=()=>{tab='review';showProperties();void renderInspector()};
-  document.querySelector('header')!.insertAdjacentHTML('beforeend','<button id="open-research" class="secondary">Research handoff</button>');
   el('open-research').onclick=()=>{tab='research';showProperties();void renderInspector()};
   el('jump-source').onclick=()=>{if(!transcript.location(el<HTMLInputElement>('source-location').value.trim()))message('No such source ID in this document. Display wrapping does not create line IDs.',true)};
   el('copy-citation').onclick=async()=>{const citation=transcript.citation();const url=new URL(location.origin+location.pathname);url.hash=new URLSearchParams({loc:JSON.stringify(citation)}).toString();try{await navigator.clipboard.writeText(url.href);message(`Copied ${currentDoc().title} · ${citation.anchor??'document'} · R${citation.revision}. The link needs an authenticated local session.`)}catch{message('Clipboard access is unavailable. Select a source ID and use Go to inspect its location.',true)}};
@@ -97,17 +152,29 @@ function shell(){overview?.dispose();app.innerHTML=`<a class="skip-link" href="#
   el<HTMLSelectElement>('reading-layer').onchange=e=>{if(transcript.dirty()){(e.target as HTMLSelectElement).value=readingPreferences.layer;message('Finish or undo the correction draft before changing layers.',true);return}readingPreferences.layer=(e.target as HTMLSelectElement).value as ReadingPreferences['layer'];renderTokens()};
   el<HTMLSelectElement>('token-filter').onchange=e=>{if(transcript.dirty()){(e.target as HTMLSelectElement).value=readingPreferences.filter;message('Finish or undo the correction draft before filtering.',true);return}readingPreferences.filter=(e.target as HTMLSelectElement).value as ReadingPreferences['filter'];renderTokens()};
   el('next-match').onclick=nextMatch;
-  el('listen-selected').onclick=()=>void listen();
+  el('listen-selected').onclick=()=>void listen(currentAnchor());
   el<HTMLInputElement>('loop-selection').onchange=e=>{loop=(e.target as HTMLInputElement).checked};
-  el<HTMLAudioElement>('audio').ontimeupdate=()=>{const audio=el<HTMLAudioElement>('audio');const extent=selectionExtent();if(loop&&extent&&audio.currentTime>=extent[1]){audio.currentTime=extent[0];void audio.play()};highlightPlayback(audio.currentTime);};
+  const audio=el<HTMLAudioElement>('audio');
+  for(const event of ['loadedmetadata','canplay','durationchange','emptied','error'])audio.addEventListener(event,refreshListenControls);
+  audio.addEventListener('pause',()=>{if(audio.paused)clearPinnedPlayback()});
+  for(const event of ['playing','ratechange','seeked'])audio.addEventListener(event,checkPinnedEnd);
+  audio.ontimeupdate=()=>{
+    highlightPlayback(audio.currentTime);
+    if(audio.paused)return;
+    if(pinnedPlayback)checkPinnedEnd();
+    else if(loop){
+      const anchor=currentAnchor(),cue=checkCue(anchor);
+      if(!('reason' in cue)&&audio.currentTime>=cue.end)void listen(anchor);
+    }
+  };
   document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>b.onclick=()=>{if(isInspectorView(b.dataset.tab!)){tab=b.dataset.tab;showProperties();void renderInspector()}});
   el('export-package').onclick=async()=>{try{if(desktop){message('Preparing exact revision export…');const result=await desktop.exportRevision(view.revision.id);message(result.cancelled?'Export cancelled.':`Complete package saved for R${view.revision.id}.`);return}message('Preparing exact revision export…');const r=await api<{revision:number;download:string;job_id:string}>('/api/export',{revision:view.revision.id});message(`Complete export ready for R${r.revision}.`);const a=document.createElement('a');a.href=r.download;a.textContent='Download complete package';a.setAttribute('download','');el('message').append(' ',a)}catch(e){message(String(e),true)}};
   document.addEventListener('keydown',event=>{
     if(saving||pendingWrite||transcript.busy()||event.isComposing)return;
+    if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'&&!transcript.activeDraft()){event.preventDefault();readingCanvas?.close(false);showTranscript();settings.open=true;el<HTMLInputElement>('token-query').focus();return}
     if((event.target as HTMLElement).closest('#tokens,[contenteditable]'))return;
-    if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'){event.preventDefault();el<HTMLInputElement>('token-query').focus();return}
     if(event.key==='F3'){event.preventDefault();nextMatch();return}
-    if(event.altKey&&/^[1-9]$/.test(event.key)){event.preventDefault();tab=inspectorViews[Number(event.key)-1].id;void renderInspector();return}
+    if(event.altKey&&/^[1-9]$/.test(event.key)){event.preventDefault();tab=inspectorViews[Number(event.key)-1].id;showProperties();void renderInspector();return}
     if((event.target as HTMLElement).closest('input,textarea,select,button,a,summary'))return;
     if(event.code==='Space'){event.preventDefault();const a=el<HTMLAudioElement>('audio');a.paused?void a.play():a.pause()}
     if(event.key==='Escape'&&!transcript.dirty()){selected=[];void renderInspector()}
@@ -134,14 +201,170 @@ async function nextMatch(){if(saving||pendingWrite||transcript.dirty()){message(
 function draftStatus(){const dirty=draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));el('save-state').textContent=dirty?'Unsaved draft - saved head R'+view.revision.id:`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;}
 function renderTokens(){void transcript.render()}
 function highlightPlayback(time:number){for(const element of document.querySelectorAll<HTMLElement>('[data-utterance]')){const s=currentDoc().segments.find(s=>s.id===element.dataset.utterance);element.classList.toggle('playing',!!s&&s.start_us!==null&&s.end_us!==null&&time*1e6>=s.start_us&&time*1e6<s.end_us)}}
-function selectionExtent():[number,number]|null{const doc=currentDoc();const spans=selected.map(id=>doc.tokens.find(t=>t.id===id)!).map(t=>t.start_us!==null&&t.end_us!==null?[t.start_us,t.end_us]:doc.segments.find(s=>s.id===t.utterance)).map(s=>Array.isArray(s)?s:s?.start_us!==null&&s?.end_us!==null?[s?.start_us,s?.end_us]:null).filter((s):s is number[]=>!!s&&s.every(v=>typeof v==='number'));return spans.length?[Math.min(...spans.map(s=>s[0]))/1e6,Math.max(...spans.map(s=>s[1]))/1e6]:null}
-async function listen(){const extent=selectionExtent();if(!extent){message('No observed timing for this selection.');return}const a=el<HTMLAudioElement>('audio');a.currentTime=extent[0];await a.play()}
-async function save(operations:Operation[],label:string,source?:HTMLFormElement,basis?:View){if(saving)return;if(pendingWrite){message('Resolve the original pending save before another revision operation.',true);return}if(transcript.dirty()){message('Finish or undo the in-place correction draft before another revision operation.',true);return;}
-  const drafts=draftPanels().flatMap(e=>[...e.querySelectorAll<HTMLFormElement>('form[data-dirty="true"]')]);
-  if(drafts.some(form=>form!==source)){message('Save or discard other annotation drafts, structural drafts or token drafts before committing this change.',true);return;}const sourceValues=source?JSON.stringify(formValues(source)):null;saving=true;++inspectorEpoch;const unlock=lockAuthoring();const bound=makeCommand(basis??view,operations,label);let confirmed:number|null=null;let retainLock=false;el('save-state').textContent='Saving…';try{const before=(basis??view).revision.id;confirmed=(await commit(bound)).id;if(operations.some(o=>o.kind==='restore'))redoRevision=before;else redoRevision=null;view=await loadView();conflict=null;el('conflict').replaceChildren();message(`Saved R${view.revision.id}: ${label}`);render()}catch(e){if(confirmed!==null||!(e instanceof ApiError&&e.status>=400&&e.status<500)){retainLock=true;pendingWrite={command:bound,unlock,before:(basis??view).revision.id,restore:operations.some(o=>o.kind==='restore')};el('save-state').textContent=confirmed===null?'Save outcome unknown':`Committed R${confirmed}; refresh pending`;message('Resolve the same bound command before editing or reviewing. '+String(e),true);const retry=document.createElement('button');retry.id='resolve-pending-save';retry.textContent='Resolve original save';retry.onclick=()=>void resolvePendingWrite();el('save-recovery').replaceChildren(retry);return;}el('save-state').textContent='Unsaved · save failed';message(String(e),true);if(e instanceof ApiError&&e.status===409){if(operations.some(o=>o.kind==='retokenize'||o.kind==='reconcile_package')){message('Saved head changed. Your package or structural draft remains here. Discard and reload saved state, then obtain a new preview.',true);return;}const latest=await loadView();conflict={operations,label,latest,source,sourceValues};el('conflict').innerHTML=`<p>Your draft used R${view.revision.id}. Current saved state is R${latest.revision.id}: ${esc(latest.revision.label)}. Your intended changes remain in this tab.</p><button id="show-conflict-diff" class="secondary">Compare saved revisions</button><button id="reapply-conflict">Reapply my change to R${latest.revision.id}</button><pre id="conflict-diff"></pre>`;el('show-conflict-diff').onclick=async()=>{el('conflict-diff').textContent=JSON.stringify(await api(`/api/diff?from=${view.revision.id}&to=${latest.revision.id}`),null,2)};el('reapply-conflict').onclick=()=>{const intended=conflict!;if(intended.source&&JSON.stringify(formValues(intended.source))!==intended.sourceValues){message('Conflict action is out of date. Save the current draft to compare against the latest revision.',true);el<HTMLButtonElement>('reapply-conflict').disabled=true;return;}void save(intended.operations,`Reapply: ${intended.label}`,intended.source,intended.latest)}}}finally{saving=false;if(!retainLock)unlock()}}
-async function renderInspector(committedRender=false){overview?.update();if((saving&&!committedRender)||pendingWrite||transcript.busy())return;const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab))});const content=el('inspector-content');const doc=currentDoc();content.replaceChildren();
+function currentAnchor(){return passageAnchor(view,docPath,selected)}
+function currentBasis(anchor:PassageAnchor){
+  return anchor.document===docPath && anchor.project===view.snapshot.project && anchor.revision===view.revision.id && anchor.snapshot_hash===view.revision.snapshot_hash;
+}
+function checkCue(anchor:PassageAnchor):CueState {
+  if(!currentBasis(anchor))return {reason:'Open the pinned document at its original revision to listen.'};
+  const audio=el<HTMLAudioElement>('audio');
+  if(!cueMedia || cueMedia.document!==docPath || cueMedia.snapshot!==anchor.snapshot_hash || audio.hidden || !audio.getAttribute('src') || cueMedia.scope!==audio.dataset.mediaScope)
+    return {reason:'No associated recording is available for this passage.'};
+  if(audio.error || audio.readyState<1 || !Number.isFinite(audio.duration) || audio.duration<=0)
+    return {reason:'The recording is unavailable or still loading.'};
+  return suppliedCue(currentDoc(),anchor.token_ids,audio.duration);
+}
+function refreshListenControls(){
+  if(!view||saving||pendingWrite||transcript?.busy())return;
+  const state=checkCue(currentAnchor()),button=el<HTMLButtonElement>('listen-selected');
+  button.disabled='reason' in state;
+  button.title='reason' in state?state.reason:`Start playback at the supplied ${state.basis} time (${state.start} s).`;
+  transcript?.refreshListen();
+  coanalysisDraft?.panel.dispatchEvent(new Event('wb-cue-change'));
+}
+async function listen(anchor:PassageAnchor,bounded=false){
+  const cue=checkCue(anchor);
+  if('reason' in cue){message(cue.reason);refreshListenControls();return}
+  const audio=el<HTMLAudioElement>('audio');
+  const playback=bounded?{anchor,cue}:null;
+  clearPinnedPlayback();
+  pinnedPlayback=playback;
+  try{audio.currentTime=cue.start;await audio.play();if(playback===pinnedPlayback)checkPinnedEnd()}
+  catch(error){
+    if(pinnedPlayback===playback)clearPinnedPlayback();
+    if(currentBasis(anchor)&&!(error instanceof DOMException&&error.name==='AbortError'))message('Recording playback could not start. '+String(error),true);
+  }
+}
+function clearPinnedPlayback(){
+  clearTimeout(pinTimer);pinTimer=undefined;pinnedPlayback=null;
+}
+function checkPinnedEnd(){
+  if(!pinnedPlayback)return;
+  clearTimeout(pinTimer);
+  const audio=el<HTMLAudioElement>('audio'),{anchor,cue}=pinnedPlayback;
+  if(!currentBasis(anchor)){clearPinnedPlayback();audio.pause();return}
+  if(audio.paused)return;
+  if(audio.currentTime>=cue.end){clearPinnedPlayback();audio.pause();audio.currentTime=cue.end;return}
+  // timeupdate alone can arrive a quarter second after a short word ends.
+  if(audio.playbackRate>0)pinTimer=setTimeout(checkPinnedEnd,Math.max(10,(cue.end-audio.currentTime)*1000/audio.playbackRate));
+}
+function offerSaveRetry() {
+  const retry = document.createElement('button');
+  retry.id = 'resolve-pending-save';
+  retry.textContent = 'Resolve original save';
+  retry.onclick = () => void resolvePendingWrite();
+  el('save-recovery').replaceChildren(retry);
+}
+function markCoanalysisStale(source: HTMLFormElement) {
+  conflict = null;
+  el('conflict').replaceChildren();
+  el('save-state').textContent = 'Unsaved co-analysis draft';
+  source.dispatchEvent(new Event('wb-stale'));
+}
+async function save(operations: Operation[], label: string, source?: HTMLFormElement, basis = view) {
+  if (saving) return;
+  if (pendingWrite) { message('Resolve the original pending save before another revision operation.', true); return; }
+  if (transcript.dirty()) { message('Finish or undo the in-place correction draft before another revision operation.', true); return; }
+  const drafts = draftPanels().flatMap(panel => [...panel.querySelectorAll<HTMLFormElement>('form[data-dirty="true"]')]);
+  if (drafts.some(form => form !== source)) {
+    const pinned = drafts.some(form => form !== source && form.id === 'coanalysis-form');
+    message(pinned ? 'Save or discard your pinned Co-analysis draft before committing this change.' : 'Save or discard other annotation drafts, structural drafts or token drafts before committing this change.', true);
+    return;
+  }
+  const sourceValues = source ? JSON.stringify(formValues(source)) : null;
+  const bound = makeCommand(basis, operations, label);
+  const restore = operations.some(op => op.kind === 'restore');
+  const unlock = lockAuthoring();
+  let confirmed: number | null = null;
+  let retainLock = false, staleProposal = false;
+  saving = true;
+  ++inspectorEpoch;
+  el('save-state').textContent = 'Saving…';
+  try {
+    confirmed = (await commit(bound)).id;
+    redoRevision = restore ? basis.revision.id : null;
+    view = await loadView();
+    conflict = null;
+    el('conflict').replaceChildren();
+    message(`Saved R${view.revision.id}: ${label}`);
+    render();
+  } catch (error) {
+    if (confirmed !== null || !(error instanceof ApiError && error.status >= 400 && error.status < 500)) {
+      retainLock = true;
+      pendingWrite = {command: bound, source, unlock, before: basis.revision.id, restore};
+      el('save-state').textContent = confirmed === null ? 'Save outcome unknown' : `Committed R${confirmed}; refresh pending`;
+      message('Resolve the same bound command before editing or reviewing. ' + String(error), true);
+      offerSaveRetry();
+      return;
+    }
+    el('save-state').textContent = 'Unsaved · save failed';
+    message(String(error), true);
+    if (error.status !== 409) return;
+    if (source?.id === 'coanalysis-form') {
+      // The original model saw the earlier reading. Reapplying to a new head would misstate its evidence.
+      staleProposal = true;
+      return;
+    }
+    if (operations.some(op => op.kind === 'retokenize' || op.kind === 'reconcile_package')) {
+      message('Saved head changed. Your package or structural draft remains here. Discard and reload saved state, then obtain a new preview.', true);
+      return;
+    }
+    const latest = await loadView();
+    conflict = {operations, label, latest, source, sourceValues};
+    el('conflict').innerHTML = `<p>Your draft used R${view.revision.id}. Current saved state is R${latest.revision.id}: ${esc(latest.revision.label)}. Your intended changes remain in this tab.</p><button id="show-conflict-diff" class="secondary">Compare saved revisions</button><button id="reapply-conflict">Reapply my change to R${latest.revision.id}</button><pre id="conflict-diff"></pre>`;
+    el('show-conflict-diff').onclick = async () => {
+      el('conflict-diff').textContent = JSON.stringify(await api(`/api/diff?from=${view.revision.id}&to=${latest.revision.id}`), null, 2);
+    };
+    el('reapply-conflict').onclick = () => {
+      const intended = conflict!;
+      if (intended.source && JSON.stringify(formValues(intended.source)) !== intended.sourceValues) {
+        message('Conflict action is out of date. Save the current draft to compare against the latest revision.', true);
+        el<HTMLButtonElement>('reapply-conflict').disabled = true;
+        return;
+      }
+      void save(intended.operations, `Reapply: ${intended.label}`, intended.source, intended.latest);
+    };
+  } finally {
+    saving = false;
+    if (!retainLock) unlock();
+    if (staleProposal && source) markCoanalysisStale(source);
+  }
+}
+async function renderInspector(committedRender=false){refreshListenControls();overview?.update();if((saving&&!committedRender)||pendingWrite||transcript.busy())return;const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab))});const content=el('inspector-content');const doc=currentDoc();content.replaceChildren();
   if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.innerHTML='<h2>Listen and correct</h2><p>Select a token to inspect its original reading, corrections and annotations.</p><p class="muted">Find tokens: Ctrl / Command + K. Next match: F3. Inspector views: Alt + 1 through 9.</p>';}
   if(tab==='source'){try{const panel=await sourceInspector(view,sourcePath);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
+  if (coanalysisDraft && coanalysisDraft.revision !== view.revision.id) {
+    const prior = coanalysisDraft;
+    const committed = view.documents.find(document => document.path === prior.document)?.spans.some(span => span.id === prior.panel.dataset.spanId);
+    if (committed) coanalysisDraft = null;
+  }
+  if (tab === 'coanalysis') {
+    const key = JSON.stringify([view.snapshot.project, view.revision.id, view.revision.snapshot_hash, doc.path, selected]);
+    if (!coanalysisDraft || (coanalysisDraft.key !== key && !coanalysisDraft.panel.querySelector('form[data-dirty="true"]'))) {
+      coanalysisDraft = {key, revision: view.revision.id, document: doc.path, panel: coanalysisInspector(view, doc, selected, {
+        dirty: draftStatus, save, listening:{check:checkCue,play:listen}, discard: async stale => {
+          if (saving || pendingWrite) return;
+          if (stale) {
+            const expected = coanalysisDraft;
+            const latest = await loadView();
+            if (expected !== coanalysisDraft || saving || pendingWrite) return;
+            const otherDraft = transcript.dirty() || draftPanels().some(panel => panel !== expected?.panel && panel.querySelector('form[data-dirty="true"]'));
+            if (otherDraft) {
+              coanalysisDraft = null;
+              await renderInspector();
+              draftStatus();
+              message('Co-analysis draft discarded. Finish your other authoring drafts before reloading the changed revision.');
+              return;
+            }
+            view = latest;
+          }
+          coanalysisDraft = null;
+          render();
+        },
+      })};
+    }
+    content.append(coanalysisDraft.panel);
+  }
   if(tab!=='search')searchPanel?.pause();
   if(tab==='search'){
     searchPanel?.pause();
@@ -183,11 +406,59 @@ async function renderInspector(committedRender=false){overview?.update();if((sav
   if(tab==='references'){try{const basis=view;const panel=await referenceInspector(basis,doc.path,selected);if(epoch!==inspectorEpoch)return;if(epoch===inspectorEpoch&&tab==='references'&&view.revision.id===basis.revision.id&&docPath===doc.path)content.append(panel)}catch(e){if(epoch!==inspectorEpoch)return;message(String(e),true)}}
   if(tab==='xml'){content.innerHTML='<h2>Preserved XML · read-only</h2><pre id="xml-preview">Loading…</pre>';try{const r=await api<{xml:string}>(`/api/xml?path=${encodeURIComponent(doc.path)}&revision=${view.revision.id}`);if(epoch===inspectorEpoch)el('xml-preview').textContent=r.xml}catch(e){if(epoch===inspectorEpoch)message(String(e),true)}}
 }
-async function resolvePendingWrite(){const pending=pendingWrite;if(!pending||saving)return;saving=true;el<HTMLButtonElement>('resolve-pending-save').disabled=true;try{const committed=await commit(pending.command);const latest=await loadView();if(latest.revision.id<committed.id)throw new Error('Saved view has not reconciled the committed revision');pendingWrite=null;pending.unlock();el('save-recovery').replaceChildren();view=latest;redoRevision=pending.restore?pending.before:null;conflict=null;el('conflict').replaceChildren();render();message(`Original command saved in R${committed.id}; current head R${latest.revision.id}.`)}catch(e){message('Save reconciliation is still pending. '+String(e),true);const retry=document.createElement('button');retry.id='resolve-pending-save';retry.textContent='Resolve original save';retry.onclick=()=>void resolvePendingWrite();el('save-recovery').replaceChildren(retry)}finally{saving=false}}
-function configureMedia(unsupportedBase:boolean){const doc=currentDoc();const candidates=[...new Set(doc.media.flatMap(reference=>[reference,`Audio/${reference}`,`Video/${reference}`]).filter(path=>view.snapshot.files[path]?.role==='source-media'))];const media=!unsupportedBase&&candidates.length===1?candidates[0]:undefined;const audio=el<HTMLAudioElement>('audio');const src=media?`/api/media?path=${encodeURIComponent(media)}&revision=${view.revision.id}`:'';audio.hidden=!media;el('audio-availability').hidden=!!media;for(const id of ['listen-selected','loop-selection'])el<HTMLInputElement>(id).disabled=!media;const mediaScope=media?doc.path+':'+view.snapshot.files[media].sha256:'';if(media&&(!audio.hasAttribute('src')||audio.dataset.mediaScope!==mediaScope)){const scope=doc.path,basis=view.revision.id,time=documentStates.get(scope)?.time??audio.currentTime;audio.dataset.mediaScope=mediaScope;audio.src=src;audio.addEventListener('loadedmetadata',()=>{if(docPath===scope&&view.revision.id===basis&&audio.getAttribute('src')===src)audio.currentTime=Math.min(time,Number.isFinite(audio.duration)?audio.duration:time)},{once:true});audio.load()}if(!media&&audio.hasAttribute('src')){audio.removeAttribute('src');delete audio.dataset.mediaScope;audio.load()}void recording.update(view,doc,media);}
-function updatePaneAccessibility(){const workspace=document.querySelector<HTMLElement>('.workspace')!;const narrow=matchMedia('(max-width:700px)').matches;for(const side of ['navigation','properties'])el('toggle-'+side).setAttribute('aria-expanded',String(narrow?workspace.dataset.focus===side:!workspace.classList.contains(side+'-folded')))}
-function showProperties(){const workspace=document.querySelector<HTMLElement>('.workspace')!;workspace.classList.remove('properties-folded');workspace.dataset.focus='properties';updatePaneAccessibility()}
-function switchDocument(path:string){if(saving||pendingWrite||transcript.activeDraft()||transcript.busy()){message('Finish or undo the correction draft before switching documents. Your selection and recording remain here.',true);return}const audio=el<HTMLAudioElement>('audio');documentStates.set(docPath,{selected:[...selected],time:audio.currentTime,scroll:document.querySelector('.transcript')!.scrollTop});audio.pause();audio.removeAttribute('src');audio.load();audio.hidden=true;for(const id of ['listen-selected','loop-selection'])el<HTMLInputElement>(id).disabled=true;docPath=path;void recording.update(view,currentDoc(),undefined);const state=documentStates.get(path);selected=state?.selected??[];render();if(state)document.querySelector('.transcript')!.scrollTop=state.scroll}
+async function resolvePendingWrite() {
+  const pending = pendingWrite;
+  if (!pending || saving) return;
+  saving = true;
+  el<HTMLButtonElement>('resolve-pending-save').disabled = true;
+  try {
+    const committed = await commit(pending.command);
+    const latest = await loadView();
+    if (latest.revision.id < committed.id) throw new Error('Saved view has not reconciled the committed revision');
+    pendingWrite = null;
+    pending.unlock();
+    el('save-recovery').replaceChildren();
+    view = latest;
+    redoRevision = pending.restore ? pending.before : null;
+    conflict = null;
+    el('conflict').replaceChildren();
+    render();
+    message(`Original command saved in R${committed.id}; current head R${latest.revision.id}.`);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 409 && pending.source?.id === 'coanalysis-form') {
+      pendingWrite = null;
+      pending.unlock();
+      el('save-recovery').replaceChildren();
+      markCoanalysisStale(pending.source);
+      message('The original command was rejected against a changed revision.', true);
+      return;
+    }
+    message('Save reconciliation is still pending. ' + String(error), true);
+    offerSaveRetry();
+  } finally { saving = false; }
+}
+function configureMedia(unsupportedBase:boolean){const doc=currentDoc();const candidates=[...new Set(doc.media.flatMap(reference=>[reference,`Audio/${reference}`,`Video/${reference}`]).filter(path=>view.snapshot.files[path]?.role==='source-media'))];const media=!unsupportedBase&&candidates.length===1?candidates[0]:undefined;const audio=el<HTMLAudioElement>('audio');const src=media?`/api/media?path=${encodeURIComponent(media)}&revision=${view.revision.id}`:'';audio.hidden=!media;el('audio-availability').hidden=!!media;el<HTMLInputElement>('loop-selection').disabled=!media;const mediaScope=media?doc.path+':'+view.snapshot.files[media].sha256:'';cueMedia=media?{document:doc.path,snapshot:view.revision.snapshot_hash,scope:mediaScope}:null;if(media&&(!audio.hasAttribute('src')||audio.dataset.mediaScope!==mediaScope)){const scope=doc.path,basis=view.revision.id,time=documentStates.get(scope)?.time??audio.currentTime;audio.dataset.mediaScope=mediaScope;audio.src=src;audio.addEventListener('loadedmetadata',()=>{if(docPath===scope&&view.revision.id===basis&&audio.getAttribute('src')===src)audio.currentTime=Math.min(time,Number.isFinite(audio.duration)?audio.duration:time)},{once:true});audio.load()}if(!media&&audio.hasAttribute('src')){audio.removeAttribute('src');delete audio.dataset.mediaScope;audio.load()}refreshListenControls();void recording.update(view,doc,media);}
+function updatePaneAccessibility(){
+  const workspace=document.querySelector<HTMLElement>('.workspace')!;
+  const narrow=matchMedia('(max-width:700px)').matches;
+  workspace.querySelector<HTMLElement>('.transcript')!.inert=narrow&&workspace.dataset.focus!=='transcript';
+  for(const side of ['navigation','properties'])el('toggle-'+side).setAttribute('aria-expanded',String(narrow?workspace.dataset.focus===side:!workspace.classList.contains(side+'-folded')));
+}
+function showTranscript(){
+  const workspace=document.querySelector<HTMLElement>('.workspace')!;
+  if(!matchMedia('(max-width:700px)').matches||workspace.dataset.focus==='transcript')return;
+  workspace.dataset.focus='transcript';
+  updatePaneAccessibility();
+  const heading=el('document-title');heading.tabIndex=-1;heading.focus({preventScroll:true});
+}
+function showProperties(){
+  const fromCanvas=readingCanvas?.active;
+  readingCanvas?.close(false);
+  const workspace=document.querySelector<HTMLElement>('.workspace')!;
+  workspace.classList.remove('properties-folded');workspace.dataset.focus='properties';updatePaneAccessibility();
+  if(fromCanvas){const inspector=el('properties-pane');inspector.scrollTop=0;inspector.tabIndex=-1;inspector.focus({preventScroll:true})}
+}
+function switchDocument(path:string){if(saving||pendingWrite||transcript.activeDraft()||transcript.busy()){message('Finish or undo the correction draft before switching documents. Your selection and recording remain here.',true);return}const audio=el<HTMLAudioElement>('audio');documentStates.set(docPath,{selected:[...selected],time:audio.currentTime,scroll:document.querySelector('.transcript')!.scrollTop});audio.pause();audio.removeAttribute('src');audio.load();audio.hidden=true;for(const id of ['listen-selected','loop-selection'])el<HTMLInputElement>(id).disabled=true;docPath=path;void recording.update(view,currentDoc(),undefined);const state=documentStates.get(path);selected=state?.selected??[];render();showTranscript();if(state)document.querySelector('.transcript')!.scrollTop=state.scroll}
 function renderDocumentTabs(){if(!openDocuments.includes(docPath))openDocuments.push(docPath);const focused=(document.activeElement as HTMLElement)?.dataset.openDocument;el('document-tabs').innerHTML=openDocuments.map(path=>`<button role="tab" aria-selected="${path===docPath}" data-open-document="${esc(path)}">${esc(view.documents.find(d=>d.path===path)?.title??path)}</button>`).join('');el('document-tabs').querySelectorAll<HTMLButtonElement>('[data-open-document]').forEach(b=>{b.onclick=()=>switchDocument(b.dataset.openDocument!);if(b.dataset.openDocument===focused)b.focus()})}
 async function followCitation(){const value=new URLSearchParams(location.hash.slice(1)).get('loc');if(!value)return;try{const citation=JSON.parse(value);if(citation.project!==view.snapshot.project||citation.revision!==view.revision.id){message(`Citation refers to ${citation.project} R${citation.revision}. Current saved head is R${view.revision.id}; inspect that exact revision in History before resolving it.`,true);return}if(!view.documents.some(d=>d.path===citation.document))throw new Error('Citation document is unavailable');switchDocument(citation.document);await transcript.render();if(citation.anchor&&!transcript.location(citation.anchor))message('Citation anchor is unavailable; no replacement location was guessed.',true)}catch(e){message('Could not resolve citation: '+String(e),true)}}
 function desktopMenu(command:string){
@@ -208,7 +479,7 @@ function desktopMenu(command:string){
   if(command==='export')el('export-package').click();
   if(command==='history'){tab='history';showProperties();void renderInspector()}
   if(command==='research'){tab='research';showProperties();void renderInspector()}
-  if(command==='toggle-inspector')el('toggle-properties').click();
-  if(command==='toggle-recording')el('timeline-toggle').click();
+  if(command==='toggle-inspector'){if(readingCanvas?.active)showProperties();else el('toggle-properties').click()}
+  if(command==='toggle-recording'){readingCanvas?.close(false);el('timeline-toggle').click()}
 }
 void initializeDesktop(app,start,departure,desktopMenu).catch(error=>{app.textContent='Could not load workbench: '+String(error)});

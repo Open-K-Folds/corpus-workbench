@@ -38,9 +38,9 @@ shutil.copy2(args.binary, stage / 'bin' / args.binary.name)
 tracked = subprocess.check_output(['git', '-C', str(root), 'ls-files', '-z']).decode().split('\0')
 allowed = {'scripts/prepare-synthetic.py', 'scripts/prepare-structural-synthetic.py', 'scripts/start-workbench.ps1', 'LICENSE', 'NOTICE',
            'README.md', 'CHANGELOG.md', 'MILESTONES.md', 'Open-Workbench.cmd',
-           'evidence/dependency-inventory.json'}
+           'evidence/dependency-inventory.json', 'evidence/coanalysis/noticeboard.json'}
 for name in tracked:
-    if name in allowed or name.startswith(('docs/', 'fixtures/synthetic/', 'assets/teitok-reader/')):
+    if name in allowed or name.startswith(('docs/', 'fixtures/synthetic/', 'fixtures/coanalysis/', 'assets/teitok-reader/')):
         source = root / name
         if source.is_symlink():
             raise SystemExit('Symlinks are not accepted in this preview recipe.')
@@ -49,11 +49,12 @@ for name in tracked:
         shutil.copy2(source, destination)
 ui = root / 'ui/dist'
 ui_files = [p for p in ui.rglob('*') if p.is_file()]
-if (len(ui_files) != 7 or not (ui / 'index.html').is_file() or
-        sum(p.suffix == '.js' for p in ui_files) != 1 or
+if (len(ui_files) != 8 or not (ui / 'index.html').is_file() or
+        sum(p.name.startswith('index-') and p.suffix == '.js' for p in ui_files) != 1 or
+        sum(p.name.startswith('audio-analysis.worker-') and p.suffix == '.js' for p in ui_files) != 1 or
         sum(p.suffix == '.css' for p in ui_files) != 1 or
         sum(p.suffix == '.woff2' for p in ui_files) != 1):
-    raise SystemExit('Expected index, JS/CSS bundles, one local symbol subset and three retained symbol notices.')
+    raise SystemExit('Expected index, JS/CSS bundles, audio worker, one local symbol subset and three retained symbol notices.')
 symbol_notices = {'third-party/material-symbols/LICENSE.txt',
                   'third-party/material-symbols/README.md',
                   'third-party/material-symbols/source-css.txt'}
@@ -62,7 +63,7 @@ if not all((ui / name).is_file() for name in symbol_notices):
 for file in ui_files:
     name = file.relative_to(ui).as_posix()
     if file.is_symlink() or (name != 'index.html' and name not in symbol_notices and
-                            not re.fullmatch(r'assets/(index-[A-Za-z0-9_-]+\.(js|css)|material-symbols-subset-[A-Za-z0-9_-]+\.woff2)', name)):
+                            not re.fullmatch(r'assets/(index-[A-Za-z0-9_-]+\.(js|css)|audio-analysis\.worker-[A-Za-z0-9_-]+\.js|material-symbols-subset-[A-Za-z0-9_-]+\.woff2)', name)):
         raise SystemExit('Unexpected compiled UI output; perform a fresh reviewed build.')
     destination = stage / 'ui/dist' / name
     destination.parent.mkdir(parents=True, exist_ok=True)

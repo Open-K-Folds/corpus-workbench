@@ -3,6 +3,7 @@ import {icon} from './icons';
 import {initializeNativeDrafts,nativeDraftsReady} from './draft-storage';
 import './desktop.css';
 import {openPreparation,type PreparationBridge} from './preparation';
+import type {PassageRequest} from '../../desktop/coanalysis-prompt.mjs';
 
 export interface DesktopState {
   status:'idle'|'loading'|'ready'|'error';
@@ -32,6 +33,7 @@ interface DesktopBridge extends PreparationBridge {
   exportRevision(revision:number):Promise<{cancelled?:boolean}>;
   backup():Promise<{cancelled?:boolean}>;
   retry():Promise<unknown>;
+  askLocalModel(request:PassageRequest):Promise<{model:string;reply:string}>;
   semanticaState():Promise<SemanticaState>;
   configureSemantica():Promise<SemanticaState&{cancelled?:boolean}>;
   runSemantica(basis:{revision:number;snapshot_hash:string}):Promise<SemanticaState>;

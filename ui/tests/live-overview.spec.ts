@@ -8,7 +8,7 @@ import {resolve} from 'node:path';
 // Desktop bridge stubs below qualify display eligibility, never Semantica execution.
 const root=resolve('..'),binary=process.env.WB_BINARY??resolve(root,'target/debug/corpus-workbench'+(process.platform==='win32'?'.exe':''));
 const raw='SYNTHETIC raw wording: hello, habari? switch intact.\n';
-let runtime:string,service:ChildProcess|undefined,code='';
+let runtime:string,service:ChildProcess|undefined,code='',origin='';
 
 function tone(){
   const rate=16000,count=rate*16,bytes=Buffer.alloc(44+count*2);
@@ -22,13 +22,16 @@ test.beforeEach(async()=>{
   for(const directory of ['Resources','xmlfiles','Audio','Raw','Other'])mkdirSync(resolve(runtime,'package',directory),{recursive:true});
   writeFileSync(resolve(runtime,'package/Resources/settings.xml'),'<ttsettings/>');
   writeFileSync(resolve(runtime,'package/xmlfiles/alpha.xml'),"<TEI><teiHeader><title>SYNTHETIC live evidence study</title><note>Authored practice text and generated tone; no recorded speech.</note><media url='tone.wav'/></teiHeader><text><body><u id='chunk' start='0' end='16'><tok id='w1' start='1' end='2'>hello,</tok> <tok id='w2'>habari?</tok> <tok id='w3'>switch intact.</tok></u></body></text></TEI>");
-  writeFileSync(resolve(runtime,'package/xmlfiles/no-media.xml'),"<TEI><teiHeader><title>SYNTHETIC text without recording</title></teiHeader><text><tok id='untimed'>SYNTHETIC supplied words without timing</tok></text></TEI>");
+  writeFileSync(resolve(runtime,'package/xmlfiles/no-media.xml'),"<TEI><teiHeader><title>SYNTHETIC text without recording</title></teiHeader><text><tok id='untimed'>SYNTHETIC supplied words without timing</tok><u id='orphan' start='4' end='6'><tok id='orphan-word'>Timed text without media</tok></u></text></TEI>");
   writeFileSync(resolve(runtime,'package/Audio/tone.wav'),tone());writeFileSync(resolve(runtime,'package/Raw/original.txt'),raw);
   for(let index=0;index<18;index++)writeFileSync(resolve(runtime,'package/Other',`evidence-${String(index).padStart(2,'0')}.txt`),`SYNTHETIC preserved artifact ${index}\n`);
   execFileSync(binary,['import','--store',resolve(runtime,'authority'),'--package',resolve(runtime,'package'),'--project','live-overview']);
-  service=spawn(binary,['serve','--store',resolve(runtime,'authority'),'--project','live-overview','--ui',process.env.WB_UI??resolve(root,'ui/dist'),'--port','18912'],{cwd:runtime,stdio:'pipe'});
+  service=spawn(binary,['serve','--store',resolve(runtime,'authority'),'--project','live-overview','--ui',process.env.WB_UI??resolve(root,'ui/dist'),'--port','0'],{cwd:runtime,stdio:'pipe'});
   await expect.poll(()=>existsSync(resolve(runtime,'.runtime/session-code'))).toBe(true);code=readFileSync(resolve(runtime,'.runtime/session-code'),'utf8');
-  await expect.poll(async()=>{try{return(await fetch('http://127.0.0.1:18912/health/ready')).status}catch{return 0}}).toBe(200);
+  const launcher=resolve(runtime,'.runtime/Open-Workbench.html');
+  await expect.poll(()=>existsSync(launcher)).toBe(true);
+  origin=readFileSync(launcher,'utf8').match(/http:\/\/127\.0\.0\.1:\d+/)![0];
+  await expect.poll(async()=>{try{return(await fetch(origin+'/health/ready')).status}catch{return 0}}).toBe(200);
 });
 test.afterEach(async()=>{if(service&&service.exitCode===null){service.kill();await new Promise<void>(done=>service!.once('exit',()=>done()))}});
 
@@ -36,12 +39,12 @@ async function api(page:Page,path:string,body?:unknown){return page.evaluate(asy
   const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json','X-WB-CSRF':sessionStorage.getItem('wb-csrf')!},body:body===undefined?undefined:JSON.stringify(body)});
   if(!response.ok)throw new Error(await response.text());return response.json();
 },{path,body})}
-async function open(page:Page){await page.goto('/#session='+code);await expect(page.locator('[data-token="w1"]')).toBeVisible();await expect(page.locator('#audio-play')).toBeEnabled();await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','ready')}
+async function open(page:Page){await page.goto(origin+'/#session='+code);await expect(page.locator('[data-token="w1"]')).toBeVisible();await expect(page.locator('#audio-play')).toBeEnabled();await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','ready')}
 async function overview(page:Page){await page.locator('#open-overview').click();const dialog=page.getByRole('dialog',{name:'Research overview',exact:true});await expect(dialog).toBeVisible();return dialog}
 function observe(page:Page){
   const errors:string[]=[],writes:string[]=[],external:string[]=[];
   page.on('pageerror',error=>errors.push(error.message));
-  page.on('request',request=>{if(request.method()!=='GET'&&request.url().includes('/api/'))writes.push(request.method()+' '+new URL(request.url()).pathname);if(/^https?:/.test(request.url())&&!request.url().startsWith('http://127.0.0.1:18912/'))external.push(request.url())});
+  page.on('request',request=>{if(request.method()!=='GET'&&request.url().includes('/api/'))writes.push(request.method()+' '+new URL(request.url()).pathname);if(/^https?:/.test(request.url())&&!request.url().startsWith(origin+'/'))external.push(request.url())});
   return {errors,writes,external};
 }
 async function unchanged(page:Page,before:any,observed:ReturnType<typeof observe>){
@@ -58,6 +61,50 @@ async function traceChanged(page:Page){return page.locator('#overview-traces').e
   // A moving playhead produces substantial stroke changes and still fails this.
   return canvas.width!==before.width||canvas.height!==before.height||pixels.some((value,index)=>Math.abs(value-before.pixels[index])>1);
 })}
+
+for(const mode of ['native','unsupported','draw failure'] as const){
+  test(`recording trace has readable HTML labels with ${mode} canvas support`,async({page})=>{
+    if(mode==='native'){
+      const supported=await page.evaluate(()=>{
+        const canvas=document.createElement('canvas');
+        canvas.setAttribute('content','drawable');
+        return Reflect.get(canvas,'content')==='drawable'&&typeof Reflect.get(CanvasRenderingContext2D.prototype,'drawElementImage')==='function';
+      });
+      test.skip(!supported,'This browser runs the ordinary HTML label path.');
+    }else{
+      await page.addInitScript(mode=>{
+        Object.defineProperty(CanvasRenderingContext2D.prototype,'drawElementImage',{
+          configurable:true,value:mode==='unsupported'?undefined:()=>{throw new DOMException('Unavailable snapshot','InvalidStateError')},
+        });
+      },mode);
+    }
+    await open(page);
+    await overview(page);
+    const labels=page.getByRole('group',{name:'Recording trace labels'});
+    const layer=labels.locator('canvas');
+    if(mode==='native'){
+      await expect.poll(()=>layer.evaluate((canvas:HTMLCanvasElement)=>{
+        const pixels=canvas.getContext('2d')!.getImageData(0,0,canvas.width,canvas.height).data;
+        return pixels.some((channel,index)=>index%4===3&&channel>0);
+      })).toBe(true);
+      // A stationary trace should not ask for another paint every frame.
+      const requests=await layer.evaluate(async(canvas:HTMLCanvasElement)=>{
+        let calls=0;
+        const paint=Reflect.get(canvas,'requestPaint').bind(canvas);
+        Reflect.set(canvas,'requestPaint',()=>{calls++;paint()});
+        for(let frame=0;frame<8;frame++)await new Promise<void>(done=>requestAnimationFrame(()=>done()));
+        return calls;
+      });
+      expect(requests).toBeLessThan(2);
+    }else{
+      await expect(layer).toHaveCount(0);
+    }
+    await expect(labels.getByText('Peak envelope',{exact:true})).toBeVisible();
+    await expect(labels.getByText('Sampled frequency bands',{exact:true})).toBeVisible();
+    const accessible=await labels.ariaSnapshot();
+    for(const text of ['Peak envelope','Sampled frequency bands','0:00','0:08','0:16'])expect(accessible).toContain(text);
+  });
+}
 
 test('overview reports the actual snapshot, bounded artifact identities and selection while preserving drafts',async({page})=>{
   await open(page);const before=await api(page,'/api/view'),observed=observe(page);
@@ -112,7 +159,48 @@ test('text without media stays explicit and never inherits another document reco
   await expect(page.locator('#overview-selection-count')).toContainText(/\b1\b/);await expect(page.locator('#overview-selection-text')).toContainText('SYNTHETIC supplied words without timing');
   await expect(page.locator('#overview-selection-timing')).toContainText(/unknown|unavailable|absent|no.*timing/i);
   await expect(page.locator('#overview-traces')).toHaveAccessibleName(/no measured trace available/i);await expect(page.locator('#overview-traces')).not.toHaveAccessibleName(/0:16/);
+  await expect(page.locator('#overview-trace-key')).toBeHidden();
   expect(await page.locator('#audio').getAttribute('src')).toBeNull();await expect(dialog).toHaveAttribute('data-motion','ready');await unchanged(page,before,observed);
+});
+
+test('a pinned listening interval follows its own anchors and text-only selections cannot start playback',async({page})=>{
+  await open(page);
+  const before=await api(page,'/api/view'),observed=observe(page);
+  const audio=page.locator('#audio'),transport=page.getByRole('button',{name:'Listen to selection',exact:true});
+  const pin=page.getByRole('button',{name:'Listen to pinned passage'});
+  await page.getByRole('button',{name:'Co-analysis',exact:true}).click();
+  await page.locator('[data-token="w1"]').click();
+  await expect(pin).toHaveAccessibleDescription('Supplied word timing · 1–2 s');
+  await page.getByLabel('Model name or version').fill('Synthetic listening control');
+  await page.getByLabel('Model reply').fill('Check the supplied wording against the recording.');
+  await page.getByRole('button',{name:'Review this reply'}).click();
+  await page.locator('[data-token="w2"]').click();
+  await expect(transport).toHaveAttribute('title',/utterance time \(0 s\)/);
+  await pin.click();
+  await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>!a.paused&&a.currentTime>=1&&a.currentTime<2)).toBe(true);
+  await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>a.paused&&Math.abs(a.currentTime-2)<.01)).toBe(true);
+  await transport.click();
+  await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>!a.paused&&a.currentTime<1)).toBe(true);
+  await page.locator('#audio-play').click();
+  await page.locator('[data-document="xmlfiles/no-media.xml"]').click();
+  for(const id of ['untimed','orphan-word']){
+    await page.locator(`[data-token="${id}"]`).click();
+    const action=page.locator('.selection-tools:visible [data-action="listen"]');
+    await expect(action).toBeVisible();
+    await expect(action).toBeDisabled();
+    await expect(transport).toBeDisabled();
+    await expect(pin).toBeDisabled();
+    expect(await audio.evaluate((a:HTMLAudioElement)=>a.paused&&!a.getAttribute('src')&&a.currentTime===0)).toBe(true);
+  }
+  await page.locator('[data-document="xmlfiles/alpha.xml"]').click();
+  await expect(pin).toBeEnabled();
+  await expect(pin).toHaveAccessibleDescription('Supplied word timing · 1–2 s');
+  await expect(page.locator('[data-proposal]')).toHaveText('Check the supplied wording against the recording.');
+  await audio.evaluate((a:HTMLAudioElement)=>{a.play=()=>Promise.reject(new DOMException('Synthetic blocked playback','NotAllowedError'))});
+  await pin.click();
+  await expect(page.locator('#message')).toContainText('Recording playback could not start.');
+  await audio.evaluate((a:HTMLAudioElement)=>{Reflect.deleteProperty(a,'play')});
+  await unchanged(page,before,observed);
 });
 
 test('dark and light overview remain bounded and usable at desktop and phone widths',async({page})=>{

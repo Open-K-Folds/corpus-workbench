@@ -5,6 +5,13 @@ editor, adding native project import/open, exact-revision saving/export, backups
 stable draft storage and managed process lifecycle. See
 [desktop build, workflows and architecture](docs/ELECTRON-DESKTOP.md).
 
+Open **Reading canvas** beside a transcript title to read edge to edge, scrub
+between turns and select a passage. Choose **Co-analyse** on the selection to
+write a first reading, consult a local model, check its quotations and record
+your assessment at the source anchors. Try the fictional noticeboard conversation
+in the [co-analysis guide](docs/CO-ANALYSIS.md). The interaction draws on
+Chuanqi Sun’s [Spaceship IDE](https://github.com/chuanqisun/spaceship).
+
 For a first recording-and-transcript session, follow the
 [first research session guide](docs/FIRST-RESEARCH-SESSION.md): import a copy,
 save a correction, explicitly review its exact revision, then optionally run
@@ -64,7 +71,7 @@ The suite contains native contract/recovery tests, 75 actual host browser flows 
 
 ## Scope and data rights
 
-Retokenization supports only the closed, proved text dialect documented above. Arbitrary token restructuring, deletion, automatic alignment, original TEITOK CWB/CQP index rebuilding and full query parity, multi-user roles, production deployment and model-based linguistic inference are deferred. Existing byte-offset CWB indexes can become stale after XML edits; do not use them without rebuilding through the retained tool adapter. Nested token structures are readable but not editable. Unknown layers are preserved, not claimed to be fully interpreted. Crash tests exercise abrupt process exit and transaction stages; they do not simulate physical power loss. Native Semantica is an optional locally supplied compiler boundary documented in [SEMANTIC-HANDOFF.md](docs/SEMANTIC-HANDOFF.md); the base workbench is standalone.
+Retokenization supports only the closed, proved text dialect documented above. Arbitrary token restructuring, deletion, automatic alignment, original TEITOK CWB/CQP index rebuilding and full query parity, multi-user roles, production deployment and automated corpus-wide linguistic inference are deferred. Existing byte-offset CWB indexes can become stale after XML edits; do not use them without rebuilding through the retained tool adapter. Nested token structures are readable but not editable. Unknown layers are preserved, not claimed to be fully interpreted. Crash tests exercise abrupt process exit and transaction stages; they do not simulate physical power loss. Native Semantica is an optional locally supplied compiler boundary documented in [SEMANTIC-HANDOFF.md](docs/SEMANTIC-HANDOFF.md); the base workbench is standalone.
 
 All public fixtures and public screenshots must be synthetic. Corpus rights and software licensing are separate; this license grants no rights to recordings, creator data or research transcripts. No actual corpus content, identifying pilot measurements, private compiler code or private history is published here.
 

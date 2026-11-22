@@ -28,3 +28,8 @@ ui/public/third-party/material-symbols/ and copied to built UI distributions.
 
 Software licenses do not grant corpus, recording, transcript or creator rights.
 Private data and private evaluation copies are excluded from public distribution.
+
+Co-analysis interaction design draws on Chuanqi Sun (MIT Media Lab),
+Spaceship IDE: Steer Your Ideas in Realtime, Space Pilot Style (2026).
+https://github.com/chuanqisun/spaceship (MIT).
+See docs/CO-ANALYSIS.md for the citation and specific design influences.

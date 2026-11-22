@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI>
+  <teiHeader>
+    <title>Who gets the notice?</title>
+    <note>Fictional dialogue written for co-analysis practice. No source recording.</note>
+  </teiHeader>
+  <text><body>
+    <u id="turn-1" who="A"><tok id="a1">We</tok> <tok id="a2">put</tok> <tok id="a3">the</tok> <tok id="a4">notice</tok> <tok id="a5">on</tok> <tok id="a6">the</tok> <tok id="a7">board.</tok></u>
+    <u id="turn-2" who="B"><tok id="b1">I</tok> <tok id="b2">only</tok> <tok id="b3">heard</tok> <tok id="b4">after</tok> <tok id="b5">the</tok> <tok id="b6">meeting.</tok></u>
+    <u id="turn-3" who="A"><tok id="c1">I</tok> <tok id="c2">heard</tok> <tok id="c3">beforehand,</tok> <tok id="c4">from</tok> <tok id="c5">my</tok> <tok id="c6">neighbour.</tok></u>
+  </body></text>
+</TEI>
