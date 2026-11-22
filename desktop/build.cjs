@@ -24,7 +24,7 @@ async function build() {
   await fs.copyFile(path.join(root, 'scripts', 'semantica-handoff.py'), path.join(resources, 'semantica', 'semantica-handoff.py'));
   const demo = path.join(resources, 'demo');
   await fs.cp(path.join(root, 'fixtures', 'synthetic'), demo, {recursive: true});
-  await fs.copyFile(path.join(root, 'fixtures', 'coanalysis', 'xmlfiles', 'noticeboard.xml'), path.join(demo, 'xmlfiles', 'noticeboard.xml'));
+  await fs.cp(path.join(root, 'fixtures', 'coanalysis', 'xmlfiles'), path.join(demo, 'xmlfiles'), {recursive: true});
   await fs.mkdir(path.join(demo, 'Audio'), {recursive: true});
   const rate = 16000, samples = rate * 8, wav = Buffer.alloc(44 + samples * 2);
   wav.write('RIFF', 0); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8); wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22); wav.writeUInt32LE(rate, 24); wav.writeUInt32LE(rate * 2, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34); wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);

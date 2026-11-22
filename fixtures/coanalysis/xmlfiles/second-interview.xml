@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TEI>
+  <teiHeader>
+    <title>After the meeting</title>
+    <note>Fictional follow-up interview for training collection practice. No source recording.</note>
+  </teiHeader>
+  <text><body>
+    <u id="follow-1" who="C"><tok id="f1">By</tok> <tok id="f2">the</tok> <tok id="f3">time</tok> <tok id="f4">I</tok> <tok id="f5">found</tok> <tok id="f6">out,</tok> <tok id="f7">it</tok> <tok id="f8">was</tok> <tok id="f9">already</tok> <tok id="f10">over.</tok></u>
+    <u id="follow-2" who="C"><tok id="g1">I</tok> <tok id="g2">got</tok> <tok id="g3">there</tok> <tok id="g4">after</tok> <tok id="g5">the</tok> <tok id="g6">meeting.</tok></u>
+    <u id="follow-3"><tok id="h1">My</tok> <tok id="h2">neighbour</tok> <tok id="h3">told</tok> <tok id="h4">me</tok> <tok id="h5">later.</tok></u>
+  </body></text>
+</TEI>
