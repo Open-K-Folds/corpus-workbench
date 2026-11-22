@@ -62,7 +62,8 @@ test('training reviews survive native rereads, retain historical evidence and re
   expect(exported).toHaveLength(3);
   const original = exported.find(row => row.id === operation.id);
   expect(original).toMatchObject({kind: 'pair', label: input.label, seed, candidate, reviewer: actor, assistance,
-    exportedFrom: {revision: corrected.revision.id, snapshotHash: corrected.revision.snapshot_hash}});
+    exportedFrom: {revision: corrected.revision.id, snapshotHash: corrected.revision.snapshot_hash,
+      rights: corrected.snapshot.config.rights, machineDraftProvenance: corrected.snapshot.config.machine_draft_provenance}});
   expect(exported.filter(row => row.kind === 'classification').map(row => row.label).sort()).toEqual(['Notification', 'Timing']);
   expect(trainingCounts(trainingCollections(corrected).get(collection)!)).toEqual({...trainingCounts(rows), examples: 3});
   expect(() => trainingJsonl(corrected, 'Unreviewed suggestions')).toThrow(/Save a reviewed example/);

@@ -181,7 +181,10 @@ export function trainingCounts(records: TrainingRecord[]) {
 export function trainingJsonl(view: View, collection: string): string {
   const rows = trainingCollections(view).get(collection);
   if (!rows?.length) throw new Error('Save a reviewed example in this collection before exporting it.');
-  const exportedFrom = {project: view.snapshot.project, revision: view.revision.id, snapshotHash: view.revision.snapshot_hash};
+  const exportedFrom = {
+    project: view.snapshot.project, revision: view.revision.id, snapshotHash: view.revision.snapshot_hash,
+    rights: view.snapshot.config.rights, machineDraftProvenance: view.snapshot.config.machine_draft_provenance,
+  };
   return rows.map(row => JSON.stringify({...row, exportedFrom})).join('\n') + '\n';
 }
 

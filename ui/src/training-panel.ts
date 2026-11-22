@@ -234,6 +234,7 @@ export class TrainingPanel {
     body.innerHTML=`<label>Saved collection<select name="saved-collection">${[...this.collections.keys()].map(n=>`<option ${n===this.libraryName?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
       <p class="training-counts">${counts.examples} reviewed · ${counts.utterances} identified utterance${counts.utterances===1?'':'s'} · ${counts.speakers} document-scoped speaker ID${counts.speakers===1?'':'s'}</p>
       ${counts.unknownSpeakers||counts.unknownUtterances?`<small>${counts.unknownSpeakers} without speaker attribution · ${counts.unknownUtterances} unsegmented passage${counts.unknownUtterances===1?'':'s'}</small>`:''}
+      ${this.view.snapshot.config.rights?`<p class="muted"><strong>Corpus use</strong><br>${esc(this.view.snapshot.config.rights)}</p>`:''}
       <button type="button" class="secondary" data-export>${icon('download')}Export reviewed JSONL</button>`;
     const select=body.querySelector('select')!;
     select.onchange=()=>{this.libraryName=select.value;this.draw();this.node.querySelector<HTMLSelectElement>('[name="saved-collection"]')?.focus();};
