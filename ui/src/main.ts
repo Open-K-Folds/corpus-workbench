@@ -10,6 +10,7 @@ import {TrainingPanel} from './training-panel';
 import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type RecordingCue} from './listening';
 import {ResearchOverview} from './overview';
 import {ReadingCanvas,stageControls} from './reading-canvas';
+import {PlaybackSync} from './playback-sync';
 import {windowBar,activityRail,workspaceSettings,initialLayout} from './studio-shell';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
@@ -43,6 +44,7 @@ if(desktop)document.documentElement.classList.add('desktop-app');
 try{document.documentElement.dataset.theme=localStorage.getItem('wb-theme')??'dark'}catch{document.documentElement.dataset.theme='dark'}
 let overview:ResearchOverview|null=null;
 let readingCanvas:ReadingCanvas|null=null;
+let playbackSync:PlaybackSync|null=null;
 function departure():Departure {
   const inline=transcript?.departureState()??{dirty:false,recoverable:true,saving:false};
   const memory=draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')!==null)||app.querySelector('form[data-desktop-dirty="true"]:not([data-dirty])')!==null;
@@ -71,7 +73,7 @@ async function start(){
     shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
 }
 function loginScreen(){app.innerHTML=`${windowBar(false)}<main class="login"><h1>Corpus workbench</h1><p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p><form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;el<HTMLFormElement>('login-form').onsubmit=async e=>{e.preventDefault();try{await login(formValues(e.currentTarget as HTMLFormElement).code);await start()}catch(e){el('login-error').textContent=String(e)}}}
-function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
+function shell(){overview?.dispose();readingCanvas?.dispose();playbackSync?.destroy();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
   ${windowBar(true)}${activityRail()}
   <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
   <main class="transcript">
@@ -158,6 +160,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
     void renderInspector().then(()=>{const heading=training.node.querySelector<HTMLElement>('h2');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}});
   },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'));
+  playbackSync=new PlaybackSync(el<HTMLAudioElement>('audio'),el('tokens'));
   overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:target=>{tab=target;showProperties();void renderInspector()}});
   el('open-overview').onclick=()=>overview?.open();
   el('transcript-layout').onchange=e=>transcript.setLayout((e.target as HTMLInputElement).value as 'lines'|'paragraphs');
@@ -182,7 +185,6 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   audio.addEventListener('pause',()=>{if(audio.paused)clearPinnedPlayback()});
   for(const event of ['playing','ratechange','seeked'])audio.addEventListener(event,checkPinnedEnd);
   audio.ontimeupdate=()=>{
-    highlightPlayback(audio.currentTime);
     if(audio.paused)return;
     if(pinnedPlayback)checkPinnedEnd();
     else if(loop){
@@ -208,6 +210,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   });
 }
 function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.path;selected=selected.filter(id=>doc.tokens.some(t=>t.id===id));
+  if(cueMedia?.document!==docPath || cueMedia.snapshot!==view.revision.snapshot_hash)playbackSync?.bind(null,'');
   el('save-state').textContent=`Saved R${view.revision.id} · ${view.approved?'Approved exact revision':'Unreviewed'}`;
   el('document-title').textContent=doc.title;
   el('native-problems').innerHTML=icon('fact_check')+'Package validation · '+view.issues.filter(i=>i.blocking).length+' blocking / '+view.issues.filter(i=>!i.blocking).length+' advisory';
@@ -229,7 +232,6 @@ function renderNavigation(){const doc=currentDoc();
 async function nextMatch(){if(saving||pendingWrite||transcript.dirty()){message('Finish or undo the correction draft before moving to another match.',true);return}const matches=currentDoc().tokens.filter(t=>visibleToken(t,readingPreferences));if(!matches.length)return;const next=matches[(matches.findIndex(t=>t.id===selected[0])+1)%matches.length],basis=view.revision.snapshot_hash,scope=docPath,epoch=inspectorEpoch;selected=[next.id];tab='token';await transcript.render();if(saving||pendingWrite||transcript.dirty()||basis!==view.revision.snapshot_hash||scope!==docPath||epoch!==inspectorEpoch)return;void renderInspector();const button=document.querySelector<HTMLButtonElement>(`[data-token="${CSS.escape(next.id)}"]`);if(button)button.tabIndex=-1;button?.focus();button?.scrollIntoView({block:'nearest'});}
 function draftStatus(){const dirty=draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));el('save-state').textContent=dirty?'Unsaved draft - saved head R'+view.revision.id:`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;}
 function renderTokens(){void transcript.render()}
-function highlightPlayback(time:number){for(const element of document.querySelectorAll<HTMLElement>('[data-utterance]')){const s=currentDoc().segments.find(s=>s.id===element.dataset.utterance);element.classList.toggle('playing',!!s&&s.start_us!==null&&s.end_us!==null&&time*1e6>=s.start_us&&time*1e6<s.end_us)}}
 function currentAnchor(){return passageAnchor(view,docPath,selected)}
 function currentBasis(anchor:PassageAnchor){
   return anchor.document===docPath && anchor.project===view.snapshot.project && anchor.revision===view.revision.id && anchor.snapshot_hash===view.revision.snapshot_hash;
@@ -470,7 +472,33 @@ async function resolvePendingWrite() {
     offerSaveRetry();
   } finally { saving = false; }
 }
-function configureMedia(unsupportedBase:boolean){const doc=currentDoc();const candidates=[...new Set(doc.media.flatMap(reference=>[reference,`Audio/${reference}`,`Video/${reference}`]).filter(path=>view.snapshot.files[path]?.role==='source-media'))];const media=!unsupportedBase&&candidates.length===1?candidates[0]:undefined;const audio=el<HTMLAudioElement>('audio');const src=media?`/api/media?path=${encodeURIComponent(media)}&revision=${view.revision.id}`:'';audio.hidden=!media;el('audio-availability').hidden=!!media;el<HTMLInputElement>('loop-selection').disabled=!media;const mediaScope=media?doc.path+':'+view.snapshot.files[media].sha256:'';cueMedia=media?{document:doc.path,snapshot:view.revision.snapshot_hash,scope:mediaScope}:null;if(media&&(!audio.hasAttribute('src')||audio.dataset.mediaScope!==mediaScope)){const scope=doc.path,basis=view.revision.id,time=documentStates.get(scope)?.time??audio.currentTime;audio.dataset.mediaScope=mediaScope;audio.src=src;audio.addEventListener('loadedmetadata',()=>{if(docPath===scope&&view.revision.id===basis&&audio.getAttribute('src')===src)audio.currentTime=Math.min(time,Number.isFinite(audio.duration)?audio.duration:time)},{once:true});audio.load()}if(!media&&audio.hasAttribute('src')){audio.removeAttribute('src');delete audio.dataset.mediaScope;audio.load()}refreshListenControls();void recording.update(view,doc,media);}
+function configureMedia(unsupportedBase:boolean){
+  const doc=currentDoc(),audio=el<HTMLAudioElement>('audio');
+  const candidates=[...new Set(doc.media.flatMap(reference=>[reference,`Audio/${reference}`,`Video/${reference}`])
+    .filter(path=>view.snapshot.files[path]?.role==='source-media'))];
+  const media=!unsupportedBase && candidates.length===1 ? candidates[0] : undefined;
+  const scope=media ? doc.path+':'+view.snapshot.files[media].sha256 : '';
+  cueMedia=media ? {document:doc.path,snapshot:view.revision.snapshot_hash,scope} : null;
+  audio.hidden=!media;
+  el('audio-availability').hidden=!!media;
+  el<HTMLInputElement>('loop-selection').disabled=!media;
+  if(media && (!audio.hasAttribute('src') || audio.dataset.mediaScope!==scope)){
+    const src=`/api/media?path=${encodeURIComponent(media)}&revision=${view.revision.id}`;
+    const time=documentStates.get(doc.path)?.time??0;
+    audio.dataset.mediaScope=scope;
+    audio.src=src;
+    audio.addEventListener('loadedmetadata',()=>{
+      if(audio.dataset.mediaScope===scope && audio.getAttribute('src')===src && time>0)
+        audio.currentTime=Math.min(time,Number.isFinite(audio.duration)?audio.duration:time);
+    },{once:true});
+    audio.load();
+  }else if(!media && audio.hasAttribute('src')){
+    audio.removeAttribute('src');delete audio.dataset.mediaScope;audio.load();
+  }
+  playbackSync?.bind(media?doc:null,scope);
+  refreshListenControls();
+  void recording.update(view,doc,media);
+}
 function updatePaneAccessibility(){
   const workspace=document.querySelector<HTMLElement>('.workspace')!;
   const narrow=matchMedia('(max-width:700px)').matches;

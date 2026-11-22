@@ -29,6 +29,7 @@ test.beforeAll(async()=>{
   writeFileSync(resolve(runtime,'package/xmlfiles/corrupt.xml'),document('SYNTHETIC invalid recording','corrupt.wav',"<tok id='broken'>Invalid media fixture</tok>"));
   writeFileSync(resolve(runtime,'package/xmlfiles/long.xml'),document('SYNTHETIC long recording','long.wav',"<u id='long-u' start='0' end='601'><tok id='long' start='1' end='2'>Long recording fixture</tok></u>"));
   writeFileSync(resolve(runtime,'package/xmlfiles/silent.xml'),document('SYNTHETIC absent recording','',"<tok id='absent' start='2' end='4'>No recording fixture</tok>"));
+  writeFileSync(resolve(runtime,'package/xmlfiles/untimed.xml'),document('SYNTHETIC untimed transcript','tones.wav',"<tok id='low'>Reused identity with no timing</tok>"));
   writeFileSync(resolve(runtime,'package/Audio/tones.wav'),toneFixture());
   writeFileSync(resolve(runtime,'package/Audio/long.wav'),toneFixture(601,8000));
   writeFileSync(resolve(runtime,'package/Audio/corrupt.wav'),'SYNTHETIC deliberately invalid WAV bytes');
@@ -124,10 +125,28 @@ test('spectrogram has real nonuniform tone data and shares pointer, keyboard and
   await mode(page,'Spectrogram');await page.locator('[data-token="high"]').click();await page.getByRole('button',{name:'Listen to selection',exact:true}).click();
   await expect.poll(()=>page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.currentTime)).toBeGreaterThan(5);
   await expect.poll(()=>page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.currentTime)).toBeLessThan(6);
-  await expect(page.locator('[data-utterance="u2"]')).toHaveClass(/playing/);
+  await expect(page.locator('[data-utterance="u2"] [data-token="high"][data-playback-word]')).toBeVisible();
   await page.getByRole('button',{name:'Pause recording',exact:true}).click();
   const time=await page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.currentTime);
   expect(Number(await chart.getAttribute('aria-valuenow'))).toBeCloseTo(time,1);expect(errors).toEqual([]);
+});
+
+test('audio following drops stale cues when a new transcript reuses a recording and word ID',async({page})=>{
+  await open(page);
+  await seek(page,1.5);
+  await expect(page.locator('#tokens [data-token="low"][data-playback-word]')).toBeVisible();
+  await page.locator('[data-document="xmlfiles/untimed.xml"]').click();
+  const follow=page.getByRole('button',{name:'Follow audio',exact:true});
+  await expect(page.locator('#canvas-play')).toBeEnabled();
+  await expect(follow).toBeDisabled();
+  await expect(follow).toContainText('No timing');
+  await seek(page,1.5);
+  await expect(page.locator('#tokens [data-playback-word],#tokens [data-playback-turn]')).toHaveCount(0);
+  await page.locator('[data-document="xmlfiles/silent.xml"]').click();
+  await expect(page.locator('#canvas-listening')).toBeHidden();
+  await page.locator('[data-document="xmlfiles/alpha.xml"]').click();
+  await expect(follow).toBeEnabled();
+  await expect(page.locator('#tokens [data-token="low"][data-playback-word]')).toBeVisible();
 });
 
 test('spectrum is a live frequency view with honest pause state and separate seeking',async({page})=>{

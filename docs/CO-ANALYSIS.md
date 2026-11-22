@@ -52,6 +52,23 @@ word interval, or its source utterance if word timing is unavailable. The
 control names the timing basis. Changing the current selection keeps the
 original passage pinned. A text-only document has no listening action available.
 
+## Follow the recording
+
+Open a document with a linked recording and press **Play audio on canvas** in the
+reading dock. The amber caret advances to words with supplied start and end times.
+A mark in the margin locates a timed utterance when the recording only identifies
+the passage. During a gap with no supplied timing, the marker disappears.
+
+Scroll or select words to read independently while the recording continues. Press
+**Follow audio** to return to the current passage. Seeking in the recording moves
+the marker while paused, and the playback highlight leaves the selected evidence
+available for correction or co-analysis.
+
+The [spoken practice package](../fixtures/spoken-reading) includes a narrated
+transcript with word timing, a passage timed as a whole, and pauses between turns.
+The active-word caret and line-following behavior draw on the work of the
+[Monkeytype contributors](https://github.com/monkeytypegame/monkeytype).
+
 ## Collect training examples
 
 Open **Who gets the notice?** in a new practice copy. Select the second turn by clicking

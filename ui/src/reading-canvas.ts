@@ -14,6 +14,10 @@ export function stageControls() {
         <input id="canvas-scrub" type="range" min="1" max="1" step="1" value="1" aria-label="Scrub source turns">
         <button type="button" id="canvas-next" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
       </div>
+      <div class="canvas-listening" id="canvas-listening" hidden>
+        <button type="button" id="canvas-play" aria-label="Play audio on canvas" title="Play audio on canvas">${icon('play_arrow')}</button>
+        <button type="button" id="follow-audio" aria-label="Follow audio" aria-pressed="false" aria-controls="tokens">${icon('adjust')}<span class="follow-label">Follow audio</span></button>
+      </div>
       <div class="canvas-zoom">
         <button type="button" id="canvas-zoom-out" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">${icon('remove')}</button>
         <output id="canvas-scale" aria-label="Text size">100%</output>

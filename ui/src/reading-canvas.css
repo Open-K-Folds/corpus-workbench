@@ -279,6 +279,21 @@
 #canvas-scale {min-inline-size:4ch;text-align:center;color:#dce8de}
 .canvas-console #canvas-exit {display:inline-flex;align-items:center;justify-content:center;gap:4px;padding-inline:8px;border-radius:6px;white-space:nowrap}
 .canvas-console [hidden] {display:none!important}
+.canvas-console .canvas-listening {display:flex;align-items:center;gap:3px}
+.canvas-console #follow-audio {
+  display:inline-flex;align-items:center;gap:4px;padding-inline:6px;
+  border-radius:5px;white-space:nowrap;background:transparent;border-color:transparent;box-shadow:none
+}
+.canvas-console #follow-audio[aria-pressed=true] {color:#ffe1a3;border-color:#8c7955;background:#38352b}
+.canvas-console #follow-audio .material-symbol {font-size:16px}
+@container steering-dock (min-width: 571px) {
+  .canvas-tools .canvas-console:has(.canvas-listening:not([hidden])) {
+    grid-template-columns:auto minmax(80px,12rem) auto auto;
+  }
+  .canvas-tools .canvas-console:has(.canvas-listening:not([hidden])):has(#canvas-exit:not([hidden])) {
+    grid-template-columns:auto minmax(80px,12rem) auto auto auto;
+  }
+}
 
 #app[data-reading-canvas] > .workbench-header {display:none}
 #app[data-reading-canvas] > #recording-pane {position:absolute;inset:auto 0 0;width:auto;visibility:hidden;pointer-events:none}
@@ -310,6 +325,17 @@
   .canvas-console #canvas-exit {padding-inline:0}
   #canvas-exit span:not(.material-symbol) {display:none}
   #canvas-position {white-space:normal}
+}
+@container steering-dock (max-width:570px) {
+  .canvas-tools .canvas-console:has(.canvas-listening:not([hidden])) {
+    inline-size:min(100%,26rem);box-sizing:border-box;padding:5px 8px;gap:4px 6px;
+    grid-template-columns:minmax(0,1fr) auto auto;
+  }
+  .canvas-console:has(.canvas-listening:not([hidden])) .canvas-position {grid-area:1/1;max-inline-size:none}
+  .canvas-console:has(.canvas-listening:not([hidden])) .canvas-zoom {grid-area:1/2;border:0}
+  .canvas-console:has(.canvas-listening:not([hidden])) #canvas-exit {grid-area:1/3}
+  .canvas-console:has(.canvas-listening:not([hidden])) .canvas-transport {grid-area:2/1}
+  .canvas-console:has(.canvas-listening:not([hidden])) .canvas-listening {grid-area:2/2/3/4;justify-self:end}
 }
 @media (pointer:coarse) {
   .canvas-console button, .canvas-tools #canvas-scrub {min-block-size:44px}
