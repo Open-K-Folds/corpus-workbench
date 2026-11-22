@@ -153,6 +153,39 @@ test('a narrow trainer finds manually searched source words and keeps the review
   expect(note).toMatchObject({discovery: 'manual text search', lens: 'wording', candidate: {utterance: 'follow-1'}});
 });
 
+test('matched-word collection lets the researcher save a particular occurrence and inspect the surrounding source separately', async ({page, practiceUrl}) => {
+  await page.goto(practiceUrl);
+  await chooseSeed(page, 'b1', 'b6');
+  const trainer = panel(page);
+  await trainer.getByRole('radio', {name: 'Similar wording'}).check();
+  const scope = trainer.getByRole('combobox', {name: 'Search result span'});
+  await expect(scope.locator('option:checked')).toHaveText('Surrounding passage');
+  await scope.selectOption({label: 'Matched words only'});
+  await trainer.getByRole('searchbox', {name: 'Find words in the corpus'}).fill('THE');
+  await trainer.getByRole('button', {name: 'Find passages'}).click();
+  const occurrences = trainer.getByRole('combobox', {name: 'Comparison passage'});
+  expect((await occurrences.locator('option').allTextContents()).slice(0, 2)).toEqual([
+    '1. the · Who gets the notice? · a3', '2. the · Who gets the notice? · a6',
+  ]);
+  await occurrences.selectOption({index: 1});
+  const comparison = trainer.locator('.training-discovery .training-source');
+  await expect(comparison.locator('blockquote')).toHaveText('the');
+  await comparison.getByText('Source context', {exact: true}).click();
+  await expect(comparison.locator('mark')).toHaveCount(1);
+  await expect(comparison.locator('mark')).toHaveText('the');
+  await expect(comparison.locator('details')).toContainText('board.');
+  await saveReview(page, 'Relationship', 'Check in context', 2);
+  await trainer.getByRole('button', {name: 'Saved collections'}).click();
+  const downloadEvent = page.waitForEvent('download');
+  await trainer.getByRole('button', {name: 'Export reviewed JSONL'}).click();
+  const path = await (await downloadEvent).path();
+  const row = JSON.parse(await readFile(path!, 'utf8'));
+  expect(row.discovery).toBe('manual text search · matched words only');
+  expect(row.candidate).toMatchObject({utterance: 'turn-1', tokenIds: ['a6'], quote: 'the'});
+  expect(row.candidate.readings).toHaveLength(1);
+  expect(row.candidate.readings[0].id).toBe('a6');
+});
+
 test('another writer advancing the revision blocks the pinned training review until it is discarded', async ({page, practiceUrl}) => {
   await page.goto(practiceUrl);
   await chooseSeed(page, 'b1', 'b6');
