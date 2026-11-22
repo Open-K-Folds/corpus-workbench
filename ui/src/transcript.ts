@@ -210,10 +210,17 @@ export class Transcript {
   private readingGeometry(){const pane=this.surface.closest<HTMLElement>('.transcript'),rect=pane?.getBoundingClientRect();return [window.innerWidth,window.innerHeight,rect?.left,rect?.top,rect?.width,rect?.height,pane?.scrollLeft,pane?.scrollTop].join(':')}
   private position(element:HTMLElement,rect:DOMRect){
     element.hidden=false;
-    const height=element.getBoundingClientRect().height,pane=this.surface.closest('.transcript')!.getBoundingClientRect();
-    const top=rect.bottom+height+12<pane.bottom?rect.bottom+10:Math.max(pane.top+6,rect.top-height-10);
-    element.style.left=Math.max(12,Math.min(rect.left,window.innerWidth-350))+'px';
-    element.style.top=top+'px';this.popoverGeometry.set(element,this.readingGeometry());
+    const popup = element.getBoundingClientRect();
+    const pane = this.surface.closest('.transcript')!.getBoundingClientRect();
+    const gutter = 8;
+    const ceiling = Math.max(gutter, pane.top + gutter);
+    const floor = Math.min(window.innerHeight, pane.bottom) - gutter;
+    const below = rect.bottom + gutter;
+    const above = rect.top - popup.height - gutter;
+    const top = below + popup.height <= floor ? below : Math.max(ceiling, above);
+    element.style.left = Math.max(gutter, Math.min(rect.left, window.innerWidth - popup.width - gutter)) + 'px';
+    element.style.top = Math.max(gutter, Math.min(top, window.innerHeight - popup.height - gutter)) + 'px';
+    this.popoverGeometry.set(element,this.readingGeometry());
   }
   private showMenu(rect:DOMRect){
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;

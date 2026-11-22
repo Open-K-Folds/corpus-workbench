@@ -243,3 +243,76 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   .recording-analysis-info{font-size:9px;gap:0 8px}
 }
 @media(forced-colors:active){.recording-frequency-axis span{color:CanvasText;background:Canvas}.audio-views input:checked+span{outline:2px solid Highlight}}
+
+/* Keep the selection actions together on narrow and magnified displays. */
+.selection-tools[role=toolbar], .change-popover:not([hidden]) {
+  width: max-content;
+  max-width: min(340px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: auto;
+  padding: .5rem;
+  border: 1px solid var(--control-edge);
+  border-radius: .65rem;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 8px 28px #0003;
+}
+.selection-tools[role=toolbar] :is(.tool-primary,.tool-secondary) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .15rem;
+}
+.selection-tools .tool-primary { padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
+.selection-tools .tool-secondary { margin-top: .25rem; }
+.selection-tools[role=toolbar] button { min-height: 32px; border-radius: .3rem; }
+.selection-tools[role=toolbar] [data-action=coanalysis] { background: var(--selection-surface); color: var(--selection-ink); }
+.selection-tools[role=toolbar] button:hover:not(:disabled), .change-popover button:hover:not(:disabled) { background: var(--control-hover); }
+.selection-tools[role=toolbar] > small { margin-top: .2rem; padding-inline: .45rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+#recording-pane .recording-heading strong .material-symbol { color: var(--selection-ink); }
+#recording-pane .audio-views { border: 1px solid var(--border); }
+#recording-pane .audio-views input:checked + span { color: var(--selection-ink); background: var(--selection-surface); }
+#recording-pane .lane-label, #recording-summary { font-variant-numeric: tabular-nums; }
+#recording-pane.audio[data-recording-source=linked][data-detail=minimal] { min-height: max(var(--recording-minimal-min), var(--recording-content-min, 0px)); }
+#recording-pane.audio[data-recording-source=linked][data-detail=compact] { min-height: max(var(--recording-compact-min), var(--recording-content-min, 0px)); }
+#recording-pane.audio[data-recording-source=linked][data-detail=expanded] { min-height: max(var(--recording-expanded-min), var(--recording-content-min, 0px)); }
+@media (pointer:coarse) {
+  .selection-tools[role=toolbar] button { min-height: 44px; }
+}
+
+/* The linked-media height remains a user preference. A text document can
+   expose its supplied timing independently without changing that preference. */
+#recording-pane.audio[data-recording-source=absent] {
+  height: auto !important; /* The resizer retains an inline height for linked recordings. */
+  min-height: 0;
+  padding-block: 2px;
+}
+#recording-pane.audio[data-recording-source=absent] :is(.audio-views,.recording-visual,.recording-analysis-info,.media-player,.actions,#timeline-resizer,#recording-summary) { display: none; }
+#recording-pane.audio[data-recording-source=absent] .recording-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto;
+  align-items: center;
+  height: auto;
+  min-height: 32px;
+  gap: .5rem;
+}
+#recording-pane.audio[data-recording-source=absent] #audio-availability {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  font-size: .8rem;
+  color: var(--muted);
+}
+#recording-pane.audio[data-recording-source=absent] #timeline-toggle { display: inline-flex; }
+#recording-pane.audio[data-recording-source=absent] #recording-layers { display: none; }
+#recording-pane.audio[data-recording-source=absent][data-timing-open] #recording-layers {
+  display: block;
+  max-height: min(26dvh, 220px) !important; /* Linked-media lanes use an inline pixel budget. */
+  overflow: auto;
+  margin-block: .4rem;
+}
+#recording-pane.audio[data-recording-source=absent][data-timing-open] .text-only-tray { display: block; }
+#recording-pane.audio[data-recording-source=absent][data-timing-open] .timeline-lane { display: flex; }
+@media (max-width: 400px) {
+  #recording-pane.audio .actions { gap: 2px 4px; }
+  #recording-pane.audio #listen-selected { padding-inline: .45rem; }
+}

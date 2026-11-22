@@ -28,7 +28,7 @@ test.beforeAll(async()=>{
   writeFileSync(resolve(runtime,'package/xmlfiles/beta.xml'),document('SYNTHETIC second recording','tones.wav',"<u id='other-u' start='0' end='12'><tok id='other' start='2' end='3'>Second document</tok></u>"));
   writeFileSync(resolve(runtime,'package/xmlfiles/corrupt.xml'),document('SYNTHETIC invalid recording','corrupt.wav',"<tok id='broken'>Invalid media fixture</tok>"));
   writeFileSync(resolve(runtime,'package/xmlfiles/long.xml'),document('SYNTHETIC long recording','long.wav',"<u id='long-u' start='0' end='601'><tok id='long' start='1' end='2'>Long recording fixture</tok></u>"));
-  writeFileSync(resolve(runtime,'package/xmlfiles/silent.xml'),document('SYNTHETIC absent recording','',"<tok id='absent'>No recording fixture</tok>"));
+  writeFileSync(resolve(runtime,'package/xmlfiles/silent.xml'),document('SYNTHETIC absent recording','',"<tok id='absent' start='2' end='4'>No recording fixture</tok>"));
   writeFileSync(resolve(runtime,'package/Audio/tones.wav'),toneFixture());
   writeFileSync(resolve(runtime,'package/Audio/long.wav'),toneFixture(601,8000));
   writeFileSync(resolve(runtime,'package/Audio/corrupt.wav'),'SYNTHETIC deliberately invalid WAV bytes');
@@ -165,8 +165,23 @@ test('absent, corrupt and oversized recordings never retain an old analysis',asy
   await page.locator('[data-document="xmlfiles/silent.xml"]').click();await expect(page.locator('[data-token="absent"]')).toBeVisible();
   await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','empty');
   await expect(page.locator('#audio-availability')).toBeVisible();await expect(page.locator('#recording-waveform')).toHaveAttribute('aria-disabled','true');
+  const tray=page.locator('#recording-pane');
+  for(const width of [320,1440]){
+    await page.setViewportSize({width,height:850});
+    await expect(tray.getByText('No audio linked')).toBeVisible();
+    await expect(tray.locator('.audio-views')).toBeHidden();
+    await expect(tray.locator('.recording-visual')).toBeHidden();
+    await expect(tray.locator('.media-player')).toBeHidden();
+    await expect(tray.locator('#recording-layers')).toBeHidden();
+    expect((await tray.boundingBox())!.height).toBeLessThanOrEqual(50);
+    await tray.getByRole('button',{name:'Show supplied timing'}).click();
+    await expect(tray.getByTitle('absent · supplied word bounds')).toBeVisible();
+    await expect(tray.locator('.timeline-ruler')).toContainText('4.0 s');
+    await tray.getByRole('button',{name:'Hide supplied timing'}).click();
+  }
   await page.locator('[data-document="xmlfiles/corrupt.xml"]').click();await expect(page.locator('[data-token="broken"]')).toBeVisible();
   await expect(page.locator('#recording-pane')).toHaveAttribute('data-analysis-state','unavailable');
+  await expect(tray.locator('.audio-views')).toBeVisible();
   await expect(page.locator('#recording-analysis-status')).toContainText(/unavailable/i);await expect(page.locator('#audio-play')).toBeDisabled();
   // Simulate the authoritative size guard without creating a 33 MiB fixture. The
   // small real WAV still plays, proving this limit disables analysis only.
