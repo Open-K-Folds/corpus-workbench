@@ -51,10 +51,10 @@ export class PlaybackReader {
     }, {...options,capture:true});
     this.pane.parentElement?.addEventListener('click', event => {
       if (event.target instanceof Element && event.target.closest('#canvas-prev,#canvas-next')) suspend();
-    }, options);
+    }, {...options,capture:true});
     this.pane.parentElement?.addEventListener('input', event => {
       if (event.target instanceof Element && event.target.id === 'canvas-scrub') suspend();
-    }, options);
+    }, {...options,capture:true});
 
     this.projection = new MutationObserver(() => this.refresh());
     this.projection.observe(surface,{childList:true});
