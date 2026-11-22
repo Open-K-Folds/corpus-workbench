@@ -19,3 +19,18 @@ instruments. The Workbench adapts phrase locking to selecting evidence, the
 wheel to moving through saved turns, and directional steering to choosing an
 analytical question. The Codex window reference supplies the compact vertical
 rail, grouped actions and clear active icon. [Spaceship IDE and author’s citation](https://github.com/chuanqisun/spaceship) · [Interactive simulator](https://chuanqisun.github.io/spaceship/)
+
+## Acceptance record · 22 November 2026
+
+| Goal | Exercise and observation |
+| --- | --- |
+| G1 | On Windows, the welcome screen and open editor both expose a native drag region. The project name opens the library. UI Automation invoked the native minimize, maximize, restore and close controls. F10 and the File, Edit, View and Help shortcuts opened their Windows menus. |
+| G2 | In the ordinary workspace and focus mode, a pointer drag moved the numbered handle between source turns. Home, End and the arrow keys moved the same reading position. Dragging across words preserved native selection. Browser checks covered 320 and 390 CSS pixels. At 1000 × 700 and 125% desktop zoom, expanding the recording left 240 CSS pixels of readable transcript height. |
+| G3 | In packaged build `5a4c774`, the local Qwen2.5-0.5B-Instruct model received the previewed question and 12 tokens from the second and third noticeboard turns. The private first reading was absent from the outgoing request. Qwen misread “only” as a count of listeners. In the practice researcher role, Codex recorded **Partly supported** and cited the relevant words. The resulting R2 annotation reopened after package export and reimport. The source XML remained byte-identical. |
+
+To repeat the browser exercises, build the UI and Rust binary, then run
+`npm run test:e2e --prefix ui`. The fresh-stage cases create a separate local
+authority per exercise. To repeat the Windows exercises, build and package the
+desktop app, set `WB_ELECTRON_EXECUTABLE` to its full path, and run
+`npm run test:electron`. Follow the [noticeboard walkthrough](CO-ANALYSIS.md)
+for the real model exercise.
