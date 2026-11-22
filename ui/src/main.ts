@@ -11,7 +11,7 @@ import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type Recordin
 import {ResearchOverview} from './overview';
 import {ReadingCanvas,stageControls} from './reading-canvas';
 import {PlaybackSync} from './playback-sync';
-import {windowBar,activityRail,workspaceSettings,initialLayout} from './studio-shell';
+import {windowBar,activityRail,bindActivityRail,workspaceSettings,initialLayout} from './studio-shell';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
@@ -42,6 +42,8 @@ const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...s
 const app=el('app');
 if(desktop)document.documentElement.classList.add('desktop-app');
 try{document.documentElement.dataset.theme=localStorage.getItem('wb-theme')??'dark'}catch{document.documentElement.dataset.theme='dark'}
+let shellEvents:AbortController|undefined;
+const singleSidePane = matchMedia('(min-width:701px) and (max-width:1020px)');
 let overview:ResearchOverview|null=null;
 let readingCanvas:ReadingCanvas|null=null;
 let playbackSync:PlaybackSync|null=null;
@@ -73,7 +75,7 @@ async function start(){
     shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
 }
 function loginScreen(){app.innerHTML=`${windowBar(false)}<main class="login"><h1>Corpus workbench</h1><p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p><form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;el<HTMLFormElement>('login-form').onsubmit=async e=>{e.preventDefault();try{await login(formValues(e.currentTarget as HTMLFormElement).code);await start()}catch(e){el('login-error').textContent=String(e)}}}
-function shell(){overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
+function shell(){shellEvents?.abort();shellEvents=new AbortController();overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
   ${windowBar(true)}${activityRail()}
   <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
   <main class="transcript">
@@ -109,6 +111,7 @@ function shell(){overview?.dispose();playbackSync?.destroy();readingCanvas?.disp
   </section>
   <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span><span id="token-count" role="status"></span></footer>
   ${workspaceSettings()}`;
+  bindActivityRail(app,shellEvents.signal);
   if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
   desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
   readingCanvas=new ReadingCanvas(app);
@@ -130,7 +133,19 @@ function shell(){overview?.dispose();playbackSync?.destroy();readingCanvas?.disp
   resizeWorkbenchSides(document.querySelector<HTMLElement>('.workspace')!,el('navigation-resizer'),el('properties-resizer'));
   document.querySelector('.documents')!.id='projects-pane';document.querySelector('.inspector')!.id='properties-pane';
   document.querySelector<HTMLElement>('.workspace')!.dataset.focus='transcript';
-  const fold=(side:string)=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;if(matchMedia('(max-width:700px)').matches){workspace.dataset.focus=workspace.dataset.focus===side?'transcript':side;if(workspace.dataset.focus===side)workspace.classList.remove(side+'-folded')}else{const folded=workspace.classList.toggle(side+'-folded');workspace.dataset.focus=folded?'transcript':side}updatePaneAccessibility()};
+  const fold=(side:'navigation'|'properties')=>{
+    const workspace=document.querySelector<HTMLElement>('.workspace')!;
+    if(matchMedia('(max-width:700px)').matches){
+      workspace.dataset.focus=workspace.dataset.focus===side?'transcript':side;
+      if(workspace.dataset.focus===side) workspace.classList.remove(side+'-folded');
+    } else if(workspace.dataset.parked===side) {
+      workspace.dataset.focus=side;
+    } else {
+      const folded=workspace.classList.toggle(side+'-folded');
+      workspace.dataset.focus=folded?'transcript':side;
+    }
+    updatePaneAccessibility();
+  };
   el('toggle-navigation').onclick=()=>{readingCanvas?.close(false);fold('navigation')};
   el('window-library').onclick=()=>el('toggle-navigation').click();
   el('toggle-properties').onclick=()=>{readingCanvas?.close(false);fold('properties')};
@@ -150,8 +165,10 @@ function shell(){overview?.dispose();playbackSync?.destroy();readingCanvas?.disp
     workspace.dataset.focus='transcript';settings.open=choice==='editing'&&!matchMedia('(max-width:1000px)').matches;updatePaneAccessibility();
   });
   document.querySelector<HTMLAnchorElement>('.skip-link')!.onclick=()=>{showTranscript()};
-  matchMedia('(max-width:700px)').addEventListener('change',updatePaneAccessibility);updatePaneAccessibility();
-  const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').innerHTML=icon(theme==='dark'?'light_mode':'dark_mode');el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
+  matchMedia('(max-width:700px)').addEventListener('change',updatePaneAccessibility,{signal:shellEvents.signal});
+  singleSidePane.addEventListener('change',updatePaneAccessibility,{signal:shellEvents.signal});
+  updatePaneAccessibility();
+  const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').querySelector('.material-symbol')!.textContent=theme==='dark'?'light_mode':'dark_mode';el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
   try{setTheme(localStorage.getItem('wb-theme')??'dark')}catch{setTheme('dark')}
   el('toggle-theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
   transcript=new Transcript(el('tokens'),{training:(mode,ids,limit)=>{
@@ -502,8 +519,15 @@ function configureMedia(unsupportedBase:boolean){
 function updatePaneAccessibility(){
   const workspace=document.querySelector<HTMLElement>('.workspace')!;
   const narrow=matchMedia('(max-width:700px)').matches;
+  const bothOpen=!workspace.classList.contains('navigation-folded') && !workspace.classList.contains('properties-folded');
+  if(singleSidePane.matches && bothOpen){
+    const parked=workspace.dataset.focus==='properties'?'navigation':'properties';
+    const pane=el(parked==='navigation'?'projects-pane':'properties-pane');
+    if(pane.contains(document.activeElement)) el('toggle-'+parked).focus({preventScroll:true});
+    workspace.dataset.parked=parked;
+  } else if(workspace.dataset.parked) delete workspace.dataset.parked;
   workspace.querySelector<HTMLElement>('.transcript')!.inert=narrow&&workspace.dataset.focus!=='transcript';
-  for(const side of ['navigation','properties'])el('toggle-'+side).setAttribute('aria-expanded',String(narrow?workspace.dataset.focus===side:!workspace.classList.contains(side+'-folded')));
+  for(const side of ['navigation','properties'])el('toggle-'+side).setAttribute('aria-expanded',String(narrow?workspace.dataset.focus===side:!workspace.classList.contains(side+'-folded') && workspace.dataset.parked!==side));
   const inspecting=el('toggle-properties').getAttribute('aria-expanded')==='true';
   const browsing=el('toggle-navigation').getAttribute('aria-expanded')==='true';
   el('rail-reading').setAttribute('aria-pressed',String(!inspecting && !browsing));

@@ -52,3 +52,55 @@ test('small studio keeps activity navigation and saved workspace choice usable',
   await expect(projects).toHaveAttribute('aria-expanded','true');
   await expect(page.getByRole('button',{name:'Tools',exact:true})).toHaveAttribute('aria-expanded','true');
 });
+
+test('sidebar labels pin on desktop and overlay a compact workspace',async({page,practiceUrl},info)=>{
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.goto(practiceUrl);
+  const sidebar=page.getByRole('navigation',{name:'Workspace tools'});
+  const toggle=sidebar.locator('#rail-toggle');
+  const transcript=page.locator('.transcript');
+  const measure=()=>page.locator('#tokens').evaluate(node=>node.getBoundingClientRect().width);
+  await expect(page.locator('[data-token="a1"]')).toBeVisible();
+  const wideMeasure=await measure();
+  await toggle.focus();
+  await toggle.press('Enter');
+  await expect(toggle).toHaveAccessibleName('Collapse sidebar');
+  await expect(sidebar.getByText('Training collections',{exact:true})).toBeVisible();
+  expect((await transcript.boundingBox())!.x).toBeGreaterThan(170);
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await sidebar.getByRole('button',{name:'Projects',exact:true}).click();
+  await sidebar.getByRole('button',{name:'Tools',exact:true}).click();
+  expect(await measure()).toBeCloseTo(wideMeasure,0);
+  await info.attach('Expanded workspace',{body:await page.screenshot(),contentType:'image/png'});
+
+  await page.setViewportSize({width:800,height:800});
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  const projects=sidebar.getByRole('button',{name:'Projects',exact:true});
+  const tools=sidebar.getByRole('button',{name:'Tools',exact:true});
+  await expect(tools).toHaveAttribute('aria-expanded','true');
+  await expect(projects).toHaveAttribute('aria-expanded','false');
+  await projects.click();
+  await expect(projects).toHaveAttribute('aria-expanded','true');
+  await expect(tools).toHaveAttribute('aria-expanded','false');
+  expect(await measure()).toBeCloseTo(wideMeasure,0);
+  await info.attach('Compact split workspace',{body:await page.screenshot(),contentType:'image/png'});
+
+  await page.setViewportSize({width:390,height:844});
+  const before=await transcript.boundingBox();
+  await toggle.click();
+  await expect(sidebar.getByText('Revision history',{exact:true})).toBeVisible();
+  expect((await transcript.boundingBox())?.width).toBe(before?.width);
+  await info.attach('Sidebar over phone workspace',{body:await page.screenshot(),contentType:'image/png'});
+  await page.keyboard.press('Escape');
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await toggle.click();
+  await projects.click();
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await toggle.click();
+  await page.mouse.click(310,240);
+  await expect(toggle).toHaveAttribute('aria-expanded','false');
+  await page.setViewportSize({width:1440,height:900});
+  await expect(toggle).toHaveAttribute('aria-expanded','true');
+});

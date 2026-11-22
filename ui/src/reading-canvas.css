@@ -34,7 +34,8 @@
 .workspace > .transcript {
   --reading-size:calc(11px * var(--canvas-scale,1));
   --reading-line:calc(18px * var(--canvas-scale,1));
-  --reading-gutter:2.75rem;
+  --reading-gutter:clamp(40px,5cqi,52px);
+  --reading-edge:clamp(2px,1.25cqi,12px);
   container:transcript-stage / size;
   min-block-size:0;
   background:var(--stage-floor);
@@ -48,10 +49,11 @@
 
 #app .workspace .transcript > :is(.transcript-title,.canvas-help,#tokens) {
   box-sizing:content-box;
-  width:min(calc(100% - 2 * var(--reading-gutter)), clamp(30ch, calc(100% - 48ch - 288px), 64ch));
+  width:min(64ch,calc(100% - var(--reading-gutter) - var(--reading-edge)));
   max-inline-size:none;
   padding-inline:0;
-  margin-inline:auto;
+  margin-inline-start:max(var(--reading-gutter),calc((100% - 64ch)/2));
+  margin-inline-end:auto;
   font:400 var(--reading-size)/var(--reading-line) var(--stage-type);
   letter-spacing:normal;
   text-align:start;
@@ -342,13 +344,8 @@
   .canvas-console button {min-inline-size:44px}
   .workspace .transcript #tokens .canvas-turn-handle {inline-size:44px;block-size:44px;inset-block-start:calc(var(--reading-line)/2 - 22px)}
 }
-@container transcript-stage (max-width:660px) {
-  #app .workspace .transcript > :is(.transcript-title,.canvas-help,#tokens) {
-    width:min(64ch, calc(100% - var(--reading-gutter)));
-    margin-inline-start:max(var(--reading-gutter), calc((100% - 64ch)/2));
-    margin-inline-end:0;
-  }
-}
+/* Let the outer gutter yield before a side pane starts wrapping the words. */
+#app .workspace > .transcript {padding-inline:clamp(6px,1.4vw,22px)}
 @media (max-width:700px) {
   #app > .workspace {grid-template-columns:minmax(0,1fr)}
   #app .workspace > :is(.transcript,.canvas-tools) {grid-column:1}
@@ -361,7 +358,7 @@
   .workspace:is([data-focus=navigation],[data-focus=properties]) > .canvas-tools {visibility:hidden}
   #app[data-reading-canvas] .workspace .canvas-tools {visibility:visible}
   .workspace .canvas-tools {padding:4px 10px 7px}
-  #app[data-reading-canvas] .workspace > .transcript {padding-inline:16px}
+  #app[data-reading-canvas] .workspace > .transcript {padding-inline:6px}
 }
 @media (forced-colors:active) {
   .canvas-tools #canvas-scrub {appearance:auto}
