@@ -1,5 +1,5 @@
 'use strict';
-const {app, BrowserWindow, Menu, dialog, ipcMain, protocol, session, shell, nativeTheme} = require('electron');
+const {app, BrowserWindow, Menu, dialog, ipcMain, protocol, session, shell, nativeTheme, systemPreferences} = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {randomUUID} = require('node:crypto');
@@ -20,6 +20,21 @@ if (process.env.WB_DESKTOP_USER_DATA) {
 const resources = app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'desktop', 'resources');
 const binary = process.env.WB_DESKTOP_BACKEND || (app.isPackaged ? path.join(process.resourcesPath, 'backend', 'corpus-workbench.exe') : path.join(resources, 'backend', process.platform === 'win32' ? 'corpus-workbench.exe' : 'corpus-workbench'));
 const ui = path.join(resources, 'ui');
+const windowsOverlay = process.platform === 'win32';
+function captionColors() {
+  if (windowsOverlay && nativeTheme.inForcedColorsMode) {
+    return {color: systemPreferences.getColor('window'), symbolColor: systemPreferences.getColor('window-text')};
+  }
+  return nativeTheme.shouldUseDarkColors
+    ? {color: '#101411', symbolColor: '#e3eae4'}
+    : {color: '#f1f3ec', symbolColor: '#20332a'};
+}
+function syncWindowAppearance() {
+  if (!window || window.isDestroyed()) return;
+  const colors = captionColors();
+  window.setBackgroundColor(colors.color);
+  if (windowsOverlay) window.setTitleBarOverlay(colors);
+}
 let window, backend, registry, journal, semantica, preparation, current = null, status = 'idle', error = null, busy = false, quitting = false, quitRequested = false, permitUnload = false;
 let drafts = {dirty: false, recoverable: false, saving: false};
 const publicState = () => ({status, project: current ? {id: current.id, project: current.project, title: current.title} : null, recent: registry?.publicRecent() ?? [], error, version: app.getVersion()});
@@ -227,7 +242,7 @@ function installIPC() {
     try {await backend.stop(); await backend.start(current.store, current.project); status = 'ready'; sendState(); sendMenu('backend-reconnected');}
     catch (failure) {status = 'error'; error = failure.message; sendState();}
     return publicState();
-  }), readDraftJournal: () => journal.read(), persistDraftJournal: raw => journal.write(raw), reportDraft: value => {drafts = security.draftState(value); return true;}, reportAppearance: value => {if (!['light', 'dark', 'system'].includes(value)) throw new Error('Invalid appearance'); nativeTheme.themeSource = value; window.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#151c25' : '#f5f6f8'); return true;}};
+  }), readDraftJournal: () => journal.read(), persistDraftJournal: raw => journal.write(raw), reportDraft: value => {drafts = security.draftState(value); return true;}, reportAppearance: value => {if (!['light', 'dark', 'system'].includes(value)) throw new Error('Invalid appearance'); nativeTheme.themeSource = value; return true;}};
   for (const [name, handler] of Object.entries(handlers)) ipcMain.handle(`workbench:${name}`, async (event, ...args) => {
     if (!security.trustedSender(event, window)) throw new Error('Desktop command denied');
     const expected = ['askLocalModel', 'openRecent', 'exportRevision', 'reportDraft', 'reportAppearance', 'persistDraftJournal', 'runSemantica', 'exportSemantica', 'previewPreparation', 'commitPreparation', 'cancelPreparation'].includes(name) ? 1 : 0;
@@ -237,12 +252,28 @@ function installIPC() {
 }
 function installMenu() {
   const native = action => void action().catch(failure => dialog.showMessageBox(window, {type: 'error', title: 'Corpus workbench', message: failure.message}));
-  Menu.setApplicationMenu(Menu.buildFromTemplate([
+  const menu = Menu.buildFromTemplate([
     {label: '&File', submenu: [{label: 'Open corpus authority…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Recording + transcript…', click: () => sendMenu('prepare-recording')}, {label: 'Import corpus package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Create verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
     {label: '&Edit', submenu: [{role: 'undo'}, {role: 'redo'}, {type: 'separator'}, {role: 'cut'}, {role: 'copy'}, {role: 'paste'}, {role: 'selectAll'}, {type: 'separator'}, {label: 'Search corpus', accelerator: 'CmdOrCtrl+F', click: () => sendMenu('search')}]},
     {label: '&View', submenu: [{label: 'Revision history', accelerator: 'CmdOrCtrl+H', click: () => sendMenu('history')}, {label: 'Toggle inspector', accelerator: 'CmdOrCtrl+Shift+I', click: () => sendMenu('toggle-inspector')}, {label: 'Toggle recording', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenu('toggle-recording')}, {type: 'separator'}, {label: 'Reload workbench', accelerator: 'CmdOrCtrl+R', click: () => native(async () => {if (await canLeave('reloading')) {permitUnload = true; window.reload();}})}, {role: 'resetZoom'}, {role: 'zoomIn'}, {role: 'zoomOut'}, {role: 'togglefullscreen'}]},
     {label: '&Help', submenu: [{label: 'Corpus workflow and research handoff', click: () => sendMenu('research')}, {label: 'About Open-K-Folds Workbench', click: () => native(() => dialog.showMessageBox(window, {type: 'info', title: 'Open-K-Folds Workbench', message: `Open-K-Folds Workbench ${app.getVersion()}`, detail: 'Local transcript authoring, immutable revisions and reviewed evidence. GPL-3.0-or-later.\nYour corpus stays on this computer.', buttons: ['Close']}))}]},
-  ]));
+  ]);
+  Menu.setApplicationMenu(menu);
+  if (!windowsOverlay) return;
+  // The integrated frame has no permanently visible menu strip. Open the same
+  // native menus from the keyboard, including commands without accelerators.
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.isAutoRepeat || input.control || input.meta || input.shift) return;
+    let target;
+    if (!input.alt && input.key === 'F10') target = menu;
+    if (input.alt && input.key.length === 1) {
+      target = menu.items.find(item => item.label.toLowerCase().includes('&' + input.key.toLowerCase()))?.submenu;
+    }
+    if (target) {
+      event.preventDefault();
+      target.popup({window, x: 8, y: 40, sourceType: 'keyboard'});
+    }
+  });
 }
 function responseError(message, code) { return new Response(JSON.stringify({error: message}), {status: code, headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Security-Policy': security.CSP}}); }
 async function handleProtocol(request) {
@@ -274,7 +305,6 @@ async function main() {
   if (!app.requestSingleInstanceLock()) {app.quit(); return;}
   app.on('second-instance', () => {if (window) {if (window.isMinimized()) window.restore(); window.focus();}});
   await app.whenReady();
-  nativeTheme.themeSource = 'light';
   const profile = app.getPath('userData');
   registry = new Registry(profile);
   preparation = new PreparationController({profile, binary, runCLI, registry});
@@ -290,7 +320,11 @@ async function main() {
   browserSession.protocol.handle('workbench', handleProtocol);
   const saved = registry.data.bounds;
   const bounds = saved && [saved.x, saved.y, saved.width, saved.height].every(Number.isFinite) ? {width: Math.max(1000, Math.min(saved.width, 2560)), height: Math.max(700, Math.min(saved.height, 1600))} : {width: 1440, height: 1000};
-  window = new BrowserWindow({...bounds, minWidth: 1000, minHeight: 700, show: false, icon: path.join(resources, 'icon.png'), backgroundColor: '#f5f6f8', title: 'Open-K-Folds Workbench', webPreferences: {preload: path.join(__dirname, 'preload.cjs'), partition, contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false}});
+  const colors = captionColors();
+  window = new BrowserWindow({...bounds, minWidth: 1000, minHeight: 700, show: false, icon: path.join(resources, 'icon.png'), backgroundColor: colors.color, title: 'Open-K-Folds Workbench',
+    ...(windowsOverlay && {titleBarStyle: 'hidden', titleBarOverlay: {...colors, height: 40}, autoHideMenuBar: true}),
+    webPreferences: {preload: path.join(__dirname, 'preload.cjs'), partition, contextIsolation: true, sandbox: true, nodeIntegration: false, webSecurity: true, allowRunningInsecureContent: false, spellcheck: false}});
+  nativeTheme.on('updated', syncWindowAppearance);
   window.webContents.setWindowOpenHandler(({url}) => {const target = security.externalURL(url); if (target) void shell.openExternal(target); return {action: 'deny'};});
   window.webContents.on('will-navigate', (event, url) => {if (!security.appURL(url)) {event.preventDefault(); const target = security.externalURL(url); if (target) void shell.openExternal(target);}});
   window.webContents.on('will-attach-webview', event => event.preventDefault());
