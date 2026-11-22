@@ -1,0 +1,50 @@
+import {expect} from '@playwright/test';
+import {test} from './practice-fixture';
+
+test('fresh studio opens on the passage and activities keep the same document',async({page,practiceUrl})=>{
+  await page.goto(practiceUrl);
+  const text=page.locator('[data-token="b4"]');
+  await expect(text).toBeVisible();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+  await expect(page.getByRole('button',{name:'Projects',exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect(page.getByRole('button',{name:'Tools',exact:true})).toHaveAttribute('aria-expanded','false');
+  await expect(page.getByRole('slider',{name:'Scrub source turns'})).toBeVisible();
+  await page.getByRole('button',{name:'Next source turn'}).click();
+  await expect(page.locator('#canvas-position')).toContainText('2 of 3');
+  await text.click();
+  await page.getByRole('button',{name:'Open co-analysis',exact:true}).click();
+  await expect(page.locator('.ca-source')).toContainText('after');
+  await expect(page.getByRole('button',{name:'Open co-analysis'})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'Open revision history'}).click();
+  await expect(page.getByRole('button',{name:'Open revision history'})).toHaveAttribute('aria-pressed','true');
+  await page.getByRole('button',{name:'Transcript',exact:true}).click();
+  await expect(text).toBeVisible();
+  await expect(page.getByRole('button',{name:'Transcript',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.locator('#document-title')).toHaveText('Who gets the notice?');
+  await expect(page.locator('#save-state')).toContainText('R1');
+});
+
+test('small studio keeps activity navigation and saved workspace choice usable',async({page,practiceUrl})=>{
+  await page.setViewportSize({width:320,height:740});
+  await page.goto(practiceUrl);
+  const projects=page.getByRole('button',{name:'Projects',exact:true});
+  await projects.click();
+  await expect(page.getByLabel('Find documents or sources')).toBeVisible();
+  await page.locator('[data-document="xmlfiles/noticeboard.xml"]').click();
+  await expect(page.locator('#canvas-position')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  await page.getByRole('button',{name:'Workspace settings'}).focus();
+  await page.keyboard.press('Enter');
+  const dialog=page.getByRole('dialog',{name:'Workspace settings'});
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('radio',{name:'Transcript with library and tools'}).check();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button',{name:'Workspace settings'})).toBeFocused();
+  await page.getByRole('button',{name:'Dark appearance'}).click();
+  await page.setViewportSize({width:1280,height:800});
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme','light');
+  await expect(projects).toHaveAttribute('aria-expanded','true');
+  await expect(page.getByRole('button',{name:'Tools',exact:true})).toHaveAttribute('aria-expanded','true');
+});

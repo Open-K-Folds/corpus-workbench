@@ -14,6 +14,7 @@ try{
   await page.getByRole('button',{name:'Listen to selection',exact:true}).click();
   await page.waitForFunction(()=>document.querySelector('audio').currentTime>.2);
   assert.equal(await page.locator('audio').evaluate(a=>a.error),null);
+  await page.getByRole('button',{name:'Tools',exact:true}).click();
   await page.getByLabel('Human-corrected reading').fill('Browser container correction 🙂');
   await page.getByRole('button',{name:'Save token',exact:true}).click();
   await page.locator('#save-state').filter({hasText:'Saved R3'}).waitFor();

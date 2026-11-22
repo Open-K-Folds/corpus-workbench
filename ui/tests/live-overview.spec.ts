@@ -108,6 +108,7 @@ for(const mode of ['native','unsupported','draw failure'] as const){
 
 test('overview reports the actual snapshot, bounded artifact identities and selection while preserving drafts',async({page})=>{
   await open(page);const before=await api(page,'/api/view'),observed=observe(page);
+  await page.getByRole('button',{name:'Tools',exact:true}).click();
   await page.locator('[data-token="w2"]').click();await page.getByLabel('Reviewer note',{exact:true}).fill('SYNTHETIC retained listening note');
   const dialog=await overview(page);await expect(dialog).toHaveJSProperty('open',true);
   await expect(page.locator('#overview-basis')).toContainText(`Saved R${before.revision.id}`);await expect(page.locator('#overview-basis')).toContainText(before.revision.snapshot_hash);
@@ -153,6 +154,7 @@ test('overview is keyboard modal and pausing visual motion leaves real audio pla
 test('text without media stays explicit and never inherits another document recording or word timing',async({page})=>{
   await open(page);const before=await api(page,'/api/view'),observed=observe(page);
   await overview(page);await expect(page.locator('#overview-traces')).toHaveAccessibleName(/across 0:16/);await page.locator('#overview-close').click();
+  await page.getByRole('button',{name:'Projects',exact:true}).click();
   await page.locator('[data-document="xmlfiles/no-media.xml"]').click();await page.locator('[data-token="untimed"]').click();const dialog=await overview(page);
   await expect(dialog).toContainText('SYNTHETIC text without recording');await expect(page.locator('#overview-media')).toContainText(/no.*recording|no.*media|unavailable|absent/i);
   await expect(page.locator('#overview-play')).toBeDisabled();await expect(page.locator('#overview-seek')).toBeDisabled();
@@ -166,9 +168,9 @@ test('text without media stays explicit and never inherits another document reco
 test('a pinned listening interval follows its own anchors and text-only selections cannot start playback',async({page})=>{
   await open(page);
   const before=await api(page,'/api/view'),observed=observe(page);
-  const audio=page.locator('#audio'),transport=page.getByRole('button',{name:'Listen to selection',exact:true});
+  const audio=page.locator('#audio'),transport=page.locator('#listen-selected');
   const pin=page.getByRole('button',{name:'Listen to pinned passage'});
-  await page.getByRole('button',{name:'Co-analysis',exact:true}).click();
+  await page.getByRole('button',{name:'Open co-analysis',exact:true}).click();
   await page.locator('[data-token="w1"]').click();
   await expect(pin).toHaveAccessibleDescription('Supplied word timing · 1–2 s');
   await page.getByLabel('Model name or version').fill('Synthetic listening control');
@@ -182,6 +184,7 @@ test('a pinned listening interval follows its own anchors and text-only selectio
   await transport.click();
   await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>!a.paused&&a.currentTime<1)).toBe(true);
   await page.locator('#audio-play').click();
+  await page.getByRole('button',{name:'Projects',exact:true}).click();
   await page.locator('[data-document="xmlfiles/no-media.xml"]').click();
   for(const id of ['untimed','orphan-word']){
     await page.locator(`[data-token="${id}"]`).click();

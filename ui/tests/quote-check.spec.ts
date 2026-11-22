@@ -5,7 +5,7 @@ import {literalMatches} from '../src/quote-check';
 const test = base.extend<{practice: Page}>({
   practice: async ({page, practiceUrl}, use) => {
     await page.goto(practiceUrl);
-    await page.getByRole('button', {name: 'Co-analysis', exact: true}).click();
+    await page.getByRole('button', {name: 'Open co-analysis', exact: true}).click();
     await use(page);
   },
 });

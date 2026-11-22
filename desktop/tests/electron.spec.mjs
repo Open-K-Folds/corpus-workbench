@@ -44,7 +44,17 @@ async function queue(application,kind,values){await application.evaluate((_elect
 async function state(page){return page.evaluate(()=>window.workbenchDesktop.state())}
 async function head(page){return page.evaluate(async()=>{const response=await fetch('/api/view');if(!response.ok)throw new Error(await response.text());return response.json()})}
 async function records(page){return page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem('wb-correction-v1:journal')??'{}')))}
-async function ready(page){await expect(page.locator('#save-state')).not.toBeEmpty();await expect(page.locator('[data-token="w1"]')).toBeVisible()}
+async function ready(page){
+  await expect(page.locator('#save-state')).not.toBeEmpty();
+  await expect(page.locator('[data-token="w1"]')).toBeVisible();
+  // These journeys edit across both panes. Choose the public split layout
+  // once per test profile, allowing later launches to exercise its persistence.
+  if(await page.evaluate(()=>localStorage.getItem('wb-studio-layout'))!=='editing'){
+    await page.getByRole('button',{name:'Workspace settings'}).click();
+    await page.getByRole('radio',{name:'Transcript with library and tools'}).check();
+    await page.getByRole('button',{name:'Close workspace settings'}).click();
+  }
+}
 async function draft(page,replacement,token='w2',backward=false){
   // Discarding a recovered draft clears its journal before its asynchronous
   // saved-reading projection finishes. Wait for the usable transcript surface.
@@ -131,6 +141,7 @@ test('real Electron imports, corrects, reviews, exports, reopens and protects me
     await page.locator('[data-token="w2"]').click();await expect(page.getByLabel('Human-corrected reading')).toBeVisible();
     await expect(page.locator('#audio-play')).toBeEnabled();
     await page.keyboard.press('Escape');await page.evaluate(()=>document.fonts.ready);
+    if(await page.locator('html').getAttribute('data-theme')!=='light')await page.locator('#toggle-theme').click();
     await page.screenshot({path:join(evidence,'electron-light-1440x1000.png')});
     await page.locator('#toggle-theme').click();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
     await page.screenshot({path:join(evidence,'electron-dark-1440x1000.png')});
