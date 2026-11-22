@@ -1,0 +1,46 @@
+/* Audio position is visually independent of the orange evidence selection. */
+.workspace > .transcript {--playback-ink:#f2d479}
+:root[data-theme=light] .workspace > .transcript {--playback-ink:#745500}
+.workspace .transcript #tokens[data-playback-evidence]:not([data-training-gesture],.moving-passage-pin) .reading-block:not([data-playback-turn]) .lexeme:not([data-playback-word],.selected,.passage-pinned) > .reading-text {
+  color:var(--stage-soft);
+}
+.workspace .transcript #tokens .lexeme[data-playback-word]:not(.selected,.passage-pinned) > .reading-text {
+  color:var(--stage-ink);
+  background:color-mix(in srgb,var(--playback-ink) 18%,var(--stage-floor));
+  border-radius:2px;
+  -webkit-box-decoration-break:clone;
+  box-decoration-break:clone;
+}
+.workspace .transcript #tokens .reading-block[data-playback-turn]::after {
+  content:"";
+  position:absolute;
+  inset-block:0;
+  inset-inline-start:-.55em;
+  width:2px;
+  background:var(--playback-ink);
+  pointer-events:none;
+}
+.workspace .transcript #tokens .reading-block[data-playback-turn] > .source-number {color:var(--playback-ink)}
+.workspace .transcript > .playback-caret {
+  position:absolute;
+  top:0;
+  left:0;
+  width:2px;
+  border-radius:1px;
+  background:var(--playback-ink);
+  pointer-events:none;
+  z-index:1;
+}
+@media (prefers-reduced-motion:no-preference) {
+  .workspace .transcript > .playback-caret[data-glide] {transition:transform 65ms ease-out}
+}
+@media (forced-colors:active) {
+  .workspace .transcript > .playback-caret,
+  .workspace .transcript #tokens .reading-block[data-playback-turn]::after {
+    background:Highlight;
+    forced-color-adjust:none;
+  }
+  .workspace .transcript #tokens .lexeme[data-playback-word] > .reading-text {
+    text-decoration:underline double;
+  }
+}

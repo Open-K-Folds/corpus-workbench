@@ -139,8 +139,11 @@ export class Transcript {
       this.surface.innerHTML=p.blocks.map(block=>{
         const hasToken=block.runs.some(r=>r.token!==null);if(hasToken)ordinal++;
         const source=block.source_id??block.anchor_token;const segment=doc.segments.find(s=>s.id===block.source_id);
+        // A paragraph nested in a timed utterance has a different source ID.
+        const owner=!segment&&block.anchor_token?tokens.get(block.anchor_token)?.utterance:null;
+        const playbackOwner=owner&&block.runs.every(run=>run.token===null||tokens.get(run.token)?.utterance===owner)?owner:null;
         const separator=!hasToken&&block.runs.every(run=>!run.text.trim());
-        return `<section class="reading-block utterance ${hasToken?'':separator?'literal-block turn-separator':'literal-block'}" ${segment?`data-utterance="${esc(segment.id)}"`:''} ${source?`data-location="${esc(source)}"`:''}><span class="source-number" aria-hidden="true" title="Display number ${ordinal}; source ${esc(source??'unanchored literal text')}">${hasToken?ordinal:''}</span><span class="reading-content">${block.runs.map(r=>{
+        return `<section class="reading-block utterance ${hasToken?'':separator?'literal-block turn-separator':'literal-block'}" ${segment?`data-utterance="${esc(segment.id)}"`:''} ${playbackOwner?`data-playback-utterance="${esc(playbackOwner)}"`:''} ${source?`data-location="${esc(source)}"`:''}><span class="source-number" aria-hidden="true" title="Display number ${ordinal}; source ${esc(source??'unanchored literal text')}">${hasToken?ordinal:''}</span><span class="reading-content">${block.runs.map(r=>{
           if(r.token===null)return `<span class="reading-text separator">${esc(r.text)}</span>`;
           const t=tokens.get(r.token);if(!t)throw new Error('Unknown token in reading projection');
           const shown=visibleToken(t,this.host.preferences);return `<span class="lexeme ${shown?'':'filtered'} ${this.host.selected().includes(t.id)?'selected':''}" ${shown?'data-token':'data-filtered-token'}="${esc(t.id)}" tabindex="-1" title="${esc(t.id)} · ${esc(t.language_effective??'Unknown language')}"><span class="reading-text">${esc(reading(t,this.host.preferences.layer))}</span>${this.interlinear?`<span class="interlinear" aria-hidden="true"><span>Raw ${esc(t.original)}</span><span>Normalized ${esc(t.normalized??'—')}${t.attrs.wb_normalized_status==='unresolved'?' · unresolved':''}</span><span>${esc(t.language_effective??'Unknown language')}</span></span>`:''}</span>`;
