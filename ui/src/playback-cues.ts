@@ -1,5 +1,5 @@
 import type {Document} from './contracts';
-import {validInterval} from './listening';
+import {boundsOnRecording, validInterval} from './listening';
 
 export interface PlaybackCue {
   readonly wordIds: readonly string[];
@@ -39,8 +39,9 @@ export function buildPlaybackCues(doc: Pick<Document, 'tokens' | 'segments'>, du
       wholeTurnWords.add(turn.id);
     }
     const add = (value: {start_us: number | null; end_us: number | null}, target: Target) => {
-      if (!validInterval(value) || value.end_us / 1e6 > durationSeconds) return;
-      boundaries.push({time: value.start_us / 1e6, enters: true, target}, {time: value.end_us / 1e6, enters: false, target});
+      const bounds = boundsOnRecording(value, durationSeconds);
+      if (!bounds) return;
+      boundaries.push({time: bounds.start, enters: true, target}, {time: bounds.end, enters: false, target});
     };
     doc.segments.forEach((turn, order) => add(turn, {id: turn.id, level: 'turn', parentTurn: null, order}));
     doc.tokens.forEach((word, order) => {

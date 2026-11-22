@@ -65,13 +65,14 @@ export function sourceCard(p:Passage, caption:string, current:View) {
             player.onloadedmetadata=()=>finish(true);player.onerror=()=>finish(false);player.load();
           });
           if (!card.isConnected || !details.open || ticket !== generation || playback !== player || started !== playRequest) return;
-          if (!Number.isFinite(player.duration) || cue.end>player.duration) throw new Error('The interval exceeds the recording.');
-          player.currentTime=cue.start;
+          const playable = suppliedCue(doc, p.tokenIds, player.duration);
+          if (!Number.isFinite(player.duration) || 'reason' in playable) throw new Error('The interval exceeds the recording.');
+          player.currentTime=playable.start;
           await player.play();
           const checkEnd=()=>{
             if(started!==playRequest || player.paused)return;
-            if(!card.isConnected || player.currentTime>=cue.end){stop();return;}
-            timer=setTimeout(checkEnd,Math.max(15,(cue.end-player.currentTime)*1000));
+            if(!card.isConnected || player.currentTime>=playable.end){stop();return;}
+            timer=setTimeout(checkEnd,Math.max(15,(playable.end-player.currentTime)*1000));
           };
           checkEnd();
         } catch(error) {status.textContent=String(error);}
