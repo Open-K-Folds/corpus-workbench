@@ -75,15 +75,27 @@ test('the canvas follows spoken words, marks a turn-only interval and clears dur
     await expect(caret).toBeHidden();
     await seek(14);
     await expect(turn).toHaveAttribute('data-utterance', 'u4');
+    await expect(page.locator('#canvas-position')).toContainText('4 of 8');
+    await expect(page.locator('#canvas-scrub')).toHaveValue('4');
     await expect(word).toHaveCount(0);
     await expect(caret).toBeHidden();
     await page.screenshot({path:join(evidence, 'spoken-turn.png')});
 
     const pane = page.locator('.transcript');
     const box = await pane.boundingBox();
-    await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.6);
-    await page.mouse.wheel(0, 380);
-    await expect(follow).toHaveAttribute('aria-pressed', 'false');
+    async function scrollAway() {
+      await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.6);
+      await page.mouse.wheel(0, 380);
+      await expect(follow).toHaveAttribute('aria-pressed', 'false');
+    }
+    await scrollAway();
+    await follow.click();
+    await expect(follow).toHaveAttribute('aria-pressed', 'true');
+    await play.click();
+    await expect.poll(time).toBeGreaterThan(14.1);
+    await scrollAway();
+    await play.click();
+    expect(await audio.evaluate(media => media.paused)).toBe(true);
     await seek(1);
     await expect(word).toHaveText('librarian');
     await follow.click();
