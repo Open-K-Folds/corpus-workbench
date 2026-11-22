@@ -451,7 +451,8 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
   try{
     ({application,page}=await launch(profile,store,'pane-drag-preview'));await ready(page);await expect(page.locator('#audio-play')).toBeEnabled();
     await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,1000));await settleLayout(page);
-    geometry.push({stage:'native default',...await paneGeometry(application,page)});
+    const nativeDefault=await paneGeometry(application,page);
+    geometry.push({stage:'native default',...nativeDefault});
     await captureNative(application,join(evidence,'electron-panes-native-default.png'));
     const before=(await head(page)).revision;await draft(page,'pane-draft');
     await page.evaluate(()=>{window.__paneAudio=document.querySelector('#audio');window.__paneAudio.loop=true});await page.locator('#audio-play').click();
@@ -466,10 +467,20 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
     const zoomed=await paneGeometry(application,page);geometry.push({stage:'minimum native window at 125 percent',...zoomed});
     expect(zoomed.transcript.height,'240px reading reservation allows subpixel rounding').toBeGreaterThanOrEqual(239.5);expect(zoomed.transcript.clientHeight).toBeGreaterThanOrEqual(240);expect(zoomed.transcript.width).toBeGreaterThanOrEqual(300);
     nearPixels(zoomed.recordingControl.value,zoomed.recording.height);expect(zoomed.recording.height).toBeLessThanOrEqual(zoomed.recordingControl.max+1);
-    // The activity rail takes 52px at this zoom. The splitters stop at each pane's minimum.
-    for(const [selector,side,dx,minimum] of [['#navigation-resizer','navigation',-12,160],['#properties-resizer','properties',12,260]]){
-      const start=(await paneGeometry(application,page))[side].width;await dragSplitter(page,selector,dx,0);
-      nearPixels((await paneGeometry(application,page))[side].width,Math.max(minimum,start-12));
+    // At 125% zoom a single side pane shares the window with the reading column.
+    // Exercise each splitter from the visible size of its own pane.
+    for(const [side,other,dx,minimum] of [['navigation','properties',-12,160],['properties','navigation',12,260]]){
+      const toggle=page.locator('#toggle-'+side), handle='#'+side+'-resizer';
+      if(await toggle.getAttribute('aria-expanded')==='false') await toggle.click();
+      await expect(toggle).toHaveAttribute('aria-expanded','true');
+      await expect(page.locator('#'+other+'-resizer')).toBeHidden();
+      await settleLayout(page);
+      const start=(await paneGeometry(application,page))[side].width;
+      nearPixels(start,nativeDefault[side].width);
+      await dragSplitter(page,handle,dx,0);
+      const resized=await paneGeometry(application,page);
+      nearPixels(resized[side].width,Math.max(minimum,start-12));
+      expect(resized.transcript.width).toBeGreaterThanOrEqual(319);
     }
     await captureNative(application,join(evidence,'electron-panes-minimum-zoom125.png'));
     await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1);window.setSize(1440,1000)});await settleLayout(page);
@@ -481,6 +492,9 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
     await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setSize(1440,1000));await settleLayout(page);
     for(const side of ['navigation','properties'])nearPixels((await paneGeometry(application,page))[side].width,preferred[side].width);
     await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1000,760));await settleLayout(page);
+    const navigationToggle=page.locator('#toggle-navigation');
+    if(await navigationToggle.getAttribute('aria-expanded')==='false') await navigationToggle.click();
+    await settleLayout(page);
     const narrowStart=await paneGeometry(application,page);await dragSplitter(page,'#navigation-resizer',-50,0);
     const narrowDrag=await paneGeometry(application,page);nearPixels(narrowDrag.navigation.width,narrowStart.navigation.width-50);
     await page.locator('#navigation-resizer').focus();await page.keyboard.press('ArrowLeft');await settleLayout(page);
