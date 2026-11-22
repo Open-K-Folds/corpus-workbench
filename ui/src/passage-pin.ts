@@ -37,7 +37,10 @@ export class PassagePin {
         event.preventDefault();
         event.stopPropagation();
         const next = this.start + (event.key === 'ArrowLeft' ? -1 : 1);
-        if (this.fits(next)) this.place(next, true);
+        if (this.fits(next)) {
+          this.place(next, true);
+          this.handle.scrollIntoView({block:'nearest',inline:'nearest'});
+        }
       }
     };
   }
@@ -107,12 +110,16 @@ export class PassagePin {
     const original = this.start;
     let moved = false;
     let preview = original;
+    const tether = document.createElement('span');
+    tether.setAttribute('aria-hidden','true');
+    tether.className = 'passage-pin-tether';
     const scope = new AbortController();
     const options = {signal: scope.signal};
     const finish = () => {
       scope.abort();
       this.cancelMove = undefined;
       this.surface.classList.remove('moving-passage-pin');
+      tether.remove();
       if (this.handle.hasPointerCapture(pointer)) this.handle.releasePointerCapture(pointer);
       this.paint(this.words.slice(original, original + this.length));
     };
@@ -133,6 +140,18 @@ export class PassagePin {
       const start = targetStart(e) ?? original;
       if (preview !== start) this.paint(this.words.slice(start, start + this.length));
       preview = start;
+      if (start === original) {tether.remove(); return}
+      const from = this.handle.getBoundingClientRect();
+      const to = this.words[start + this.middle].querySelector('.reading-text')!.getBoundingClientRect();
+      const right = from.left < to.left;
+      const x = right ? from.right : from.left;
+      const dx = (right ? to.left : to.right) - x;
+      const dy = to.bottom - from.bottom;
+      tether.style.left = x + 'px';
+      tether.style.top = from.bottom + 'px';
+      tether.style.width = Math.hypot(dx, dy) + 'px';
+      tether.style.transform = `rotate(${Math.atan2(dy, dx)}rad)`;
+      if (!tether.isConnected) document.body.append(tether);
     }, options);
     this.handle.addEventListener('pointerup', e => {
       if (e.pointerId !== pointer) return;

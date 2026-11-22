@@ -235,7 +235,10 @@ export class Transcript {
     window.getSelection()?.removeAllRanges();
     this.host.select(ids);this.paintSelection();
     this.details.hidden=true;this.menu.hidden=true;
-    if(showTools)this.showMenu(words[Math.floor((words.length-1)/2)].getBoundingClientRect());
+    if(showTools){
+      this.showMenu(words[Math.floor((words.length-1)/2)].getBoundingClientRect());
+      this.menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({preventScroll:true});
+    }
   }
   private pinTraining(token:string):TrainingPassage|null {
     if(this.dirty()||this.host.busy()||!this.currentProjection())return null;

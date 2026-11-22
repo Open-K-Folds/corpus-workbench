@@ -1,6 +1,7 @@
 .workspace .transcript #tokens .lexeme.passage-pinned {
   color: var(--stage-ink);
   background: color-mix(in srgb, var(--stage-ink) 15%, var(--stage-floor));
+  text-decoration: none;
 }
 .workspace .transcript #tokens .pin-keyword > .reading-text {
   text-decoration: underline;
@@ -35,3 +36,16 @@
 }
 .workspace .transcript #tokens.moving-passage-pin,
 .workspace .transcript #tokens.moving-passage-pin * {cursor: grabbing}
+.workspace .transcript #tokens.moving-passage-pin .lexeme:not(.passage-pinned) {
+  color: color-mix(in srgb, var(--stage-ink) 58%, var(--stage-floor));
+  background: transparent;
+  text-decoration: none;
+}
+.passage-pin-tether {
+  position: fixed;
+  height: 1px;
+  z-index: 1;
+  pointer-events: none;
+  background: #ff5a1f;
+  transform-origin: left center;
+}

@@ -47,9 +47,12 @@ test('drag across words, move the pin and co-analyse the new passage', async () 
     await page.mouse.down();
     await moveTo(word('c3'));
     await expect.poll(pinned).toEqual(['c2','c3','c4']);
+    await expect(page.locator('.passage-pin-tether')).toBeVisible();
+    await page.screenshot({path: join(evidence, 'drag-between-words.png')});
     await page.keyboard.press('Escape');
     await page.mouse.up();
     await expect.poll(pinned).toEqual(['b2','b3','b4']);
+    await expect(page.locator('.passage-pin-tether')).toHaveCount(0);
     await moveTo(handle);
     await page.mouse.down();
     await moveTo(word('c3'));
@@ -59,7 +62,12 @@ test('drag across words, move the pin and co-analyse the new passage', async () 
     await expect.poll(pinned).toEqual(['c3','c4','c5']);
     await page.screenshot({path: join(evidence, 'moved-passage.png')});
     await handle.press('Enter');
-    await tools.getByRole('button', {name: 'Co-analyse selected tokens'}).click();
+    await expect(tools.getByRole('button', {name:'Correct',exact:true})).toBeFocused();
+    const analyse = tools.getByRole('button', {name:'Co-analyse selected tokens'});
+    for (let i = 0; i < 8 && !(await analyse.evaluate(el => document.activeElement === el)); i++)
+      await page.keyboard.press('Tab');
+    await expect(analyse).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.locator('.ca-source blockquote')).toHaveText('beforehand, from my');
     await expect(page.locator('.ca-source details')).toContainText('c3, c4, c5');
     expect(await page.evaluate(async () => (await (await fetch('/api/view')).json()).revision.id)).toBe(1);
