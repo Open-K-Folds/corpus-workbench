@@ -18,6 +18,8 @@ export class PlaybackReader {
   private previousLine: number | null = null;
   private wordStarts: PlaybackCues['wordStarts'] = [];
   private nextWord = 0;
+  private turnBoundaries: PlaybackCues['turnBoundaries'] = [];
+  private nextBoundary = 0;
   private clock = 0;
   private scrollTarget: number | null = null;
 
@@ -84,26 +86,31 @@ export class PlaybackReader {
   /** A projection or filter replaced the actual source nodes. Resolve identities again. */
   refresh() {
     this.indexed = false;
-    if (this.wordStarts.length) this.index();
+    if (this.wordStarts.length || this.turnBoundaries.length) this.index();
     this.paint();
     this.position(true);
   }
 
   reset() {
     this.show(null,false);
-    this.setWordStarts([], 0);
+    this.setTiming(null, 0);
     this.scrollTarget = null;
     this.words.clear();
     this.turns.clear();
     this.indexed = false;
   }
 
-  setWordStarts(starts:PlaybackCues['wordStarts'], seconds:number) {
+  setTiming(cues:PlaybackCues|null, seconds:number) {
     for (const word of this.words.values()) word.removeAttribute('data-playback-upcoming');
-    this.wordStarts = starts;
+    for (const blocks of this.turns.values()) {
+      for (const block of blocks) delete block.dataset.playbackProgress;
+    }
+    this.wordStarts = cues?.wordStarts ?? [];
+    this.turnBoundaries = cues?.turnBoundaries ?? [];
     this.clock = seconds;
-    if (starts.length) this.index();
-    else this.nextWord = 0;
+    this.nextWord = 0;
+    this.nextBoundary = 0;
+    if (cues?.available) this.index();
   }
 
   updateClock(seconds:number) {
@@ -115,6 +122,18 @@ export class PlaybackReader {
     while (this.nextWord < this.wordStarts.length && this.wordStarts[this.nextWord].seconds <= seconds) {
       this.words.get(this.wordStarts[this.nextWord++].id)?.removeAttribute('data-playback-upcoming');
     }
+    while (this.nextBoundary > 0 && this.turnBoundaries[this.nextBoundary - 1].seconds > seconds) {
+      const boundary = this.turnBoundaries[--this.nextBoundary];
+      this.markTurn(boundary.id, boundary.enters ? 'upcoming' : 'current');
+    }
+    while (this.nextBoundary < this.turnBoundaries.length && this.turnBoundaries[this.nextBoundary].seconds <= seconds) {
+      const boundary = this.turnBoundaries[this.nextBoundary++];
+      this.markTurn(boundary.id, boundary.enters ? 'current' : 'played');
+    }
+  }
+
+  private markTurn(id:string, progress:'upcoming'|'current'|'played') {
+    for (const block of this.turns.get(id) ?? []) block.dataset.playbackProgress = progress;
   }
 
   destroy() {
@@ -143,6 +162,11 @@ export class PlaybackReader {
       this.words.get(id)?.toggleAttribute('data-playback-upcoming', upcoming);
       if (!upcoming) this.nextWord++;
     }
+    for (const boundary of this.turnBoundaries) {
+      if (boundary.enters) this.markTurn(boundary.id, 'upcoming');
+    }
+    this.nextBoundary = 0;
+    this.updateClock(this.clock);
   }
 
   private paint() {

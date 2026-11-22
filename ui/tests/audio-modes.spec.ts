@@ -51,6 +51,19 @@ async function mode(page:Page,name:'Waveform'|'Spectrogram'|'Spectrum'){
   await page.getByRole('radio',{name,exact:true}).check();
   await expect(page.locator('#recording-pane')).toHaveAttribute('data-audio-view',name.toLowerCase());
 }
+
+test('a paused endpoint within one sample completes the last utterance and seeking back restores it',async({page})=>{
+  await open(page);
+  const audio=page.locator('#audio');
+  const last=page.locator('.reading-block[data-utterance="u3"]');
+  // A decoded AAC seek can stop just short of duration. Use the tone fixture's
+  // last 16 kHz sample to exercise that position without a private recording.
+  await audio.evaluate((media:HTMLAudioElement)=>{media.currentTime=media.duration-1/16_000});
+  await expect(last).toHaveAttribute('data-playback-progress','played');
+  await expect(page.locator('[data-playback-turn]')).toHaveCount(0);
+  await audio.evaluate((media:HTMLAudioElement)=>{media.currentTime=media.duration-.01});
+  await expect(last).toHaveAttribute('data-playback-progress','current');
+});
 async function seek(page:Page,seconds:number){
   const slider=page.getByRole('slider',{name:'Seek recording',exact:true});
   await slider.focus();await page.keyboard.press('Home');

@@ -39,6 +39,14 @@ rail, grouped actions and clear active icon. [Spaceship IDE and author’s citat
 | G8 | The offline CPU replay reproduced all 384 saved words across ten verified PCM chunks. The derived package preserved all token IDs and readings. All 2,741 lexical emission-run centres lay within their corresponding word intervals. The Windows player followed actual word changes at three separated positions and showed just the passage in a long gap. The local waveform audit flagged a short word and a span containing low-energy audio for listening review. |
 | G9 | In an isolated copy of the 384-word aligned transcript, a three-word correction survived Escape, draft recovery, acceptance and reload. All source IDs and recording intervals matched. During playback the caret reached the corrected phrase at 4.31 s and the following word at 5.42 s. A rewind returned the caret to its prior word and dimmed the phrase to 74% opacity. In Windows package `1943825`, 52 browser journeys and three packaged Electron journeys passed, covering caret contrast and rewind, pointer and touch selection, recovery, sidebar widths and menu placement. Five repeated runs of the six canvas journeys exercised smooth navigation and immediate drag steering. The original project reopened at its saved R2. |
 
+## G9 playback contrast check · 23 November 2026
+
+In a local copy of the aligned recording, completed utterances rendered at
+full opacity and upcoming utterances at 60%. The distinction held through
+silence and backward seeking with Follow off. Both natural playback and a
+paused seek to the end marked all ten utterances as played. Browser tests
+also checked dark and light themes and the readability of selected words.
+
 To repeat the browser exercises, build the UI and Rust binary, then run
 `npm run test:e2e --prefix ui`. The fresh-stage cases create a separate local
 authority per exercise. To repeat the Windows exercises, build and package the

@@ -78,7 +78,7 @@ export class PlaybackSync {
       this.cues=null;
       this.duration=0;
     }
-    if (this.cues !== previous) this.reader.setWordStarts(this.cues?.wordStarts ?? [], this.audio.currentTime);
+    if (this.cues !== previous) this.reader.setTiming(this.cues, this.audio.currentTime);
     this.updateControls();
     this.tick();
   }
@@ -115,8 +115,13 @@ export class PlaybackSync {
   }
 
   private tick(jump=false) {
-    this.reader.updateClock(this.audio.currentTime);
-    const cue=this.cues?.at(this.audio.currentTime)??null;
+    const time=this.audio.currentTime;
+    // A paused AAC seek to the end may land a fraction of a sample short.
+    // Snap only the displayed endpoint, within one sample of 8 kHz speech.
+    const pausedAtEnd=this.audio.paused && time>0 && this.duration>0 && Math.abs(this.duration-time)<=1/8_000;
+    const clock=this.audio.ended || pausedAtEnd ? this.duration : time;
+    this.reader.updateClock(clock);
+    const cue=this.cues?.at(clock)??null;
     const follow=this.following && !!this.cues?.available;
     if(cue!==this.lastCue || follow!==this.lastFollow || jump) {
       this.reader.show(cue,follow,{jump});
