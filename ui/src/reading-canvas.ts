@@ -1,29 +1,30 @@
 import {el} from './dom';
 import {icon} from './icons';
 import './reading-canvas.css';
+import './reading-dock.css';
 
 export function stageControls() {
   return `<nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls">
     <div class="canvas-console">
-      <div class="canvas-position">
-        <span id="canvas-position" role="status">No visible source turns</span>
-        <span id="canvas-location" title="Current source identifier"></span>
-      </div>
-      <div class="canvas-transport">
-        <button type="button" id="canvas-prev" aria-label="Previous source turn" title="Previous source turn">${icon('expand_less')}</button>
-        <input id="canvas-scrub" type="range" min="1" max="1" step="1" value="1" aria-label="Scrub source turns">
-        <button type="button" id="canvas-next" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
+      <div class="canvas-transport" role="group" aria-label="Source turns">
+        <div class="canvas-position">
+          <label id="canvas-position" for="canvas-scrub" aria-live="polite" aria-atomic="true">No visible source turns</label>
+          <span id="canvas-location" class="sr-only"></span>
+          <input id="canvas-scrub" type="range" min="1" max="1" step="1" value="1" aria-label="Scrub source turns">
+        </div>
+        <button type="button" id="canvas-prev" aria-label="Previous source turn" title="Previous source turn">${icon('chevron_right')}</button>
+        <button type="button" id="canvas-next" aria-label="Next source turn" title="Next source turn">${icon('chevron_right')}</button>
       </div>
       <div class="canvas-listening" id="canvas-listening" hidden>
         <button type="button" id="canvas-play" aria-label="Play audio on canvas" title="Play audio on canvas">${icon('play_arrow')}</button>
-        <button type="button" id="follow-audio" aria-label="Follow audio" aria-pressed="false" aria-controls="tokens">${icon('adjust')}<span class="follow-label">Follow audio</span></button>
+        <button type="button" id="follow-audio" aria-label="Follow audio" aria-pressed="false" aria-controls="tokens">${icon('link')}<span><span class="follow-label">Follow</span><span class="follow-context"> audio</span></span></button>
       </div>
-      <div class="canvas-zoom">
+      <div class="canvas-zoom" role="group" aria-label="Text size">
         <button type="button" id="canvas-zoom-out" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">${icon('remove')}</button>
         <output id="canvas-scale" aria-label="Text size">100%</output>
         <button type="button" id="canvas-zoom-in" aria-label="Increase text size" title="Increase text size (Alt + plus)">${icon('add')}</button>
       </div>
-      <button type="button" id="canvas-exit" aria-label="Exit reading canvas" title="Exit reading canvas (Escape)" hidden>${icon('close')}<span>Exit focus</span></button>
+      <button type="button" id="canvas-exit" aria-label="Exit reading canvas" title="Exit focus mode (Escape)" hidden>${icon('close')}</button>
     </div>
   </nav>`;
 }
@@ -217,7 +218,7 @@ export class ReadingCanvas {
     } else this.handle.remove();
     const source = el('canvas-location');
     source.textContent = turn?.dataset.location ?? '';
-    source.title = source.textContent ? `Source identifier: ${source.textContent}` : '';
+    el('canvas-position').title = source.textContent ? `Source identifier: ${source.textContent}` : '';
     this.scrub.max = String(Math.max(1,total));
     this.scrub.value = String(Math.max(1,index+1));
     this.scrub.setAttribute('aria-valuetext',turn?.dataset.location ? `${position} · ${turn.dataset.location}` : position);

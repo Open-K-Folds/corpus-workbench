@@ -95,12 +95,16 @@ export class PlaybackSync {
     }
     this.play.disabled=!playable;
     this.follow.disabled=!this.cues?.available;
-    this.follow.setAttribute('aria-pressed',String(this.following && !!this.cues?.available));
+    const following=this.following && !!this.cues?.available;
+    this.follow.setAttribute('aria-pressed',String(following));
+    this.follow.querySelector('.material-symbol')!.textContent=following?'check':'link';
     this.follow.title=!playable?'Waiting for the recording':
       !this.cues?.available?'No word or utterance timestamps for this recording':
       this.following?'Following the recording. Click to read independently.':'Bring the current passage back into view';
     const label=this.follow.querySelector<HTMLElement>('.follow-label')!;
-    label.textContent=playable && !this.cues?.available?'No timing':'Follow audio';
+    const untimed=playable && !this.cues?.available;
+    label.textContent=untimed?'No timing':'Follow';
+    this.follow.querySelector<HTMLElement>('.follow-context')!.hidden=untimed;
   }
 
   private setFollowing(value:boolean) {
