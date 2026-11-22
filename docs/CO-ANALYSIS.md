@@ -65,6 +65,11 @@ close, but arriving and hearing about something describe different events. You c
 find a passage by entering words from the corpus. Candidate ranking uses vocabulary
 and nearby text, so rephrasings with little shared wording can be missed.
 
+For a repeated expression, enter its wording and choose **Matched words only** under
+**Search result span**. Each occurrence has its own token IDs. **Source context**
+shows the surrounding text while the exported comparison contains just the matching
+source tokens. This is especially helpful with long transcripts lacking punctuation.
+
 Name the collection and enter your own relationship, such as **Same meaning**,
 **Partial overlap**, **Different** or **Needs context**. **Model second reading** lets
 you inspect the prompt and ask the desktop’s local model, or attach a reply obtained
@@ -80,6 +85,10 @@ readings retain original strings and human corrections separately. Source contex
 play an excerpt when the project provides an unambiguous recording and a usable interval.
 Distinct utterances and speaker IDs are counted within documents. A recurring label
 such as “A” in two interviews therefore makes no claim about the person's identity.
+
+The library shows the project's corpus-use terms before export. Each JSONL row
+includes those terms and the project's machine-draft provenance at the export
+revision in `exportedFrom`.
 
 ## Where the interaction comes from
 
