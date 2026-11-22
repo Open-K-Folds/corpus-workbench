@@ -10,6 +10,44 @@ const fontSize = (element: Locator) => element.evaluate(node => parseFloat(getCo
 test.describe('dock position during timed listening', () => {
   test.use({practicePackage:resolve('../fixtures/spoken-reading')});
 
+  for (const theme of ['dark','light']) {
+    test(`utterance contrast tracks the recording through silence and backward seeks in ${theme} appearance`, async ({page,practiceUrl}) => {
+      await page.addInitScript(value=>localStorage.setItem('wb-theme',value),theme);
+      await page.goto(practiceUrl);
+      await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      const follow=page.getByRole('button',{name:'Follow audio',exact:true});
+      await expect(follow).toBeEnabled();
+      const seek=(seconds:number)=>page.locator('#audio').evaluate((media:HTMLAudioElement,time)=>{media.currentTime=time},seconds);
+      const turn=(id:string)=>page.locator(`.reading-block[data-utterance="${id}"]`);
+      const opacity=(id:string)=>token(page,id).evaluate(text=>Number(getComputedStyle(text).opacity));
+
+      // u4 has only utterance timing. Its words cannot establish their own progress.
+      await seek(14);
+      await expect(turn('u3')).toHaveAttribute('data-playback-progress','played');
+      await expect(turn('u4')).toHaveAttribute('data-playback-progress','current');
+      await expect(turn('u5')).toHaveAttribute('data-playback-progress','upcoming');
+      await expect.poll(()=>opacity('w3-1')).toBe(1);
+      await expect.poll(()=>opacity('w5-1')).toBeLessThan(1);
+
+      await seek(16.5);
+      await expect(turn('u4')).toHaveAttribute('data-playback-progress','played');
+      await expect(page.locator('[data-playback-word],[data-playback-turn]')).toHaveCount(0);
+      await expect.poll(()=>opacity('w4-1')).toBe(1);
+      await expect.poll(()=>opacity('w5-1')).toBeLessThan(1);
+
+      await follow.click();
+      await expect(follow).toHaveAttribute('aria-pressed','false');
+      await seek(1);
+      await expect(turn('u1')).toHaveAttribute('data-playback-progress','current');
+      await expect(turn('u4')).toHaveAttribute('data-playback-progress','upcoming');
+      await expect.poll(()=>opacity('w4-1')).toBeLessThan(1);
+      await token(page,'w4-1').click();
+      await expect(page.locator('[data-token="w4-1"]')).toHaveClass(/selected/);
+      await expect.poll(()=>opacity('w4-1')).toBe(1);
+      await expect.poll(()=>opacity('w4-2')).toBeLessThan(1);
+    });
+  }
+
   test('the turn wheel follows paused audio and keyboard steering begins at that turn', async ({page,practiceUrl}) => {
     await page.goto(practiceUrl);
     const follow = page.locator('#follow-audio'), wheel = page.locator('.canvas-turn-handle');
