@@ -15,11 +15,11 @@ export function stageControls() {
         <button type="button" id="canvas-next" aria-label="Next source turn" title="Next source turn">${icon('expand_more')}</button>
       </div>
       <div class="canvas-zoom">
-        <button type="button" id="canvas-zoom-out" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">−</button>
+        <button type="button" id="canvas-zoom-out" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">${icon('remove')}</button>
         <output id="canvas-scale" aria-label="Text size">100%</output>
-        <button type="button" id="canvas-zoom-in" aria-label="Increase text size" title="Increase text size (Alt + plus)">+</button>
+        <button type="button" id="canvas-zoom-in" aria-label="Increase text size" title="Increase text size (Alt + plus)">${icon('add')}</button>
       </div>
-      <button type="button" id="canvas-exit" aria-label="Exit reading canvas" title="Exit reading canvas (Escape)" hidden>Exit focus</button>
+      <button type="button" id="canvas-exit" aria-label="Exit reading canvas" title="Exit reading canvas (Escape)" hidden>${icon('close')}<span>Exit focus</span></button>
     </div>
   </nav>`;
 }
@@ -74,11 +74,13 @@ export class ReadingCanvas {
       }
     }, options);
     this.pane.addEventListener('pointerup', event => {
-      if (this.drag?.id === event.pointerId && this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.handle.click();
+      if (this.drag?.id !== event.pointerId) return;
+      if (this.drag.turn !== null && Math.abs(event.clientY-this.drag.y)<4) this.handle.click();
       this.endPan();
     }, options);
-    this.pane.addEventListener('pointercancel', () => this.endPan(), options);
-    this.pane.addEventListener('lostpointercapture', () => this.endPan(), options);
+    const cancelPan = (event:PointerEvent) => {if (event.pointerId === this.drag?.id) this.endPan()};
+    this.pane.addEventListener('pointercancel', cancelPan, options);
+    this.pane.addEventListener('lostpointercapture', cancelPan, options);
     document.addEventListener('keydown', event => {
       if (event.isComposing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
       const target = event.target as HTMLElement;
@@ -216,8 +218,10 @@ export class ReadingCanvas {
 
   private panStart(event:PointerEvent) {
     if (this.drag || !event.isPrimary || event.button !== 0) return;
-    const steering = event.target === this.handle;
-    if (!steering && (event.pointerType === 'touch' || (event.target !== this.pane && event.target !== this.text && !(event.target instanceof Element && event.target.matches('.source-number,.reading-block'))))) return;
+    const target = event.target;
+    const steering = target === this.handle;
+    const margin = target === this.pane || target === this.text || (target instanceof Element && target.matches('.source-number,.reading-block'));
+    if (!steering && (event.pointerType === 'touch' || !margin)) return;
     event.preventDefault();
     if (steering) this.handle.focus({preventScroll:true});
     this.pane.setPointerCapture(event.pointerId);

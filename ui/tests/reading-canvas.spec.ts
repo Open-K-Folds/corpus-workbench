@@ -112,16 +112,19 @@ test('canvas controls fit a phone and a correction draft stays attached to its t
   const tools = page.locator('#canvas-tools');
   await expect(tools).toBeVisible();
   await expect(page.locator('#canvas-position')).toContainText('1 of 3');
-  const geometry = await page.evaluate(() => {
-    const bounds = [...document.querySelectorAll<HTMLElement>('#canvas-tools :is(button,input)')]
-      .filter(el => el.getClientRects().length)
-      .map(el => el.getBoundingClientRect());
-    return {
-      pageFits: document.documentElement.scrollWidth <= innerWidth,
-      controlsFit: bounds.every(box => box.left >= 0 && box.right <= innerWidth + 1 && box.top >= 0 && box.bottom <= innerHeight),
-    };
-  });
-  expect(geometry).toEqual({pageFits: true, controlsFit: true});
+  for (const width of [320,390]) {
+    await page.setViewportSize({width,height:844});
+    const geometry = await page.evaluate(() => {
+      const bounds = [...document.querySelectorAll<HTMLElement>('#canvas-tools :is(button,input)')]
+        .filter(el => el.getClientRects().length)
+        .map(el => el.getBoundingClientRect());
+      return {
+        pageFits: document.documentElement.scrollWidth <= innerWidth,
+        controlsFit: bounds.every(box => box.left >= 0 && box.right <= innerWidth + 1 && box.top >= 0 && box.bottom <= innerHeight),
+      };
+    });
+    expect(geometry).toEqual({pageFits: true, controlsFit: true});
+  }
   await info.attach('Reading canvas at 390 pixels', {body: await page.screenshot(), contentType: 'image/png'});
   const exit = page.getByRole('button', {name: 'Exit reading canvas'});
   await exit.focus();
