@@ -336,12 +336,45 @@ export class Transcript {
     const input=span.querySelector<HTMLInputElement>('input')!;
     input.oninput=()=>{if(this.finalizing||d.phase!=='editing'&&d.phase!=='conflict')return;d.replacement=input.value;d.compared=false;d.epoch=(d.epoch??0)+1;this.persist();this.updateDraft()};
     input.addEventListener('compositionstart',()=>{this.composing=true;this.updateDraft()});input.addEventListener('compositionend',()=>{this.composing=false;this.settling=true;this.updateDraft();setTimeout(()=>{this.settling=false;this.updateDraft()},0)});
-    input.onkeydown=e=>{if(e.key==='Enter'){if(e.isComposing||this.composing||e.keyCode===229)return;e.preventDefault();e.stopPropagation();if(!this.settling&&!e.shiftKey)void this.accept()}else if(e.key==='Escape'&&!e.isComposing&&!this.composing){e.stopPropagation();this.menu.hidden=true}};
+    input.onkeydown=e=>{
+      if(e.key!=='Enter'||e.isComposing||this.composing||e.keyCode===229)return;
+      e.preventDefault();e.stopPropagation();if(!this.settling&&!e.shiftKey)void this.accept();
+    };
+    span.onkeydown=e=>{
+      if(e.key!=='Escape'||e.isComposing||this.composing||e.keyCode===229)return;
+      e.preventDefault();e.stopPropagation();void this.dismissDraft();
+    };
     span.querySelector<HTMLButtonElement>('#undo-draft')!.onclick=async()=>{if(this.busy())return;this.finalizing=true;this.updateDraft();await this.persistence;const record=this.stored;if(record)await this.forget(record);this.stored=null;this.draft=null;this.finalizing=false;this.selection=null;await this.render();const first=this.surface.querySelector(`[data-token="${CSS.escape(d.basis.ids[0])}"] .reading-text`)?.firstChild,last=this.surface.querySelector(`[data-token="${CSS.escape(d.basis.ids.at(-1)!)}"] .reading-text`)?.firstChild;if(first&&last){const a=Array.from(first.textContent??'').slice(0,d.basis.start).join('').length,b=Array.from(last.textContent??'').slice(0,d.basis.end).join('').length;this.surface.focus();window.getSelection()?.setBaseAndExtent(d.basis.backward?last:first,d.basis.backward?b:a,d.basis.backward?first:last,d.basis.backward?a:b)}this.host.status(`Saved R${this.host.view().revision.id} · ${this.host.view().approved?'Approved exact revision':'Unreviewed'}`)};
     span.querySelector<HTMLButtonElement>('#accept-draft')!.onclick=()=>void this.accept();span.querySelector<HTMLButtonElement>('#retry-draft')!.onclick=()=>void this.accept(true);
     span.querySelector<HTMLButtonElement>('#compare-draft')!.onclick=async()=>{if(this.finalizing||d.phase!=='conflict')return;const proposed=d.replacement,epoch=d.epoch;try{const latest=await loadView(),diff=await api<Diff>(`/api/diff?from=${d.basis.view.revision.id}&to=${latest.revision.id}`);if(this.draft!==d||d.replacement!==proposed||epoch!==d.epoch||this.composing)return;d.latest=latest;d.compared=true;const pre=span.querySelector<HTMLElement>('#draft-comparison')!;pre.hidden=false;pre.textContent=JSON.stringify(diff,null,2);this.updateDraft()}catch(e){this.host.message(String(e),true)}};
     span.querySelector<HTMLButtonElement>('#reapply-draft')!.onclick=()=>{if(this.finalizing||!d.compared||!d.latest)return;const latestToken=d.latest.documents.find(doc=>doc.path===d.basis.document)?.tokens.find(t=>t.id===d.basis.ids[0]);if(!latestToken?.editable){this.host.message('Target no longer supports correction. Undo the draft and inspect the new structure.',true);return}const proposed=d.prefix+d.replacement+d.suffix;d.before=latestToken.corrected??latestToken.original;d.basis={...d.basis,view:d.latest,start:0,end:Array.from(d.before).length,quote:d.before,range:null};d.prefix='';d.suffix='';d.replacement=proposed;d.phase='editing';d.command=null;this.persist();void this.accept()};
     this.updateDraft();input.focus();input.select();
+  }
+  private async dismissDraft(){
+    const draft=this.draft;
+    if(!draft||this.busy()||this.settling||this.host.busy())return;
+    if(draft.phase==='conflict'){
+      this.host.message('Resolve the revision conflict or undo this draft before closing it.',true);
+      return;
+    }
+    this.finalizing=true;
+    this.updateDraft();
+    const retained=await this.persist();
+    this.finalizing=false;
+    if(!retained){
+      this.updateDraft();
+      this.surface.querySelector<HTMLInputElement>('#inline-replacement')?.focus({preventScroll:true});
+      this.host.message(this.storageWarning,true);
+      return;
+    }
+    this.stored=null;
+    this.draft=null;
+    this.selection=null;
+    window.getSelection()?.removeAllRanges();
+    this.host.select([]);
+    this.host.status('Draft retained locally');
+    await this.render();
+    if(document.activeElement===document.body)this.surface.focus({preventScroll:true});
   }
   private reason(){
     const d=this.draft!,proposed=d.prefix+d.replacement+d.suffix;

@@ -130,7 +130,7 @@ test('canvas navigation and sizing preserve a live source selection for co-analy
   expect(errors).toEqual([]);
 });
 
-test('canvas controls fit a phone and a correction draft stays attached to its token', async ({page, practiceUrl}, info) => {
+test('canvas controls fit a phone and Escape keeps a correction recoverable on its token', async ({page, practiceUrl}, info) => {
   await page.setViewportSize({width: 390, height: 844});
   await page.goto(practiceUrl);
   const open = launcher(page);
@@ -163,9 +163,13 @@ test('canvas controls fit a phone and a correction draft stays attached to its t
   await nativeSelection(page, 'a4', 'a4');
   await page.getByRole('button', {name: 'Correct', exact: true}).click();
   const input = page.getByRole('textbox', {name: 'Proposed correction'});
-  await input.fill('poster');
+  await input.fill('printed poster');
   await input.press('Escape');
-  await expect(input).toHaveValue('poster');
+  await expect(input).toHaveCount(0);
+  await expect(page.locator('#tokens .selected')).toHaveCount(0);
+  await expect(exit).toBeVisible();
+  await page.getByRole('button',{name:'Recover correction',exact:true}).click();
+  await expect(input).toHaveValue('printed poster');
   expect((await head(page)).id).toBe(1);
   await page.getByRole('button', {name: 'Undo draft'}).click();
   await expect(input).toHaveCount(0);

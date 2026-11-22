@@ -62,6 +62,8 @@ test('a phrase can replace one word while blank deletion and IME candidate Enter
   await expect(page.locator('#accept-draft')).toBeEnabled();
   await input.dispatchEvent('compositionstart');
   await input.dispatchEvent('keydown',{key:'Enter',code:'Enter',isComposing:true});
+  await input.dispatchEvent('keydown',{key:'Escape',code:'Escape',isComposing:true});
+  await expect(input).toHaveValue('over there now');
   await input.dispatchEvent('compositionend');
   expect((await head(page)).revision.id).toBe(before);
   await expect(page.locator('#accept-draft')).toBeEnabled();
@@ -73,6 +75,8 @@ test('a phrase can replace one word while blank deletion and IME candidate Enter
 test('saved response loss retries exact command once and blocks dependent operations',async({page})=>{
   await open(page);const before=(await head(page)).revision.id;let firstBody='';let retries=0;await page.route('**/api/command',async route=>{retries++;const body=route.request().postData()!;if(retries===1){firstBody=body;await route.fetch();await route.abort('failed')}else{expect(body).toBe(firstBody);await route.continue()}});
   await select(page,'w2');await page.keyboard.press('Backspace');await page.getByLabel('Proposed correction').fill('there');await page.locator('#accept-draft').click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');await expect(page.getByLabel('Proposed correction')).toBeDisabled();expect((await head(page)).revision.id).toBe(before+1);
+  await page.locator('#retry-draft').press('Escape');
+  await expect(page.getByLabel('Proposed correction')).toBeDisabled();
   await expect(page.getByRole('button',{name:'Review',exact:true})).toBeDisabled();
   await page.locator('#retry-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);expect((await head(page)).revision.id).toBe(before+1);expect(retries).toBe(2);
 });
