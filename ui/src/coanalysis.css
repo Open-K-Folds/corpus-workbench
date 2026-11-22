@@ -3,6 +3,7 @@
   --ca-accent-fill: #d7efdc;
   --ca-accent-ink: #143c25;
   display: grid;
+  container: inspector-passage / inline-size;
   gap: 1rem;
   min-width: 0;
   overflow-wrap: anywhere;
@@ -52,11 +53,16 @@
 #coanalysis-form [data-prompt] { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
 #coanalysis-form .ca-private { display: grid; gap: .4rem; }
 #coanalysis-form .ca-lenses legend { margin-bottom: .4rem; font-size: .9rem; }
-.ca-lens-options { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .35rem; }
+.ca-lens-options { display: grid; gap: .35rem; }
 .ca-lens-option { position: relative; min-width: 0; }
-#coanalysis-form .ca-lens-option label { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: .5rem; height: 100%; min-height: 4.8rem; padding: .58rem; border: 1px solid var(--control-edge); border-radius: .5rem; font-size: .79rem; line-height: 1.25; color: var(--muted); cursor: pointer; }
+#coanalysis-form .ca-lens-option label { display: flex; align-items: center; gap: .5rem; min-height: 44px; height: 100%; padding: .58rem 2.2rem .58rem .7rem; border: 1px solid var(--control-edge); border-radius: .5rem; font-size: .85rem; line-height: 1.3; color: var(--muted); cursor: pointer; }
 .ca-lens-option .material-symbol { font-size: 1.25rem; }
-#coanalysis-form .ca-lens-option input { position: absolute; inset: .68rem .5rem auto auto; width: .87rem; height: .87rem; min-height: 0; margin: 0; padding: 0; accent-color: var(--ca-accent); }
+#coanalysis-form .ca-lens-option input { position: absolute; inset: calc(50% - .435rem) .7rem auto auto; width: .87rem; height: .87rem; min-height: 0; margin: 0; padding: 0; accent-color: var(--ca-accent); }
+@container inspector-passage (min-width: 265px) {
+  .ca-lens-options { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  #coanalysis-form .ca-lens-option label { flex-direction: column; align-items: flex-start; justify-content: space-between; min-height: 4.8rem; padding: .58rem; font-size: .79rem; }
+  #coanalysis-form .ca-lens-option input { inset: .68rem .5rem auto auto; }
+}
 #coanalysis-form .ca-lens-option input:checked + label { color: var(--ca-accent-ink); background: var(--ca-accent-fill); border-color: var(--ca-accent); }
 #coanalysis-form .ca-lens-option input:focus-visible + label { outline: 2px solid var(--ca-accent); outline-offset: 2px; }
 #coanalysis-form .ca-lens-option input:disabled + label { cursor: default; opacity: .65; }
