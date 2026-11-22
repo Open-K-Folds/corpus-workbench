@@ -465,9 +465,10 @@ test('pane drags use visible sizes, preserve preferred layouts and keep recordin
     const zoomed=await paneGeometry(application,page);geometry.push({stage:'minimum native window at 125 percent',...zoomed});
     expect(zoomed.transcript.height,'240px reading reservation allows subpixel rounding').toBeGreaterThanOrEqual(239.5);expect(zoomed.transcript.clientHeight).toBeGreaterThanOrEqual(240);expect(zoomed.transcript.width).toBeGreaterThanOrEqual(300);
     nearPixels(zoomed.recordingControl.value,zoomed.recording.height);expect(zoomed.recording.height).toBeLessThanOrEqual(zoomed.recordingControl.max+1);
-    for(const [selector,side,dx] of [['#navigation-resizer','navigation',-12],['#properties-resizer','properties',12]]){
+    // The activity rail takes 52px at this zoom. The splitters stop at each pane's minimum.
+    for(const [selector,side,dx,minimum] of [['#navigation-resizer','navigation',-12,160],['#properties-resizer','properties',12,260]]){
       const start=(await paneGeometry(application,page))[side].width;await dragSplitter(page,selector,dx,0);
-      nearPixels((await paneGeometry(application,page))[side].width,start-12);
+      nearPixels((await paneGeometry(application,page))[side].width,Math.max(minimum,start-12));
     }
     await captureNative(application,join(evidence,'electron-panes-minimum-zoom125.png'));
     await application.evaluate(({BrowserWindow})=>{const window=BrowserWindow.getAllWindows()[0];window.webContents.setZoomFactor(1);window.setSize(1440,1000)});await settleLayout(page);
