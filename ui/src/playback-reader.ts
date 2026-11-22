@@ -17,7 +17,8 @@ export class PlaybackReader {
   private projection: MutationObserver;
   private previousLine: number | null = null;
 
-  constructor(private surface: HTMLElement, onSuspendFollowing: () => void) {
+  constructor(private surface: HTMLElement, onSuspendFollowing: () => void,
+    private onFollowTurn?: (turn: HTMLElement | null) => void) {
     this.pane = surface.closest<HTMLElement>('.transcript')!;
     this.caret.className = 'playback-caret';
     this.caret.hidden = true;
@@ -27,6 +28,8 @@ export class PlaybackReader {
     const suspend = () => {
       if (!this.following) return;
       this.following = false;
+      this.surface.removeAttribute('data-playback-following');
+      this.onFollowTurn?.(null);
       // A smooth line advance may still be running when the reader takes over.
       this.pane.scrollTo({top:this.pane.scrollTop, behavior:'instant'});
       onSuspendFollowing();
@@ -37,8 +40,10 @@ export class PlaybackReader {
           event.target.closest('#next-match,#jump-source'))) suspend();
     }, options);
     this.pane.addEventListener('keydown', event => {
-      if (surface.contains(event.target as Node) && ['PageUp','PageDown','Home','End','ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(event.key)) suspend();
-    }, options);
+      if (!(event.target instanceof Element) || !surface.contains(event.target) ||
+          !['PageUp','PageDown','Home','End','ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(event.key)) return;
+      suspend();
+    }, {...options,capture:true});
     this.pane.parentElement?.addEventListener('click', event => {
       if (event.target instanceof Element && event.target.closest('#canvas-prev,#canvas-next')) suspend();
     }, options);
@@ -57,11 +62,12 @@ export class PlaybackReader {
 
   show(cue: PlaybackCue | null, follow: boolean, options: {jump?:boolean} = {}) {
     const changed = cue !== this.cue;
-    const resume = follow && !this.following;
+    const followChanged = follow !== this.following;
     this.following = follow;
+    this.surface.toggleAttribute('data-playback-following',follow);
     this.cue = cue;
     if (changed) this.paint();
-    if (changed || options.jump || resume) this.position(Boolean(options.jump || resume));
+    if (changed || options.jump || followChanged) this.position(Boolean(options.jump || followChanged));
   }
 
   /** A projection or filter replaced the actual source nodes. Resolve identities again. */
@@ -136,10 +142,12 @@ export class PlaybackReader {
     const bounds = this.pane.getBoundingClientRect();
     const line = (word ?? target)?.getClientRects()[0];
     if (!target || !line || !line.height || !bounds.height) {
+      this.onFollowTurn?.(null);
       this.caret.hidden = true;
       this.previousLine = null;
       return;
     }
+    this.onFollowTurn?.(this.following ? target.closest<HTMLElement>('.reading-block') : null);
     if (word) {
       // Reading direction and wrapped words make the source text's first caret
       // more reliable than the left edge of the lexeme's bounding rectangle.

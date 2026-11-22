@@ -1,7 +1,7 @@
 /* Audio position is visually independent of the orange evidence selection. */
 .workspace > .transcript {--playback-ink:#f2d479}
 :root[data-theme=light] .workspace > .transcript {--playback-ink:#745500}
-.workspace .transcript #tokens[data-playback-evidence]:not([data-training-gesture],.moving-passage-pin) .reading-block:not([data-playback-turn]) .lexeme:not([data-playback-word],.selected,.passage-pinned) > .reading-text {
+.workspace .transcript #tokens[data-playback-evidence][data-playback-following]:not([data-training-gesture],.moving-passage-pin) .reading-block:not([data-playback-turn]) .lexeme:not([data-playback-word],.selected,.passage-pinned) > .reading-text {
   color:var(--stage-soft);
 }
 .workspace .transcript #tokens .lexeme[data-playback-word]:not(.selected,.passage-pinned) > .reading-text {
