@@ -39,6 +39,7 @@ jobs:
       - name: Verify local preparation with the native authority
         run: node scripts/verify-local-transcript-import.cjs --binary target/debug/corpus-workbench --out "${{ runner.temp }}/local-transcript-native"
       - run: npm run test:audio --prefix ui
+      - run: node --test ui/tests/training-candidates.unit.mjs
       - run: npm audit --prefix ui --audit-level=low
       - name: Install isolated Chromium
         working-directory: ui

@@ -25,6 +25,25 @@ async function saveReview(page: Page, field: string, label: string, revision: nu
   await expect(page.locator('#save-state')).toContainText(`Saved R${revision}`);
 }
 
+test('the canvas comparison can become a reviewed paraphrase without moving the source selection',async({page,practiceUrl})=>{
+  await page.goto(practiceUrl);
+  await chooseSeed(page,'b1','b6');
+  await panel(page).getByRole('radio',{name:'Same meaning'}).check();
+  const strip=page.getByRole('region',{name:'Compare with selected transcript'});
+  await expect(strip.locator('blockquote')).toHaveText(nearMiss);
+  await strip.getByRole('button',{name:'Next comparison'}).click();
+  await expect(strip.locator('blockquote')).toHaveText(equivalent);
+  await expect(panel(page).locator('[data-training-seed] blockquote')).toHaveText(seedQuote);
+  await strip.getByRole('button',{name:'Review example'}).click();
+  await expect(panel(page).getByLabel('Relationship',{exact:true})).toBeFocused();
+  await saveReview(page,'Relationship','Same meaning',2);
+  const view=await head(page);
+  const record=JSON.parse(view.documents[0].spans[0].fields.note);
+  expect(record).toMatchObject({label:'Same meaning',seed:{quote:seedQuote},candidate:{quote:equivalent}});
+  await panel(page).getByRole('button',{name:'Saved collections'}).click();
+  await expect(strip).toBeHidden();
+});
+
 test('a reviewed pair, negative pair and passage label survive reload and export with their original anchors', async ({page, practiceUrl}) => {
   test.setTimeout(60000);
   const errors: string[] = [];
