@@ -3,7 +3,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url(https://fonts.gstatic.com/l/font?kit=kJEPBvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzB_guZ5QyRzazncfdY40yxrjGyv3fzdVBO1Vy0oTrdw0HasFiArONPu98w6-R-30QSKbDePrBdjeg77uR7hV3gpyzFRg8RI3KDUSHftES5Je6JteV895lD9xeYFO4&skey=b8dc2088854b122f&v=v375) format('woff2');
+  src: url(https://fonts.gstatic.com/l/font?kit=kJEPBvYX7BgnkSrUwT8OhrdQw4oELdPIeeII9v6oDMzB_guZ5QyRzazncfdY40yxrjGyv3fzdVBO1VyxzATewkbbs1mPreFJvd0y9fp83UIUK7LQMKIC1kpq-B0nYDFO-PVAQJOKGMINSO2PmnK-IFc_jO8mYsmuZH9ct_seBiPfFhjpAcF8GocWLb57tNT-CSY5YITxQ41xN3tU0sIp3Q&skey=b8dc2088854b122f&v=v385) format('woff2');
 }
 
 .material-symbols-outlined {
@@ -21,4 +21,3 @@
   -webkit-font-feature-settings: 'liga';
   -webkit-font-smoothing: antialiased;
 }
-
