@@ -10,6 +10,7 @@ export interface Passage {
   title: string;
   utterance: string | null;
   tokenIds: string[];
+  readings?: {id: string; original: string; corrected: string | null; language: string | null; languageSource?: string}[];
   quote: string;
   speaker: string | null;
   language: string | null;
@@ -109,6 +110,8 @@ function ground(view: View, source: IndexedDocument, range: Range): Passage | nu
     project: view.snapshot.project, revision: view.revision.id, snapshotHash: view.revision.snapshot_hash,
     document: doc.path, documentHash: view.snapshot.files[doc.path].sha256, title: doc.title,
     utterance: first.utterance, tokenIds: tokens.map(t => t.id), quote,
+    readings: tokens.map(t => ({id: t.id, original: t.original, corrected: t.corrected, language: t.language_effective,
+      ...(t.language_source && {languageSource: t.language_source})})),
     speaker: segment?.attrs.who?.trim() || null, language: language && tokens.every(t => t.language_effective === language) ? language : null,
     startUs, endUs, timeBasis,
   };

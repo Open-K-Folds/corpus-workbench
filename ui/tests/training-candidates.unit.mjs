@@ -35,12 +35,28 @@ test('grounding reconstructs the saved reading and retains its exact authority, 
   assert.deepEqual(makePassage(v, d, ['w2', 'w1']), {
     project: 'research', revision: 12, snapshotHash: hash, document: 'field.xml', documentHash: file, title: 'field.xml',
     utterance: 'a', tokenIds: ['w1', 'w2'], quote: 'The cafe\u0301', speaker: '#s1 #s2', language: 'en',
+    readings: [{id: 'w1', original: 'A', corrected: 'The', language: 'en'},
+      {id: 'w2', original: 'cafe\u0301', corrected: null, language: 'en'}],
     startUs: 400, endUs: 900, timeBasis: 'word',
   });
   assert.equal(makePassage(v, d, ['w1', 'w2', 'w3']).language, null);
   for (const ids of [[], ['w1', 'absent'], ['w1', 'w1'], ['w1', 'w3'], ['w3', 'w4']]) assert.equal(makePassage(v, d, ids), null);
   const decoy = {...d, tokens: [{...d.tokens[0], original: 'Different text', corrected: null}]};
   assert.equal(makePassage(v, decoy, ['w1']).quote, 'The');
+});
+
+test('joined display quotes preserve separately stored punctuation, correction and mixed-language token readings', () => {
+  const d = doc('punctuation.xml', [[null, ['¿', 'cafe\u0301', '?']]]);
+  Object.assign(d.tokens[0], {language_effective: 'es', language_source: 'inherited'});
+  Object.assign(d.tokens[1], {corrected: 'CAFÉ', language_effective: 'fr', language_source: 'explicit'});
+  const p = makePassage(view(d), d, ['w1', 'w2', 'w3']);
+  assert.equal(p.quote, '¿ CAFÉ ?');
+  assert.equal(p.language, null);
+  assert.deepEqual(p.readings, [
+    {id: 'w1', original: '¿', corrected: null, language: 'es', languageSource: 'inherited'},
+    {id: 'w2', original: 'cafe\u0301', corrected: 'CAFÉ', language: 'fr', languageSource: 'explicit'},
+    {id: 'w3', original: '?', corrected: null, language: null},
+  ]);
 });
 
 test('only the full recorded turn inherits its explicit chunk bounds; inconsistent word timing stays unknown', () => {
