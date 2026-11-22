@@ -43,7 +43,7 @@ test('a reviewed pair, negative pair and passage label survive reload and export
   await choices.selectOption({index: 1});
   await expect(trainer.locator('.training-discovery blockquote')).toHaveText(equivalent);
 
-  await trainer.getByText('Model second reading', {exact: true}).click();
+  await trainer.locator('.training-assistant > summary').click();
   await trainer.getByLabel('Model name', {exact: true}).fill('Local fixture model');
   const proposal = 'Possibly a delay in receiving news. <source>still ambiguous</source>';
   await trainer.getByLabel('Model proposal').fill(proposal);
