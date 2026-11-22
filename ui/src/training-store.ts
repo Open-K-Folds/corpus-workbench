@@ -43,6 +43,16 @@ function isAssistance(value: unknown): value is TrainingAssistance {
   return present(a.model) && present(a.reply) && present(a.prompt);
 }
 
+function validReadings(p: Partial<Passage>) {
+  const readings = p.readings;
+  if (readings === undefined) return true; // Earlier reviews stored the quote and token IDs.
+  return Array.isArray(readings) && readings.length === p.tokenIds?.length &&
+    readings.every((r, i) => r && r.id === p.tokenIds![i] && typeof r.original === 'string' &&
+      nullableString(r.corrected) && nullableString(r.language) &&
+      (r.languageSource === undefined || typeof r.languageSource === 'string')) &&
+    readings.map(r => r.corrected ?? r.original).join(' ') === p.quote;
+}
+
 function isPassage(value: unknown): value is Passage {
   if (!value || typeof value !== 'object') return false;
   const p = value as Partial<Passage>;
@@ -50,7 +60,7 @@ function isPassage(value: unknown): value is Passage {
     hash(p.snapshotHash) && present(p.document) && hash(p.documentHash) && typeof p.title === 'string' &&
     nullableString(p.utterance) && Array.isArray(p.tokenIds) && p.tokenIds.length > 0 &&
     p.tokenIds.every(present) && new Set(p.tokenIds).size === p.tokenIds.length &&
-    present(p.quote) && nullableString(p.speaker) && nullableString(p.language) &&
+    present(p.quote) && validReadings(p) && nullableString(p.speaker) && nullableString(p.language) &&
     nullableTime(p.startUs) && nullableTime(p.endUs) &&
     (p.startUs === null && p.endUs === null || typeof p.startUs === 'number' && typeof p.endUs === 'number' && p.endUs >= p.startUs) &&
     (p.timeBasis == null || p.timeBasis === 'word' || p.timeBasis === 'utterance');
