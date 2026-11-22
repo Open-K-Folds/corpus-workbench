@@ -252,27 +252,31 @@ function installIPC() {
 }
 function installMenu() {
   const native = action => void action().catch(failure => dialog.showMessageBox(window, {type: 'error', title: 'Corpus workbench', message: failure.message}));
-  const menu = Menu.buildFromTemplate([
+  const template = [
     {label: '&File', submenu: [{label: 'Open corpus authority…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Recording + transcript…', click: () => sendMenu('prepare-recording')}, {label: 'Import corpus package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Create verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
     {label: '&Edit', submenu: [{role: 'undo'}, {role: 'redo'}, {type: 'separator'}, {role: 'cut'}, {role: 'copy'}, {role: 'paste'}, {role: 'selectAll'}, {type: 'separator'}, {label: 'Search corpus', accelerator: 'CmdOrCtrl+F', click: () => sendMenu('search')}]},
     {label: '&View', submenu: [{label: 'Revision history', accelerator: 'CmdOrCtrl+H', click: () => sendMenu('history')}, {label: 'Toggle inspector', accelerator: 'CmdOrCtrl+Shift+I', click: () => sendMenu('toggle-inspector')}, {label: 'Toggle recording', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenu('toggle-recording')}, {type: 'separator'}, {label: 'Reload workbench', accelerator: 'CmdOrCtrl+R', click: () => native(async () => {if (await canLeave('reloading')) {permitUnload = true; window.reload();}})}, {role: 'resetZoom'}, {role: 'zoomIn'}, {role: 'zoomOut'}, {role: 'togglefullscreen'}]},
     {label: '&Help', submenu: [{label: 'Corpus workflow and research handoff', click: () => sendMenu('research')}, {label: 'About Open-K-Folds Workbench', click: () => native(() => dialog.showMessageBox(window, {type: 'info', title: 'Open-K-Folds Workbench', message: `Open-K-Folds Workbench ${app.getVersion()}`, detail: 'Local transcript authoring, immutable revisions and reviewed evidence. GPL-3.0-or-later.\nYour corpus stays on this computer.', buttons: ['Close']}))}]},
-  ]);
-  Menu.setApplicationMenu(menu);
+  ];
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   if (!windowsOverlay) return;
   // The integrated frame has no permanently visible menu strip. Open the same
   // native menus from the keyboard, including commands without accelerators.
+  let openMenu;
   window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown' || input.isAutoRepeat || input.control || input.meta || input.shift) return;
-    let target;
-    if (!input.alt && input.key === 'F10') target = menu;
+    let items;
+    if (!input.alt && input.key === 'F10') items = template;
     if (input.alt && input.key.length === 1) {
-      target = menu.items.find(item => item.label.toLowerCase().includes('&' + input.key.toLowerCase()))?.submenu;
+      items = template.find(item => item.label.toLowerCase().includes('&' + input.key.toLowerCase()))?.submenu;
     }
-    if (target) {
-      event.preventDefault();
-      target.popup({window, x: 8, y: 40, sourceType: 'keyboard'});
-    }
+    if (!items) return;
+    event.preventDefault();
+    if (openMenu) return;
+    // Each popup owns its native menu model until Windows finishes dismissal.
+    // The application menu remains attached for its commands and accelerators.
+    openMenu = Menu.buildFromTemplate(items);
+    openMenu.popup({window, x: 8, y: 40, sourceType: 'keyboard', callback: () => {openMenu = null;}});
   });
 }
 function responseError(message, code) { return new Response(JSON.stringify({error: message}), {status: code, headers: {'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'Content-Security-Policy': security.CSP}}); }

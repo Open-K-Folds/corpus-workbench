@@ -10,10 +10,11 @@ import {symbols} from '../../ui/src/icons.ts';
 const root = resolve(fileURLToPath(new URL('../..', import.meta.url)));
 const invoke = promisify(execFile);
 const packaged = join(root, 'release/desktop/Open-K-Folds Workbench-win32-x64/Open-K-Folds Workbench.exe');
-const nativeButton = (handle, button) => invoke('powershell.exe', [
+const nativeControl = (script, ...args) => invoke('powershell.exe', [
   '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
-  join(root, 'desktop/tests/native-caption.ps1'), String(handle), button,
+  join(root, 'desktop/tests', script), ...args.map(String),
 ], {windowsHide: true, timeout: 15000});
+const nativeButton = (handle, button) => nativeControl('native-caption.ps1', handle, button);
 
 test('Windows caption buttons, keyboard menus and appearance work on the desktop', async ({}, testInfo) => {
   test.skip(process.platform !== 'win32', 'Windows UI Automation exercises the integrated Windows frame');
@@ -29,15 +30,10 @@ test('Windows caption buttons, keyboard menus and appearance work on the desktop
   try {
     const page = await application.firstWindow();
     await expect(page.locator('#desktop-open')).toBeVisible();
-    const handle = await application.evaluate(({app, BrowserWindow, Menu}) => {
+    const handle = await application.evaluate(({app, BrowserWindow}) => {
       app.setAccessibilitySupportEnabled(true);
       const window = BrowserWindow.getAllWindows()[0];
       window.focus();
-      globalThis.openedMenus = [];
-      const menu = Menu.getApplicationMenu();
-      for (const [name, target] of [['application', menu], ...menu.items.map(item => [item.label, item.submenu])]) {
-        target.on('menu-will-show', () => globalThis.openedMenus.push(name));
-      }
       return window.getNativeWindowHandle().readUInt32LE(0);
     });
     const geometry = () => page.evaluate(() => {
@@ -56,21 +52,17 @@ test('Windows caption buttons, keyboard menus and appearance work on the desktop
     await expect.poll(() => application.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].isMinimized())).toBe(true);
     await application.evaluate(({BrowserWindow}) => { const w = BrowserWindow.getAllWindows()[0]; w.restore(); w.focus(); });
 
-    for (const [keyCode, expected] of [['F10', 'application'], ['F', '&File'], ['E', '&Edit'], ['V', '&View'], ['H', '&Help']]) {
+    const menus = [['F10', ['File', 'Edit', 'View', 'Help']], ['F', ['Open corpus authority']],
+      ['E', ['Undo']], ['V', ['Revision history']], ['H', ['Corpus workflow and research handoff']]];
+    for (const [keyCode, expected] of menus) {
       await application.evaluate(({BrowserWindow}, keyCode) => {
         const contents = BrowserWindow.getAllWindows()[0].webContents;
         contents.focus();
         for (const type of ['keyDown', 'keyUp']) contents.sendInputEvent({type, keyCode, modifiers: keyCode === 'F10' ? [] : ['alt']});
       }, keyCode);
-      await expect.poll(() => application.evaluate(() => globalThis.openedMenus.at(-1))).toBe(expected);
-      await application.evaluate(({BrowserWindow, Menu}, name) => {
-        const menu = Menu.getApplicationMenu();
-        const open = name === 'application' ? menu : menu.items.find(item => item.label === name).submenu;
-        return new Promise(resolve => {
-          open.once('menu-will-close', () => setImmediate(resolve));
-          open.closePopup(BrowserWindow.getAllWindows()[0]);
-        });
-      }, expected);
+      const {stdout} = await nativeControl('native-menu.ps1', handle);
+      const items = JSON.parse(stdout);
+      for (const name of expected) expect(items.some(item => item.startsWith(name))).toBe(true);
     }
 
     await page.locator('#desktop-demo').click();
