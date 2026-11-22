@@ -32,12 +32,12 @@ export function resizePane(handle:HTMLElement,key:string,min:number,max:number,i
 /** Keep a useful reading surface when saved side panes meet a smaller window. */
 export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTMLElement,propertiesHandle:HTMLElement){
   const root=document.documentElement,navigationPane=navigationHandle.parentElement!,propertiesPane=propertiesHandle.parentElement!;
-  const visible=(side:string)=>!workspace.classList.contains(side+'-folded');
+  const visible=(side:string)=>!workspace.classList.contains(side+'-folded') && workspace.dataset.parked!==side;
   const budget=()=>workspace.clientWidth-320;
   // Keep boundary hit targets outside the panes' scrolling content.
   workspace.append(navigationHandle,propertiesHandle);navigationHandle.style.right='auto';
   const positionHandles=()=>{const bounds=workspace.getBoundingClientRect(),narrow=matchMedia('(max-width:700px)').matches;navigationHandle.hidden=narrow||!visible('navigation');propertiesHandle.hidden=narrow||!visible('properties');navigationHandle.style.left=navigationPane.getBoundingClientRect().right-bounds.left+'px';propertiesHandle.style.left=propertiesPane.getBoundingClientRect().left-bounds.left+'px'};
-  let fitting=true,constraints='',constraintWidth=-1;
+  let fitting=true,constraints='',constraintWidth=-1,previousParked:string|undefined;
   const navigation=resizePane(navigationHandle,'wb-navigation-width',160,360,208,'x',1,size=>{root.style.setProperty('--navigation-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('navigation')?360:budget()-(visible('properties')?propertiesPane.getBoundingClientRect().width:0),measure:()=>visible('navigation')?navigationPane.getBoundingClientRect().width:0});
   const properties=resizePane(propertiesHandle,'wb-properties-width',260,520,304,'x',-1,size=>{root.style.setProperty('--properties-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('properties')?520:budget()-(visible('navigation')?navigationPane.getBoundingClientRect().width:0),measure:()=>visible('properties')?propertiesPane.getBoundingClientRect().width:0});
   const fit=()=>{
@@ -48,9 +48,10 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
     // Refit preferences when the available width changes; folds keep the last
     // effective widths so reopening a pane restores the layout just left.
     if(next===constraints){positionHandles();navigation.sync();properties.sync();return}
-    const widthChanged=width!==constraintWidth;constraints=next;constraintWidth=width;
+    const spaceChanged=width!==constraintWidth || workspace.dataset.parked!==previousParked;
+    constraints=next;constraintWidth=width;previousParked=workspace.dataset.parked;
     if(narrow){fitting=false;positionHandles();return}
-    let left=widthChanged?navigation.getPreferred():navigation.getSize(),right=widthChanged?properties.getPreferred():properties.getSize();
+    let left=spaceChanged?navigation.getPreferred():navigation.getSize(),right=spaceChanged?properties.getPreferred():properties.getSize();
     const available=Math.max((showNavigation?160:0)+(showProperties?260:0),budget());
     const total=(showNavigation?left:0)+(showProperties?right:0);
     if(total>available){
@@ -64,7 +65,7 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
     fitting=false;navigation.set(left,false);properties.set(right,false);positionHandles();
   };
   fit();window.addEventListener('resize',fit);
-  new MutationObserver(fit).observe(workspace,{attributes:true,attributeFilter:['class']});
+  new MutationObserver(fit).observe(workspace,{attributes:true,attributeFilter:['class','data-parked']});
   const layout=new ResizeObserver(fit);layout.observe(workspace);layout.observe(navigationPane);layout.observe(propertiesPane);
   return {navigation,properties};
 }
