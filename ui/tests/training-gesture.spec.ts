@@ -1,0 +1,85 @@
+import {expect,type Page} from '@playwright/test';
+import {test} from './practice-fixture';
+
+const word=(page:Page,id:string)=>page.locator(`#tokens [data-token="${id}"] .reading-text`);
+const panel=(page:Page)=>page.locator('#training-panel');
+const fan=(page:Page)=>page.locator('.training-fan');
+
+async function selectTurn(page:Page) {
+  await word(page,'b1').click();
+  await word(page,'b6').click({modifiers:['Shift']});
+  await expect(page.locator('#tokens .selected')).toHaveCount(6);
+}
+
+async function holdSecondPress(page:Page,id:string) {
+  const box=(await word(page,id).boundingBox())!;
+  const origin={x:box.x+box.width/2,y:box.y+box.height/2};
+  await page.mouse.click(origin.x,origin.y);
+  await page.mouse.down();
+  await expect(fan(page)).toBeVisible();
+  return origin;
+}
+
+test('a held second press on a selected turn steers a bounded candidate search',async({page,practiceUrl})=>{
+  await page.goto(practiceUrl);
+  await selectTurn(page);
+  const origin=await holdSecondPress(page,'b3');
+  await expect(page.locator('#tokens .selected')).toHaveCount(6);
+  const target=fan(page).locator('[data-lens=contrast]');
+  const box=(await target.boundingBox())!;
+  const dx=box.x+box.width/2-origin.x,dy=box.y+box.height/2-origin.y;
+  const distance=Math.hypot(dx,dy);
+  for(const [radius,limit] of [[34,3],[82,6],[124,12]]){
+    await page.mouse.move(origin.x+radius*dx/distance,origin.y+radius*dy/distance,{steps:4});
+    await expect(target).toHaveAttribute('data-active','');
+    await expect(fan(page).locator('output')).toHaveText(`Contrast · up to ${limit} candidates`);
+  }
+  await page.mouse.up();
+  await expect(fan(page)).toHaveCount(0);
+  await expect(panel(page)).toHaveAttribute('data-mode','contrast');
+  await expect(panel(page)).toHaveAttribute('data-limit','12');
+  await expect(panel(page).locator('[data-training-seed]')).toContainText('I only heard after the meeting.');
+});
+
+test('Escape and returning to the start cancel while quick double-click preserves native text selection',async({page,practiceUrl})=>{
+  await page.goto(practiceUrl);
+  await selectTurn(page);
+  await holdSecondPress(page,'b3');
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  await expect(fan(page)).toHaveCount(0);
+  await expect(page.locator('#tokens .selected')).toHaveCount(6);
+  const origin=await holdSecondPress(page,'b3');
+  const target=(await fan(page).locator('[data-lens=meaning]').boundingBox())!;
+  await page.mouse.move(target.x+target.width/2,target.y+target.height/2,{steps:4});
+  await page.mouse.move(origin.x,origin.y,{steps:4});
+  await expect(fan(page).locator('output')).toHaveText('Release to cancel');
+  await page.mouse.up();
+  await expect(panel(page)).toBeHidden();
+  await word(page,'a4').dblclick();
+  await expect.poll(()=>page.evaluate(()=>getSelection()?.toString().trim())).toBe('notice');
+  await expect(fan(page)).toHaveCount(0);
+});
+
+test('keyboard and touch-sized controls can label an identical selected passage without dragging',async({page,practiceUrl})=>{
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(practiceUrl);
+  await selectTurn(page);
+  await page.keyboard.press('Shift+F10');
+  await expect(page.getByRole('button',{name:'Language',exact:true})).toBeFocused();
+  const trigger=page.getByRole('button',{name:'Training lenses',exact:true});
+  // The toolbar uses native tabbable buttons after its first focused command.
+  for(let i=0;i<12&&!await trigger.evaluate(node=>node===document.activeElement);i++)await page.keyboard.press('Tab');
+  await expect(trigger).toBeFocused();await page.keyboard.press('Enter');
+  const dialog=page.getByRole('dialog',{name:'Training lenses'});
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('combobox',{name:'Lens',exact:true})).toBeFocused();
+  const bounds=(await dialog.boundingBox())!;
+  expect(bounds.x).toBeGreaterThanOrEqual(0);expect(bounds.x+bounds.width).toBeLessThanOrEqual(390);
+  await dialog.getByRole('combobox',{name:'Lens',exact:true}).selectOption('label');
+  await expect(dialog.getByRole('combobox',{name:'Search reach'})).toBeHidden();
+  await dialog.getByRole('button',{name:'Use lens'}).click();
+  await expect(panel(page)).toHaveAttribute('data-mode','label');
+  await expect(panel(page)).toHaveAttribute('data-limit','1');
+  await expect(panel(page).locator('[data-training-seed]')).toContainText('I only heard after the meeting.');
+});

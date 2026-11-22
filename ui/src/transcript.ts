@@ -4,12 +4,13 @@ import {esc} from './dom';
 import {passageAnchor,type Listening} from './listening';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
 import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
+import {TrainingGesture,type TrainingLens,type TrainingPassage} from './training-gesture';
 
 interface Block {source_id:string|null;source_kind:string;anchor_token:string|null;sections:{id:string;kind:string;number:string|null}[];runs:{token:string|null;text:string}[]}
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
 interface SelectionBasis {view:View;document:string;ids:string[];start:number;end:number;quote:string;layer:string;range:Range|null;backward?:boolean}
 interface Draft {id:string;basis:SelectionBasis;before:string;prefix:string;suffix:string;replacement:string;command:Command|null;phase:'editing'|'saving'|'unknown'|'conflict';latest:View|null;compared:boolean;epoch?:number;unlock?:()=>void}
-interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
+interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;training?:(lens:TrainingLens,ids:string[],limit:number)=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
 export class Transcript {
   private projection:Projection|null=null;private epoch=0;private selection:SelectionBasis|null=null;
   private draft:Draft|null=null;private composing=false;private settling=false;
@@ -18,6 +19,7 @@ export class Transcript {
   private persistence:Promise<void>=Promise.resolve();private finalizing=false;
   private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
+  private training?:TrainingGesture;
   private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
@@ -26,6 +28,7 @@ export class Transcript {
     window.addEventListener('storage',event=>{if(event.key===null||event.key.startsWith('wb-correction-v1:'))this.offerRecovery()});
     this.menu.className='selection-tools';this.menu.hidden=true;this.menu.setAttribute('role','toolbar');this.menu.setAttribute('aria-label','Selection tools');
     this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
+    if(this.host.training)this.training=new TrainingGesture(this.surface,token=>this.pinTraining(token));
     // Notifications can arrive after a new selection has already been placed.
     // Dismiss only popovers whose viewport or reading pane has since moved.
     const dismissPopovers=()=>{const geometry=this.readingGeometry();for(const popup of [this.menu,this.details])if(!popup.hidden&&this.popoverGeometry.get(popup)!==geometry)popup.hidden=true};
@@ -118,7 +121,7 @@ export class Transcript {
   setInterlinear(value:boolean){if(this.draft){(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;this.host.message('Finish or undo the correction draft before changing reading layers.',true);return}this.interlinear=value;void this.render();this.storePreferences()}
   private storePreferences(){try{localStorage.setItem('wb-reading:'+this.host.view().snapshot.project,JSON.stringify({layout:this.layout,interlinear:this.interlinear}))}catch{/* Preferences are optional. */}}
   async render(){
-    if(this.draft)return;this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
+    if(this.draft)return;this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
       const p=await api<Projection>(`/api/reading?path=${encodeURIComponent(doc.path)}&revision=${view.revision.id}`);
@@ -170,7 +173,7 @@ export class Transcript {
     this.position(this.details,span.getBoundingClientRect());this.details.hidden=false;
   }
   private click(event:MouseEvent){
-    if(this.draft||!this.currentProjection()||this.host.busy()||(event.target as HTMLElement).closest('input,button'))return;
+    if(this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy()||(event.target as HTMLElement).closest('input,button'))return;
     const s=window.getSelection();if(s&&!s.isCollapsed){this.capture();return}
     const span=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');if(!span||span.classList.contains('filtered'))return;
     if(event.detail&&document.activeElement!==span){if(!span.hasAttribute('tabindex'))span.tabIndex=-1;span.focus({preventScroll:true})}
@@ -183,7 +186,7 @@ export class Transcript {
     this.paintSelection();this.showMenu((this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(remaining.id)}"]`)??span).getBoundingClientRect());
   }
   private capture(){
-    if(this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
+    if(this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
     const range=s.getRangeAt(0);const start=this.endpoint(range.startContainer,range.startOffset),end=this.endpoint(range.endContainer,range.endOffset);
     if(!start||!end){this.menu.hidden=true;this.selection=null;return}
     const doc=this.host.doc(),a=doc.tokens.findIndex(t=>t.id===start.id),b=doc.tokens.findIndex(t=>t.id===end.id);
@@ -214,6 +217,28 @@ export class Transcript {
     const status=document.getElementById('token-count');
     if(status)status.textContent=`${shown.length} of ${doc.tokens.length} tokens · ${selected.length} selected`;
   }
+  private pinTraining(token:string):TrainingPassage|null {
+    if(this.dirty()||this.host.busy()||!this.currentProjection())return null;
+    const doc=this.host.doc(),view=this.host.view(),layer=this.host.preferences.layer;
+    const stored=this.selection;
+    const source=doc.tokens.find(t=>t.id===token);
+    if(!source)return null;
+    const text=reading(source,layer);
+    const basis:SelectionBasis=stored?.ids.includes(token)&&stored.document===doc.path&&stored.layer===layer&&stored.view.revision.snapshot_hash===view.revision.snapshot_hash
+      ? stored : {view,document:doc.path,ids:[token],start:0,end:Array.from(text).length,quote:text,layer,range:null};
+    const valid=()=>this.surface.isConnected&&!this.dirty()&&!this.host.busy()&&this.currentProjection()&&this.host.doc().path===doc.path&&this.host.view().revision.snapshot_hash===view.revision.snapshot_hash&&this.host.preferences.layer===layer;
+    return {
+      valid,
+      activate:()=>{this.menu.hidden=true;this.details.hidden=true;this.selection=basis;this.host.select([...basis.ids]);this.paintSelection()},
+      restore:()=>{
+        const range=basis.range;
+        if(!range||!valid()||!range.startContainer.isConnected||!range.endContainer.isConnected)return;
+        if(basis.backward)window.getSelection()?.setBaseAndExtent(range.endContainer,range.endOffset,range.startContainer,range.startOffset);
+        else window.getSelection()?.setBaseAndExtent(range.startContainer,range.startOffset,range.endContainer,range.endOffset);
+      },
+      choose:(lens,limit)=>{if(valid()){this.menu.hidden=true;this.details.hidden=true;this.host.training?.(lens,[...basis.ids],limit)}},
+    };
+  }
   private readingGeometry(){const pane=this.surface.closest<HTMLElement>('.transcript'),rect=pane?.getBoundingClientRect();return [window.innerWidth,window.innerHeight,rect?.left,rect?.top,rect?.width,rect?.height,pane?.scrollLeft,pane?.scrollTop].join(':')}
   private position(element:HTMLElement,rect:DOMRect){
     element.hidden=false;
@@ -233,6 +258,12 @@ export class Transcript {
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;
     this.menu.innerHTML=`<div class="tool-primary"><button data-action="correct">Correct</button><button data-action="language">Language</button><button data-action="annotations">Annotate</button><button data-action="structure">Tokenize</button></div><div class="tool-secondary"><button data-action="definitions">Definitions</button><button data-action="references">References</button><button data-action="coanalysis" aria-label="Co-analyse selected tokens">Co-analyse</button><button data-action="listen">Listen</button></div><small>${s.ids.length} token${s.ids.length===1?'':'s'} · ${esc(s.layer)} · R${s.view.revision.id}</small>`;
     this.menu.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b=>{if(b.dataset.action==='correct'&&s.ids.length>1&&!s.range)b.disabled=true;if(['definitions','references'].includes(b.dataset.action!))b.setAttribute('aria-label',`${b.textContent} for selection`);b.onclick=()=>{if(b.dataset.action==='correct')this.begin(this.selection?.quote??'');else if(b.dataset.action==='listen')void this.host.listening.play(passageAnchor(s.view,s.document,s.ids));else{this.menu.hidden=true;const token=this.host.doc().tokens.find(t=>t.id===s.ids[0]);const partial=b.dataset.action==='annotations'&&s.layer==='corrected'&&s.ids.length===1&&token&&(s.start>0||s.end<Array.from(token.corrected??token.original).length);this.host.tool(b.dataset.action==='language'?'token':b.dataset.action!,partial?{start:s.start,end:s.end,quote:s.quote}:undefined);if(b.dataset.action==='language'&&s.ids.length>1)this.host.message('Language properties currently edit the first selected token; other selected identities remain unchanged.')}}});
+    if(this.training){
+      const button=document.createElement('button');
+      button.type='button';button.textContent='Training lenses';button.setAttribute('aria-haspopup','dialog');
+      button.onclick=()=>{const passage=this.pinTraining(s.ids[0]);if(passage)this.training!.openChooser(passage,button)};
+      this.menu.querySelector('.tool-secondary')!.append(button);
+    }
     this.refreshListen();this.position(this.menu,rect);this.menu.hidden=false;
   }
   refreshListen(){
@@ -248,7 +279,7 @@ export class Transcript {
     const focused=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');
     if(focused&&!event.shiftKey&&window.getSelection()?.isCollapsed&&['ArrowLeft','ArrowRight'].includes(event.key)){event.preventDefault();const spans=[...this.surface.querySelectorAll<HTMLElement>('[data-token]')],index=spans.indexOf(focused),next=spans[(index+(event.key==='ArrowRight'?1:spans.length-1))%spans.length];next.tabIndex=-1;next.focus();return}
     if(focused&&event.code==='Space'&&window.getSelection()?.isCollapsed){event.preventDefault();focused.dispatchEvent(new MouseEvent('click',{bubbles:true}));return}
-    if((event.shiftKey&&event.key==='F10')||event.key==='ContextMenu'){event.preventDefault();this.capture();if(this.selection){const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(this.selection.ids[0])}"]`);if(span)this.showMenu(span.getBoundingClientRect());this.menu.querySelector('button')?.focus()}return}
+    if((event.shiftKey&&event.key==='F10')||event.key==='ContextMenu'){event.preventDefault();this.capture();if(this.selection){const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(this.selection.ids[0])}"]`);if(span)this.showMenu(span.getBoundingClientRect());this.menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus()}return}
     if(this.selection&&!event.ctrlKey&&!event.metaKey&&!event.altKey&&(event.key==='Backspace'||event.key==='Delete'||Array.from(event.key).length===1)){event.preventDefault();this.begin(event.key==='Backspace'||event.key==='Delete'?'':event.key)}
   }
   private begin(replacement:string){
