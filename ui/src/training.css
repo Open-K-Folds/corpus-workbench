@@ -53,6 +53,9 @@
 .training-strip-actions {display:flex;align-items:center;gap:.25rem;}
 .training-strip-actions button {min-height:32px;display:inline-flex;align-items:center;justify-content:center;}
 .training-strip-actions button[data-move] {padding:.2rem;}
+.training-strip-actions [data-review],#training-review [data-training-save],.training-chooser button[value="apply"] {
+  color:var(--paper); background:var(--indicator); border-color:var(--indicator);
+}
 @media (max-width:1000px) {
   .training-strip-actions [data-review] {display:none;}
 }
