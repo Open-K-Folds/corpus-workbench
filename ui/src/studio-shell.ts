@@ -19,6 +19,7 @@ export function activityRail() {
       ${railButton('rail-search','search','Open corpus search','data-inspect="search"')}
       <hr>
       ${railButton('rail-coanalysis','auto_awesome','Open co-analysis','data-inspect="coanalysis"')}
+      ${railButton('rail-training','library_books','Open training collections','data-inspect="training"')}
       ${railButton('toggle-properties','tune','Tools','aria-controls="properties-pane" aria-expanded="false"')}
       ${railButton('rail-review','fact_check','Open revision review','data-inspect="review"')}
       ${railButton('rail-history','history','Open revision history','data-inspect="history"')}

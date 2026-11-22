@@ -6,6 +6,7 @@ import {historyInspector} from './history';
 import {reviewInspector} from './review';
 import {researchInspector} from './research';
 import {coanalysisInspector} from './coanalysis';
+import {TrainingPanel} from './training-panel';
 import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type RecordingCue} from './listening';
 import {ResearchOverview} from './overview';
 import {ReadingCanvas,stageControls} from './reading-canvas';
@@ -31,11 +32,12 @@ let view:View;let docPath='';let selected:string[]=[];let tab:InspectorView|'sou
 const tokenDrafts=new Map<string,HTMLElement>();const annotationDrafts=new Map<string,HTMLElement>();const structuralDrafts=new Map<string,HTMLElement>();
 const returnDrafts=new Map<number,HTMLElement>();
 let coanalysisDraft: {key: string; revision: number; document: string; panel: HTMLElement} | null = null;
+let training:TrainingPanel;
 let cueMedia: {document:string;snapshot:string;scope:string}|null = null;
 let pinnedPlayback: {anchor:PassageAnchor;cue:RecordingCue}|null = null;
 let pinTimer:ReturnType<typeof setTimeout>|undefined;
 let pendingWrite:{command:Command;source?:HTMLFormElement;unlock:()=>void;before:number;restore:boolean}|null=null;let searchPanel:SearchPanel|null=null;let transcript:Transcript;let recording:RecordingPanel;let openDocuments:string[]=[];const documentStates=new Map<string,{selected:string[];time:number;scroll:number}>();
-const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values(),...(coanalysisDraft ? [coanalysisDraft.panel] : [])];let annotationRevision=0;let inspectorEpoch=0;
+const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values(),...(coanalysisDraft ? [coanalysisDraft.panel] : []),...(training ? [training.node] : [])];let annotationRevision=0;let inspectorEpoch=0;
 const app=el('app');
 if(desktop)document.documentElement.classList.add('desktop-app');
 try{document.documentElement.dataset.theme=localStorage.getItem('wb-theme')??'dark'}catch{document.documentElement.dataset.theme='dark'}
@@ -93,9 +95,10 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
     <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Open reading canvas" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
     </div>
     <div class="transcript-title"><h2 id="document-title"></h2></div>
-    <p class="canvas-help">Drag the margin to move. Select words to correct, annotate or co-analyse.</p>
+    <p class="canvas-help">Drag the margin to move. Select words to annotate, co-analyse or collect a training example.</p>
     <div id="tokens" tabindex="-1"></div>
   </main>
+  <section id="training-comparison" aria-label="Compare with selected transcript"></section>
   ${stageControls()}
   <aside class="inspector" aria-label="Inspector"><details class="inspector-tools" open><summary>Inspector tools</summary><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.label}</button>`).join('')}</nav></details><div id="inspector-content"></div></aside></div>
   <section id="recording-pane" class="audio" aria-label="Recording">
@@ -107,6 +110,16 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
   desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
   readingCanvas=new ReadingCanvas(app);
+  training=new TrainingPanel({dirty:draftStatus,read:()=>el('rail-reading').click(),save,reset:async stale=>{
+    if(saving||pendingWrite)return;
+    if(stale){
+      if(transcript.dirty()||draftPanels().some(panel=>panel!==training.node&&panel.querySelector('form[data-dirty="true"]'))){
+        message('Finish your other drafts before reloading the saved revision.',true);return;
+      }
+      try{view=await loadView();}catch(error){message(String(error),true);return;}
+    }
+    training.clear();render();draftStatus();
+  }},el('training-comparison'));
   const audioPane=el('recording-pane');
   const settings=document.querySelector<HTMLDetailsElement>('.reading-settings')!;
   settings.open=initialLayout()==='editing' && !matchMedia('(max-width: 1000px)').matches;
@@ -121,7 +134,7 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   el('toggle-properties').onclick=()=>{readingCanvas?.close(false);fold('properties')};
   el('rail-reading').onclick=()=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;workspace.classList.add('properties-folded','navigation-folded');workspace.dataset.focus='transcript';updatePaneAccessibility();el('tokens').focus({preventScroll:true})};
   for(const button of app.querySelectorAll<HTMLButtonElement>('.studio-rail [data-inspect]')){
-    button.onclick=()=>{const target=button.dataset.inspect;if(target && isInspectorView(target)){tab=target;showProperties();void renderInspector()}}
+    button.onclick=()=>{const target=button.dataset.inspect;if(target && isInspectorView(target)){tab=target;if(target==='training')app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;showProperties();void renderInspector()}}
   }
   const settingsDialog=el<HTMLDialogElement>('workspace-settings');
   el('workspace-options').onclick=()=>{const layout=settingsDialog.querySelector<HTMLInputElement>(`[value="${initialLayout()}"]`)!;layout.checked=true;settingsDialog.showModal()};
@@ -139,7 +152,11 @@ function shell(){overview?.dispose();readingCanvas?.dispose();app.innerHTML=`<a 
   const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').innerHTML=icon(theme==='dark'?'light_mode':'dark_mode');el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
   try{setTheme(localStorage.getItem('wb-theme')??'dark')}catch{setTheme('dark')}
   el('toggle-theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
-  transcript=new Transcript(el('tokens'),{view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
+  transcript=new Transcript(el('tokens'),{training:(mode,ids,limit)=>{
+    if(saving||pendingWrite||transcript.busy()||transcript.activeDraft())return;
+    selected=[...ids];tab='training';app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;showProperties();training.update(view,currentDoc(),ids,{mode,limit});
+    void renderInspector().then(()=>{const heading=training.node.querySelector<HTMLElement>('h2');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}});
+  },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'));
   overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:target=>{tab=target;showProperties();void renderInspector()}});
   el('open-overview').onclick=()=>overview?.open();
@@ -267,9 +284,10 @@ function offerSaveRetry() {
   retry.onclick = () => void resolvePendingWrite();
   el('save-recovery').replaceChildren(retry);
 }
-function markCoanalysisStale(source: HTMLFormElement) {
+function markSourceStale(source: HTMLFormElement) {
   conflict = null;
   el('conflict').replaceChildren();
+  if(source.id==='training-review'){el('save-state').textContent='Unsaved training review';training.markStale();return;}
   el('save-state').textContent = 'Unsaved co-analysis draft';
   source.dispatchEvent(new Event('wb-stale'));
 }
@@ -312,7 +330,7 @@ async function save(operations: Operation[], label: string, source?: HTMLFormEle
     el('save-state').textContent = 'Unsaved · save failed';
     message(String(error), true);
     if (error.status !== 409) return;
-    if (source?.id === 'coanalysis-form') {
+    if (source?.id === 'coanalysis-form' || source?.id === 'training-review') {
       // The original model saw the earlier reading. Reapplying to a new head would misstate its evidence.
       staleProposal = true;
       return;
@@ -339,11 +357,14 @@ async function save(operations: Operation[], label: string, source?: HTMLFormEle
   } finally {
     saving = false;
     if (!retainLock) unlock();
-    if (staleProposal && source) markCoanalysisStale(source);
+    if (staleProposal && source) markSourceStale(source);
   }
 }
 async function renderInspector(committedRender=false){updatePaneAccessibility();refreshListenControls();overview?.update();if((saving&&!committedRender)||pendingWrite||transcript.busy())return;const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab))});const content=el('inspector-content');const doc=currentDoc();content.replaceChildren();
   if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.innerHTML='<h2>Listen and correct</h2><p>Select a token to inspect its original reading, corrections and annotations.</p><p class="muted">Find tokens: Ctrl / Command + K. Next match: F3. Inspector views: Alt + 1 through 9.</p>';}
+  training.stopAudio();
+  if(tab==='training'||training.dirty)training.update(view,doc,selected);
+  if(tab==='training')content.append(training.node);
   if(tab==='source'){try{const panel=await sourceInspector(view,sourcePath);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
   if (coanalysisDraft && coanalysisDraft.revision !== view.revision.id) {
     const prior = coanalysisDraft;
@@ -437,11 +458,11 @@ async function resolvePendingWrite() {
     render();
     message(`Original command saved in R${committed.id}; current head R${latest.revision.id}.`);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 409 && pending.source?.id === 'coanalysis-form') {
+    if (error instanceof ApiError && error.status === 409 && (pending.source?.id === 'coanalysis-form' || pending.source?.id === 'training-review')) {
       pendingWrite = null;
       pending.unlock();
       el('save-recovery').replaceChildren();
-      markCoanalysisStale(pending.source);
+      markSourceStale(pending.source);
       message('The original command was rejected against a changed revision.', true);
       return;
     }
