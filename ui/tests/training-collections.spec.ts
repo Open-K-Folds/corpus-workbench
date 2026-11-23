@@ -95,6 +95,14 @@ test('a reviewed pair, negative pair and passage label survive reload and export
   await expect(trainer.getByRole('combobox', {name: 'Saved collection', exact: true})).toHaveValue(collection);
   await expect(trainer.locator('.training-counts')).toContainText('3 reviewed');
   await expect(trainer.locator('.training-record')).toHaveCount(3);
+  const labelFilter=trainer.getByRole('combobox',{name:'Filter by label'});
+  await expect(labelFilter.locator('option')).toHaveText(['All labels (3)','Different (1)','Needs context (1)','Public notice (1)']);
+  await labelFilter.selectOption('Different');
+  const results=trainer.getByRole('region',{name:'Reviewed examples'});
+  await expect(results.getByRole('status')).toHaveText('1 of 3 · Different');
+  await expect(results.locator('.training-record')).toHaveCount(1);
+  await expect(results.locator('.training-record-quote')).toHaveText([seedQuote,nearMiss]);
+  await labelFilter.selectOption('Needs context');
   const savedPair = trainer.locator('.training-record').filter({has: page.getByText('Needs context', {exact: true})});
   await savedPair.locator('summary').first().click();
   await savedPair.locator('.training-source').last().getByText('Source context', {exact: true}).click();
@@ -104,7 +112,9 @@ test('a reviewed pair, negative pair and passage label survive reload and export
   await expect(savedPair).toContainText(proposal);
   await expect(savedPair.locator('source')).toHaveCount(0);
   const downloadEvent = page.waitForEvent('download');
-  await trainer.getByRole('button', {name: 'Export reviewed JSONL'}).click();
+  const exportCollection=trainer.getByRole('button', {name: 'Export reviewed JSONL'});
+  await expect(exportCollection).toHaveAccessibleDescription('Full collection · 3 examples');
+  await exportCollection.click();
   const download = await downloadEvent;
   expect(download.suggestedFilename()).toBe('training-Notice-study-r4.jsonl');
   const rows = (await readFile((await download.path())!, 'utf8')).trimEnd().split('\n').map(line => JSON.parse(line));
