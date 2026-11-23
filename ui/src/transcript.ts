@@ -28,6 +28,7 @@ export class Transcript {
   private training?:TrainingGesture;
   private pin:PassagePin;
   private drag:TranscriptDrag;
+  private menuFollowsRange=false;
   private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
   constructor(private surface:HTMLElement,private host:Host){
@@ -65,15 +66,29 @@ export class Transcript {
     this.pin=new PassagePin(this.surface,(words,showTools)=>this.selectPin(words,showTools),
       ()=>this.currentProjection()&&!this.dirty()&&!this.host.busy());
     if(this.host.training)this.training=new TrainingGesture(this.surface,token=>this.pinTraining(token));
-    // Notifications can arrive after a new selection has already been placed.
-    // Dismiss only popovers whose viewport or reading pane has since moved.
-    const dismissPopovers=()=>{const geometry=this.readingGeometry();for(const popup of [this.menu,this.details])if(!popup.hidden&&this.popoverGeometry.get(popup)!==geometry)popup.hidden=true};
     const readingPane=this.surface.closest<HTMLElement>('.transcript');
+    const updatePopovers=()=>{
+      const geometry=this.readingGeometry();
+      for(const popup of [this.menu,this.details]){
+        if(popup.hidden||this.popoverGeometry.get(popup)===geometry)continue;
+        // A selection can change the dock height and trigger a scroll adjustment
+        // after its tools open. Keep the menu attached to the same characters.
+        const range=this.selection?.range;
+        if(popup===this.menu&&this.menuFollowsRange&&range&&this.surface.contains(range.commonAncestorContainer)){
+          const rect=this.rangeAnchor(range),frame=readingPane!.getBoundingClientRect();
+          if(rect&&rect.bottom>frame.top&&rect.top<frame.bottom&&rect.right>frame.left&&rect.left<frame.right){
+            this.position(popup,rect);
+            continue;
+          }
+        }
+        popup.hidden=true;
+      }
+    };
     this.drag=new TranscriptDrag(this.surface,readingPane!,()=>!this.rangeStart&&!this.draft&&!this.training?.blocksSelection&&!this.host.busy()&&this.currentProjection(),
       ()=>{this.menu.hidden=true;this.details.hidden=true},()=>this.capture());
-    readingPane?.addEventListener('scroll',dismissPopovers,{passive:true});
-    window.addEventListener('resize',dismissPopovers);
-    if(readingPane)new ResizeObserver(dismissPopovers).observe(readingPane);
+    readingPane?.addEventListener('scroll',updatePopovers,{passive:true});
+    window.addEventListener('resize',updatePopovers);
+    if(readingPane)new ResizeObserver(updatePopovers).observe(readingPane);
     let interactingWithSelection=true;
     const trackTarget=(event:Event)=>{
       const target=event.target;
@@ -91,7 +106,7 @@ export class Transcript {
       if(event.type!=='pointerdown'||target.closest('dialog[open]'))return;
       if(interactingWithSelection&&target.closest('.lexeme[data-token],button,input'))return;
       // Keep the passage available throughout a command or form interaction.
-      const command=target.closest('button,input,select,textarea,summary,label,a,form,[role=slider],[contenteditable=true],.side-resizer,#timeline-resizer');
+      const command=target.closest('button,input,select,textarea,summary,label,a,form,[role=slider],[contenteditable=true],.side-resizer,#timeline-resizer,#canvas-passage-context');
       if(command)return;
       if(this.draft) {
         if((event as PointerEvent).button===0&&!this.composing)void this.dismissDraft();
@@ -331,8 +346,15 @@ export class Transcript {
     if(a<0||b<a)return;const ids=doc.tokens.slice(a,b+1).map(t=>t.id);
     const rendered=new Set(Array.from(this.surface.querySelectorAll<HTMLElement>('[data-token]'),span=>span.dataset.token!));
     if(ids.some(id=>!rendered.has(id))){this.host.message('Clear token filters before editing this range.',true);this.selection=null;return}
-    this.selection={view:this.host.view(),document:doc.path,ids,start:start.cp,end:end.cp,quote:this.primaryRangeText(range),layer:this.host.preferences.layer,range:range.cloneRange(),backward};
-    this.host.select(ids);this.paintSelection();const rects=[...range.getClientRects()];if(rects.length)this.showMenu(backward?rects[0]:rects.at(-1)!);
+    const savedRange=range.cloneRange();
+    this.selection={view:this.host.view(),document:doc.path,ids,start:start.cp,end:end.cp,quote:this.primaryRangeText(range),layer:this.host.preferences.layer,range:savedRange,backward};
+    this.host.select(ids);this.paintSelection();
+    const anchor=this.rangeAnchor(savedRange);
+    if(anchor)this.showMenu(anchor,true);
+  }
+  private rangeAnchor(range:Range){
+    const rects=range.getClientRects();
+    return rects.item(this.selection?.backward?0:rects.length-1);
   }
   private endpoint(node:Node,offset:number):{id:string;cp:number}|null{
     if(node.nodeType!==Node.TEXT_NODE||!this.surface.contains(node))return null;
@@ -445,7 +467,8 @@ export class Transcript {
     element.style.top = Math.max(top,Math.min(y,bottom-height)) + 'px';
     this.popoverGeometry.set(element,this.readingGeometry());
   }
-  private showMenu(rect:DOMRect){
+  private showMenu(rect:DOMRect,followsRange=false){
+    this.menuFollowsRange=followsRange;
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;
     this.menu.innerHTML=`<div class="tool-primary"><button data-action="correct">Correct</button><button data-action="language">Language</button><button data-action="annotations">Annotate</button><button data-action="structure">Tokenize</button></div><div class="tool-secondary"><button data-action="definitions">Definitions</button><button data-action="references">References</button><button data-action="coanalysis" aria-label="Co-analyse selected tokens">Co-analyse</button><button data-action="listen">Listen</button></div><small>${s.ids.length} token${s.ids.length===1?'':'s'} · ${esc(s.layer)} · R${s.view.revision.id}</small>`;
     this.menu.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b=>{if(b.dataset.action==='correct'&&s.ids.length>1&&!s.range)b.disabled=true;if(['definitions','references'].includes(b.dataset.action!))b.setAttribute('aria-label',`${b.textContent} for selection`);b.onclick=()=>{if(b.dataset.action==='correct')this.begin(this.selection?.quote??'');else if(b.dataset.action==='listen')void this.host.listening.play(passageAnchor(s.view,s.document,s.ids));else{this.menu.hidden=true;const token=this.host.doc().tokens.find(t=>t.id===s.ids[0]);const partial=b.dataset.action==='annotations'&&s.layer==='corrected'&&s.ids.length===1&&token&&(s.start>0||s.end<Array.from(token.corrected??token.original).length);this.host.tool(b.dataset.action==='language'?'token':b.dataset.action!,partial?{start:s.start,end:s.end,quote:s.quote}:undefined);if(b.dataset.action==='language'&&s.ids.length>1)this.host.message('Language properties currently edit the first selected token; other selected identities remain unchanged.')}}});
