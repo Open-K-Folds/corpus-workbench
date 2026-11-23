@@ -29,6 +29,7 @@ import './review.css';
 import './workbench-shell.css';
 import './drawers.css';
 import {readingToolbar} from './reading-toolbar';
+import {projectDrawerBody} from './project-drawer';
 import {icon} from './icons';
 import {buttonGroup,scrollIndicators} from './controls';
 import {desktop,desktopNavigation,initializeDesktop,type Departure} from './desktop';
@@ -109,7 +110,7 @@ function loginScreen(expiredLink=false){
 }
 function shell(){shellEvents?.abort();shellEvents=new AbortController();overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
   ${windowBar(true)}${activityRail()}
-  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div role="region" aria-label="Transcript workspace" class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="drawer-bar"><div class="drawer-trail"><span>Workspace</span><span aria-hidden="true">/</span><strong>Projects</strong></div>${drawerClose('navigation')}</div><div class="navigation-heading"><h2>Project files</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><button type="button" id="clear-navigation" class="secondary" hidden>Clear filter</button><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
+  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div role="region" aria-label="Transcript workspace" class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="drawer-bar"><div class="drawer-trail"><span>Workspace</span><span aria-hidden="true">/</span><strong>Projects</strong></div>${drawerClose('navigation')}</div>${projectDrawerBody()}</aside>
   <main class="transcript">
     <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
     ${readingToolbar()}
@@ -139,7 +140,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     watchPreviewUpdates(app.querySelector<HTMLElement>('.studio-status')!, shellEvents.signal);
   }
   if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
-  desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
+  desktopNavigation(el('local-project-actions'));
   readingCanvas=new ReadingCanvas(app);
   training=new TrainingPanel({dirty:draftStatus,read:()=>el('rail-reading').click(),save,reset:async stale=>{
     if(saving||pendingWrite)return;
@@ -360,6 +361,7 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   checks.title=`Package validation · ${blocking} blocking / ${view.issues.length-blocking} advisory`;
   checks.setAttribute('aria-label',checks.title);
   el('project-title').textContent=view.snapshot.project;
+  el('drawer-project-title').textContent=view.snapshot.project;
   el('stage-file').textContent=doc.path;
   el('stage-metadata').textContent=`${doc.spans.length} ${doc.spans.length===1?'annotation':'annotations'}`;
   el('package-count').textContent=`${view.documents.length} document${view.documents.length===1?'':'s'}`;
@@ -371,9 +373,10 @@ function renderNavigation(){const doc=currentDoc();
   el('clear-navigation').hidden=!navigationQuery;
   el('navigate-documents').setAttribute('aria-pressed',String(navigationMode==='documents'));el('navigate-sources').setAttribute('aria-pressed',String(navigationMode==='sources'));
   el('document-list').hidden=navigationMode!=='documents';el('source-list').hidden=navigationMode!=='sources';
-  el('document-list').innerHTML=documentNavigation(view,doc,navigationQuery);el('source-list').innerHTML=sourceNavigation(view,navigationQuery);
+  el('document-list').innerHTML=documentNavigation(view,doc,navigationQuery);el('source-list').innerHTML=sourceNavigation(view,navigationQuery,sourcePath);
   document.querySelectorAll<HTMLButtonElement>('[data-document]').forEach(button=>button.onclick=()=>{switchDocument(button.dataset.document!)});
   document.querySelectorAll<HTMLButtonElement>('[data-source]').forEach(button=>button.onclick=()=>{sourcePath=button.dataset.source!;
+    for(const source of app.querySelectorAll<HTMLButtonElement>('[data-source]'))source.setAttribute('aria-current',String(source===button));
     if(matchMedia('(max-width:700px)').matches){openInspectorActivity('source');return}
     tab='source';showProperties();void renderInspector()});
 }

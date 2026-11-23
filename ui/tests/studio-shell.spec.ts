@@ -86,6 +86,8 @@ test('phone project files and direct activities keep the return route and keyboa
   await project.click();
   await expect(project).toHaveAttribute('aria-expanded','true');
   const filter=page.getByLabel('Find documents or sources');
+  await expect(page.locator('#drawer-project-title')).toBeVisible();
+  await expect(page.locator('#drawer-project-title')).toHaveText(await page.locator('#project-title').innerText());
   await filter.fill('missing-project-name');
   await expect(page.getByText('No matching documents.')).toBeVisible();
   await page.getByRole('button',{name:'Clear filter'}).click();
