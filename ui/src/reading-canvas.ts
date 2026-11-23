@@ -5,6 +5,11 @@ import './reading-dock.css';
 
 export function stageControls() {
   return `<nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls">
+    <div id="canvas-passage-context" class="canvas-passage-context" role="group" aria-label="Selected passage" hidden>
+      ${icon('notes')}<span class="canvas-passage-excerpt" dir="auto"></span>
+      <button type="button" id="dock-listen-passage" aria-label="Listen to selected passage">${icon('headphones')}<span>Listen</span></button>
+      <button type="button" id="dock-analyze-passage" aria-label="Analyze selected passage">${icon('auto_awesome')}<span>Analyze</span></button>
+    </div>
     <div class="canvas-console">
       <div class="canvas-transport" role="group" aria-label="Source turns">
         <div class="canvas-position">

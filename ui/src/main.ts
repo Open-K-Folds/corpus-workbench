@@ -325,6 +325,12 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   };
   el('next-match').onclick=nextMatch;
   el('listen-selected').onclick=()=>void listen(currentAnchor());
+  el('dock-listen-passage').onclick=()=>void listen(currentAnchor(),true);
+  el('dock-analyze-passage').onclick=()=>{
+    if(!selected.length||saving||pendingWrite||transcript.busy())return;
+    if(transcript.activeDraft()){message('Finish the current correction before analyzing the passage.',true);return}
+    openInspectorActivity('coanalysis');
+  };
   el<HTMLInputElement>('loop-selection').onchange=e=>{loop=(e.target as HTMLInputElement).checked};
   const audio=el<HTMLAudioElement>('audio');
   for(const event of ['loadedmetadata','canplay','durationchange','emptied','error'])audio.addEventListener(event,refreshListenControls);
@@ -417,7 +423,7 @@ async function nextMatch(){
   word?.focus({preventScroll:true});word?.scrollIntoView({block:'nearest'});
 }
 function draftStatus(){const dirty=draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));el('save-state').textContent=dirty?'Unsaved draft - saved head R'+view.revision.id:`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;}
-function renderTokens(){refreshFindControls();void transcript.render()}
+function renderTokens(){refreshFindControls();refreshListenControls();void transcript.render()}
 function currentAnchor(){return passageAnchor(view,docPath,selected)}
 function currentBasis(anchor:PassageAnchor){
   return anchor.document===docPath && anchor.project===view.snapshot.project && anchor.revision===view.revision.id && anchor.snapshot_hash===view.revision.snapshot_hash;
@@ -437,6 +443,27 @@ function refreshListenControls(){
   button.closest<HTMLElement>('.actions')!.hidden=!selected.length;
   button.disabled='reason' in state;
   button.title='reason' in state?state.reason:`Start playback at the supplied ${state.basis} time (${state.start} s).`;
+  const context=el('canvas-passage-context');
+  context.hidden=!selected.length;
+  if(selected.length){
+    const remaining=new Set(selected);
+    const excerpt:string[]=[];
+    let previous=-1;
+    for(const [index,token] of currentDoc().tokens.entries()){
+      if(!remaining.delete(token.id))continue;
+      if(excerpt.length>=12){excerpt.push('…');break}
+      if(previous>=0 && index!==previous+1)excerpt.push('…');
+      excerpt.push(reading(token,readingPreferences.layer));
+      if(!remaining.size)break;
+      previous=index;
+    }
+    const label=context.querySelector<HTMLElement>('.canvas-passage-excerpt')!;
+    label.textContent=excerpt.join(' ');
+    label.title=label.textContent;
+    const play=el<HTMLButtonElement>('dock-listen-passage');
+    play.disabled='reason' in state;
+    play.title='reason' in state?state.reason:`Play the selected passage using its supplied ${state.basis} timing.`;
+  }
   transcript?.refreshListen();
   coanalysisDraft?.panel.dispatchEvent(new Event('wb-cue-change'));
 }
