@@ -125,8 +125,15 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
         <label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label>
       </div>
       <p id="selection-help" class="muted">Click a word to select it. Drag across words for a passage. Tap the selected count, right-click, or press Shift+F10 for tools. Hold a word for training lenses. Escape clears the selection.</p>
+      <button id="show-all-reading-controls" type="button" class="secondary" hidden>${icon('tune')}All reading controls</button>
     </details>
-    <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Focus mode (Open reading canvas)" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
+    <div class="reading-status">
+      <button id="find-in-transcript" class="secondary" aria-label="Find in transcript" title="Find in transcript (Ctrl / ⌘ K)">${icon('search')}<span>Find</span></button>
+      <span id="reading-match-count" role="status" aria-atomic="true"></span>
+      <button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)" hidden>${icon('skip_next')}<span>Next match</span></button>
+      <button id="clear-token-search" class="secondary" aria-label="Clear search and filters" title="Clear search and filters" hidden>${icon('close')}<span>Clear</span></button>
+      <button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Focus mode (Open reading canvas)" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button>
+    </div>
     </div>
     <div class="transcript-title"><h2 id="document-title"></h2></div>
     <p class="canvas-help">Drag across words to select a passage. Drag the margin to move through the transcript.</p>
@@ -214,7 +221,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     if(saving||pendingWrite||transcript.busy()||transcript.activeDraft())return;
     selected=[...ids];tab='training';app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;showProperties();training.update(view,currentDoc(),ids,{mode,limit});
     void renderInspector().then(()=>{const heading=training.node.querySelector<HTMLElement>('h2');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}});
-  },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
+  },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;if(findingTokens())refreshFindControls();void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'));
   playbackSync=new PlaybackSync(el<HTMLAudioElement>('audio'),el('tokens'),turn=>readingCanvas?.setPlaybackTurn(turn));
   overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:openInspectorActivity});
@@ -234,9 +241,61 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     input.value='';navigationQuery='';renderNavigation();input.focus();
   };
   el<HTMLInputElement>('navigation-query').oninput=e=>{navigationQuery=(e.target as HTMLInputElement).value;renderNavigation()};
-  el<HTMLInputElement>('token-query').oninput=e=>{if(transcript.dirty()){message('Finish or undo the correction draft before filtering.',true);(e.target as HTMLInputElement).value=readingPreferences.query;return}readingPreferences.query=(e.target as HTMLInputElement).value;renderTokens()};
+  const query=el<HTMLInputElement>('token-query'),filter=el<HTMLSelectElement>('token-filter');
+  const readingPane=app.querySelector<HTMLElement>('.transcript')!;
+  let findOrigin:{document:string;scroll:number;controlsOpen:boolean}|null=null;
+  const allControls=el<HTMLButtonElement>('show-all-reading-controls');
+  const settingsSummary=settings.querySelector('summary')!;
+  function compactFind(on:boolean){
+    settings.toggleAttribute('data-find-only',on);
+    settingsSummary.textContent=on?'Find in transcript':'Reading controls';
+    allControls.hidden=!on;
+  }
+  function rememberReadingPlace(){
+    if(findOrigin?.document!==docPath)findOrigin={document:docPath,scroll:readingPane.scrollTop,controlsOpen:settings.open};
+  }
+  function openFind(){
+    if(saving||pendingWrite||transcript.busy()||transcript.activeDraft())return;
+    readingCanvas?.close(false);showTranscript();rememberReadingPlace();
+    if(!settings.open)compactFind(true);
+    settings.open=true;query.focus();
+  }
+  function updateFilter(){
+    if(saving||pendingWrite||transcript.busy()||transcript.dirty()){
+      message('Finish or undo the correction draft before filtering.',true);
+      query.value=readingPreferences.query;filter.value=readingPreferences.filter;return;
+    }
+    rememberReadingPlace();
+    readingPreferences.query=query.value;readingPreferences.filter=filter.value as ReadingPreferences['filter'];
+    renderTokens();
+  }
+  settings.addEventListener('toggle',()=>{if(!settings.open){compactFind(false);if(!findingTokens())findOrigin=null;}});
+  allControls.onclick=()=>{compactFind(false);settingsSummary.focus({preventScroll:true});};
+  el('find-in-transcript').onclick=openFind;
+  query.oninput=updateFilter;
+  query.onkeydown=event=>{
+    if(event.isComposing||!findingTokens())return;
+    if(event.key==='Enter'){event.preventDefault();void nextMatch();}
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();el('clear-token-search').click();}
+  };
   el<HTMLSelectElement>('reading-layer').onchange=e=>{if(transcript.dirty()){(e.target as HTMLSelectElement).value=readingPreferences.layer;message('Finish or undo the correction draft before changing layers.',true);return}readingPreferences.layer=(e.target as HTMLSelectElement).value as ReadingPreferences['layer'];renderTokens()};
-  el<HTMLSelectElement>('token-filter').onchange=e=>{if(transcript.dirty()){(e.target as HTMLSelectElement).value=readingPreferences.filter;message('Finish or undo the correction draft before filtering.',true);return}readingPreferences.filter=(e.target as HTMLSelectElement).value as ReadingPreferences['filter'];renderTokens()};
+  filter.onchange=updateFilter;
+  el('clear-token-search').onclick=async()=>{
+    if(saving||pendingWrite||transcript.busy()||transcript.dirty()){
+      message('Finish or undo the correction draft before filtering.',true);return;
+    }
+    const origin=findOrigin?.document===docPath?findOrigin:null;
+    findOrigin=null;readingPreferences.query=query.value='';readingPreferences.filter='all';filter.value='all';
+    if(origin)settings.open=origin.controlsOpen;
+    refreshFindControls();
+    const scope=docPath;
+    const findButton=el('find-in-transcript');
+    findButton.focus({preventScroll:true});
+    await transcript.render();
+    if(scope!==docPath||findingTokens()||findOrigin||document.activeElement!==findButton)return;
+    el('tokens').focus({preventScroll:true});
+    if(origin)readingPane.scrollTop=origin.scroll;
+  };
   el('next-match').onclick=nextMatch;
   el('listen-selected').onclick=()=>void listen(currentAnchor());
   el<HTMLInputElement>('loop-selection').onchange=e=>{loop=(e.target as HTMLInputElement).checked};
@@ -256,9 +315,9 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   el('export-package').onclick=async()=>{try{if(desktop){message('Preparing exact revision export…');const result=await desktop.exportRevision(view.revision.id);message(result.cancelled?'Export cancelled.':`Complete package saved for R${view.revision.id}.`);return}message('Preparing exact revision export…');const r=await api<{revision:number;download:string;job_id:string}>('/api/export',{revision:view.revision.id});message(`Complete export ready for R${r.revision}.`);const a=document.createElement('a');a.href=r.download;a.textContent='Download complete package';a.setAttribute('download','');el('message').append(' ',a)}catch(e){message(String(e),true)}};
   document.addEventListener('keydown',event=>{
     if(saving||pendingWrite||transcript.busy()||event.isComposing||document.querySelector('dialog[open]'))return;
-    if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'&&!transcript.activeDraft()){event.preventDefault();readingCanvas?.close(false);showTranscript();settings.open=true;el<HTMLInputElement>('token-query').focus();return}
+    if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'&&!transcript.activeDraft()){event.preventDefault();openFind();return}
+    if(event.key==='F3' && !(event.target as HTMLElement).closest('[contenteditable],#inline-replacement')){event.preventDefault();nextMatch();return}
     if((event.target as HTMLElement).closest('#tokens,[contenteditable]'))return;
-    if(event.key==='F3'){event.preventDefault();nextMatch();return}
     if(event.altKey&&/^[1-9]$/.test(event.key)){event.preventDefault();openInspectorActivity(inspectorViews[Number(event.key)-1].id);return}
     if((event.target as HTMLElement).closest('input,textarea,select,button,a,summary'))return;
     if(event.code==='Space'&&audio.hasAttribute('src')&&!audio.error){
@@ -291,9 +350,35 @@ function renderNavigation(){const doc=currentDoc();
     if(matchMedia('(max-width:700px)').matches){openInspectorActivity('source');return}
     tab='source';showProperties();void renderInspector()});
 }
-async function nextMatch(){if(saving||pendingWrite||transcript.dirty()){message('Finish or undo the correction draft before moving to another match.',true);return}const matches=currentDoc().tokens.filter(t=>visibleToken(t,readingPreferences));if(!matches.length)return;const next=matches[(matches.findIndex(t=>t.id===selected[0])+1)%matches.length],basis=view.revision.snapshot_hash,scope=docPath,epoch=inspectorEpoch;selected=[next.id];tab='token';await transcript.render();if(saving||pendingWrite||transcript.dirty()||basis!==view.revision.snapshot_hash||scope!==docPath||epoch!==inspectorEpoch)return;void renderInspector();const button=document.querySelector<HTMLButtonElement>(`[data-token="${CSS.escape(next.id)}"]`);if(button)button.tabIndex=-1;button?.focus();button?.scrollIntoView({block:'nearest'});}
+function findingTokens(){return !!readingPreferences.query.trim()||readingPreferences.filter!=='all';}
+function refreshFindControls(){
+  const active=findingTokens();
+  el('tokens').toggleAttribute('data-filtered',active);
+  el('find-in-transcript').hidden=active;
+  el('clear-token-search').hidden=!active;
+  const next=el<HTMLButtonElement>('next-match');
+  next.hidden=!active;
+  const status=el('reading-match-count');
+  if(!active){status.textContent='';return;}
+  const matches=currentDoc().tokens.filter(token=>visibleToken(token,readingPreferences));
+  const index=selected.length===1?matches.findIndex(token=>token.id===selected[0]):-1;
+  next.disabled=matches.length===0;
+  status.textContent=index>=0?`Match ${index+1} of ${matches.length}`
+    :matches.length?`${matches.length} ${matches.length===1?'match':'matches'}`:'No matches';
+}
+async function nextMatch(){
+  if(saving||pendingWrite||transcript.busy()||transcript.dirty()){message('Finish or undo the correction draft before moving to another match.',true);return}
+  const matches=currentDoc().tokens.filter(token=>visibleToken(token,readingPreferences));if(!matches.length)return;
+  const next=matches[(matches.findIndex(token=>token.id===selected[0])+1)%matches.length];
+  const basis=view.revision.snapshot_hash,scope=docPath,epoch=inspectorEpoch,{query,filter}=readingPreferences;
+  selected=[next.id];tab='token';refreshFindControls();await transcript.render();
+  if(saving||pendingWrite||transcript.dirty()||basis!==view.revision.snapshot_hash||scope!==docPath||epoch!==inspectorEpoch||selected[0]!==next.id||query!==readingPreferences.query||filter!==readingPreferences.filter)return;
+  void renderInspector();
+  const word=document.querySelector<HTMLElement>(`[data-token="${CSS.escape(next.id)}"]`);
+  word?.focus({preventScroll:true});word?.scrollIntoView({block:'nearest'});
+}
 function draftStatus(){const dirty=draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));el('save-state').textContent=dirty?'Unsaved draft - saved head R'+view.revision.id:`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;}
-function renderTokens(){void transcript.render()}
+function renderTokens(){refreshFindControls();void transcript.render()}
 function currentAnchor(){return passageAnchor(view,docPath,selected)}
 function currentBasis(anchor:PassageAnchor){
   return anchor.document===docPath && anchor.project===view.snapshot.project && anchor.revision===view.revision.id && anchor.snapshot_hash===view.revision.snapshot_hash;

@@ -209,6 +209,15 @@ body {background:var(--paper);color:var(--ink)}
 .stage-actions .reading-status button,.stage-actions .reading-settings > summary {min-height:28px;margin:0;line-height:1.4;font-size:11px}
 .stage-actions .reading-status button {background:transparent;color:var(--muted);border-color:transparent;padding:3px 6px}
 .stage-actions .reading-status button:hover {background:var(--control-surface);color:var(--ink)}
+.stage-actions #reading-match-count {color:var(--ink);font:500 12px/1.4 system-ui,sans-serif;white-space:nowrap}
+.stage-actions #reading-match-count:empty {display:none}
+#app #tokens[data-filtered]>.reading-block:not(:has([data-token])) {display:none}
+.stage-actions .reading-settings[data-find-only] :is(.location-bar,#selection-help,#source-location-status),
+.stage-actions .reading-settings[data-find-only] .reading-toolbar>label:not(:first-child) {display:none}
+.stage-actions .reading-settings[data-find-only] .reading-toolbar {display:block;margin:.35rem 0;max-width:36ch}
+.stage-actions .reading-settings[data-find-only] .reading-toolbar input {width:100%}
+.stage-actions #show-all-reading-controls {display:inline-flex;align-items:center;gap:4px;padding:3px 5px;border:0;background:transparent;color:var(--muted);font-size:12px}
+.stage-actions #show-all-reading-controls .material-symbol {font-size:15px}
 .workspace .transcript .transcript-title {box-sizing:border-box;width:100%;max-inline-size:64ch;margin:clamp(26px,6cqh,66px) auto 0;padding-inline-start:3ch;font:400 calc(clamp(1.05rem,2.55cqi,1.34rem) * var(--canvas-scale,1)) / 1.68 var(--font-mono)}
 .workspace .transcript .transcript-title #document-title {font:550 clamp(24px,3.1cqi,38px)/1.15 system-ui,sans-serif;letter-spacing:-.045em;text-wrap:balance}
 #app[data-reading-canvas] .stage-actions {display:none}
@@ -223,6 +232,7 @@ body {background:var(--paper);color:var(--ink)}
 }
 @media(max-width:700px){
   .stage-actions .reading-status button span:not(.material-symbol) {display:none}
+  .stage-actions :is(#find-in-transcript,#clear-token-search) span:not(.material-symbol) {display:inline}
   .stage-actions .reading-status button {min-width:30px}
   .studio-status #stage-metadata {display:none}
   .workspace .transcript .stage-actions {gap:4px;padding-block:3px}

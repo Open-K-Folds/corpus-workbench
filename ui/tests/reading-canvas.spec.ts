@@ -10,6 +10,45 @@ const fontSize = (element: Locator) => element.evaluate(node => parseFloat(getCo
 test.describe('dock position during timed listening', () => {
   test.use({practicePackage:resolve('../fixtures/spoken-reading')});
 
+  test('transcript find reports matches, cycles with F3 and restores the reading position after an empty search',async({page,practiceUrl})=>{
+    await page.setViewportSize({width:390,height:730});
+    await page.goto(practiceUrl);
+    const pane=page.locator('.transcript'),words=page.locator('#tokens [data-token]');
+    await expect(words.first()).toBeVisible();
+    const all=await words.count();
+    const find=page.getByRole('button',{name:'Find in transcript'});
+    await find.click();
+    const query=page.getByLabel('Find tokens',{exact:true});
+    await expect(query).toBeFocused();
+    await expect(page.getByLabel('Go to source')).toBeHidden();
+    await page.getByRole('button',{name:'All reading controls'}).click();
+    await expect(page.getByLabel('Go to source')).toBeVisible();
+    await page.locator('.reading-settings > summary').click();
+    const place=await pane.evaluate(el=>{el.scrollTop=150;return el.scrollTop});
+    expect(place).toBeGreaterThan(30);
+    await page.keyboard.press('Control+k');
+    await expect(query).toBeFocused();
+    await query.fill('bell');
+    const status=page.locator('#reading-match-count');
+    await expect(status).toHaveText('2 matches');
+    await page.keyboard.press('Enter');
+    await expect(status).toHaveText('Match 1 of 2');
+    await expect(words.first()).toBeFocused();
+    await page.keyboard.press('F3');
+    await expect(status).toHaveText('Match 2 of 2');
+    await query.fill('no such word');
+    await expect(status).toHaveText('No matches');
+    await expect(page.locator('#tokens > .reading-block:visible')).toHaveCount(0);
+    await expect(page.getByRole('button',{name:'Next match',exact:true})).toBeDisabled();
+    await page.getByRole('button',{name:'Clear search and filters'}).click();
+    await expect(find).toBeVisible();
+    await expect(words).toHaveCount(all);
+    await expect(page.locator('.reading-settings')).not.toHaveAttribute('open');
+    await expect(page.locator('#tokens')).toBeFocused();
+    await expect.poll(()=>pane.evaluate(el=>el.scrollTop)).toBe(place);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBe(390);
+  });
+
   for (const theme of ['dark','light']) {
     test(`utterance contrast tracks the recording through silence and backward seeks in ${theme} appearance`, async ({page,practiceUrl}) => {
       await page.addInitScript(value=>localStorage.setItem('wb-theme',value),theme);
@@ -224,7 +263,7 @@ test('the standard stage steers with the dock and the handle attached to the cur
   await expect(page.locator('[data-canvas-current]')).toContainText('only heard after');
   await handle.press('Home');
   await expect(position).toHaveText('Turn 1 of 3');
-  await expect(page.getByRole('button',{name:'Next match',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Find in transcript'})).toBeVisible();
   expect(await head(page)).toEqual(before);
 });
 
