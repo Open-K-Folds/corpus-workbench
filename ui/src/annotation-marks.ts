@@ -238,8 +238,6 @@ export class AnnotationMarks {
     const note=this.card.querySelector<HTMLElement>('.saved-mark-note')!;
     note.textContent=detail.note;note.hidden=!detail.note;
     this.card.querySelector('.saved-mark-source')!.textContent=detail.source;
-    this.card.querySelector<HTMLElement>('.saved-mark-switch')!.hidden=group.marks.length<2;
-    this.card.querySelector('.saved-mark-index')!.textContent=`${group.marks.indexOf(mark)+1} / ${group.marks.length}`;
     this.card.querySelector<HTMLElement>('.saved-detail-body')!.scrollTop=0;
     this.card.hidden=false;
     for(const item of this.groups)item.button.setAttribute('aria-expanded',String(item===group));
@@ -248,8 +246,10 @@ export class AnnotationMarks {
   }
   private positionCard(){
     if(!this.open)return;
-    const button=this.groupFor(this.open)?.button,rect=button?.getBoundingClientRect(),pane=this.pane.getBoundingClientRect();
-    if(!rect || rect.bottom<=pane.top || rect.top>=pane.bottom){this.close(false);return}
+    const group=this.groupFor(this.open),rect=group?.button.getBoundingClientRect(),pane=this.pane.getBoundingClientRect();
+    if(!group || !rect || rect.bottom<=pane.top || rect.top>=pane.bottom){this.close(false);return}
+    this.card.querySelector<HTMLElement>('.saved-mark-switch')!.hidden=group.marks.length<2;
+    this.card.querySelector('.saved-mark-index')!.textContent=`${group.marks.indexOf(this.open)+1} / ${group.marks.length}`;
     this.position(this.card,rect);
     const body=this.card.querySelector<HTMLElement>('.saved-detail-body')!;
     body.tabIndex=body.scrollHeight>body.clientHeight+1?0:-1;
