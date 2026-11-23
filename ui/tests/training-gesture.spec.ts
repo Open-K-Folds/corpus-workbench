@@ -1,4 +1,5 @@
 import {expect,type Page} from '@playwright/test';
+import {resolve} from 'node:path';
 import {test} from './practice-fixture';
 
 const word=(page:Page,id:string)=>page.locator(`#tokens [data-token="${id}"] .reading-text`);
@@ -19,6 +20,31 @@ async function holdSecondPress(page:Page,id:string) {
   await expect(fan(page)).toBeVisible();
   return origin;
 }
+
+test.describe('a held lens over a timed transcript', () => {
+  test.use({practicePackage:resolve('../fixtures/spoken-reading')});
+  for (const theme of ['light','dark']) {
+    test(`in ${theme} the selected word stays legible and upcoming turns stay dim`, async ({page,practiceUrl}) => {
+      await page.addInitScript(theme => localStorage.setItem('wb-theme',theme),theme);
+      await page.emulateMedia({reducedMotion:'reduce'});
+      await page.goto(practiceUrl);
+      await expect(page.locator('#canvas-play')).toBeEnabled();
+      const ink = (id:string) => word(page,id).evaluate(node => Number(getComputedStyle(node).opacity));
+      const upcoming = await word(page,'w3-1').evaluate(node => Number(getComputedStyle(node).getPropertyValue('--upcoming-turn-opacity')));
+      expect(upcoming).toBeGreaterThan(0);
+      expect(upcoming).toBeLessThan(1);
+      await expect.poll(() => ink('w3-1')).toBe(upcoming);
+      await holdSecondPress(page,'w2-3');
+      await expect.poll(() => ink('w2-3')).toBe(1);
+      await expect.poll(() => ink('w3-1')).toBe(upcoming);
+      expect(await fan(page).evaluate(node => node.getAnimations({subtree:true}).length)).toBe(0);
+      await page.keyboard.press('Escape');
+      await page.mouse.up();
+      await expect(fan(page)).toHaveCount(0);
+      await expect.poll(() => ink('w2-3')).toBe(upcoming);
+    });
+  }
+});
 
 test('a held second press on a selected turn steers a bounded candidate search',async({page,practiceUrl})=>{
   await page.goto(practiceUrl);
