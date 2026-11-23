@@ -35,6 +35,11 @@ test('fresh studio opens on the passage and activities keep the same document',a
   await page.getByRole('button',{name:'Next source turn'}).click();
   await expect(page.locator('#canvas-position')).toContainText('2 of 3');
   await text.click();
+  await page.getByRole('button',{name:'Tools',exact:true}).click();
+  await expect(page.locator('.inspector-tools')).not.toHaveAttribute('open');
+  await expect(page.locator('.token-drawer')).toBeVisible();
+  await page.getByRole('button',{name:'Close inspector'}).click();
+  await expect(text).toHaveClass(/selected/);
   await page.getByRole('button',{name:'Open co-analysis',exact:true}).click();
   await expect(page.locator('.ca-source')).toContainText('after');
   await expect(page.getByRole('button',{name:'Back to transcript'})).toHaveCount(0);

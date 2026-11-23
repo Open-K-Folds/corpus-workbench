@@ -180,7 +180,14 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   };
   el('toggle-navigation').onclick=()=>{readingCanvas?.close(false);fold('navigation')};
   el('window-library').onclick=()=>el('toggle-navigation').click();
-  el('toggle-properties').onclick=()=>{readingCanvas?.close(false);fold('properties')};
+  el('toggle-properties').onclick=()=>{
+    readingCanvas?.close(false);
+    const opens=el('toggle-properties').getAttribute('aria-expanded')!=='true';
+    if(opens && initialLayout()==='stage' && tab==='token'){
+      app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=selected.length===0;
+    }
+    fold('properties');
+  };
   el('rail-reading').onclick=()=>{const workspace=document.querySelector<HTMLElement>('.workspace')!;workspace.classList.add('properties-folded','navigation-folded');workspace.dataset.focus='transcript';updatePaneAccessibility();el('tokens').focus({preventScroll:true})};
   for(const button of app.querySelectorAll<HTMLButtonElement>('.studio-rail [data-inspect]')){
     button.onclick=()=>{const target=button.dataset.inspect;if(target && isInspectorView(target))openInspectorActivity(target)}

@@ -51,6 +51,16 @@ silence and backward seeking with Follow off. Both natural playback and a
 paused seek to the end marked all ten utterances as played. Browser tests
 also checked dark and light themes and the readability of selected words.
 
+## G10 drawer and composition check · 23 November 2026
+
+On the 390 × 844 touch viewport, opening reading settings took 246 CSS pixels,
+down from 476. The first words stayed visible beneath the open controls.
+Selecting a timed word exposed passage playback. Opening Tools on that word
+showed its readings, source and timing. Closing the inspector kept the selection.
+On desktop, opening both drawers with the default widths preserved the reading
+measure. The screenshots use the spoken library-map fixture.
+[Desktop workspace](ui-audit/project-and-token-drawers.png) · [Phone inspector](ui-audit/token-drawer-phone.png)
+
 To repeat the browser exercises, build the UI and Rust binary, then run
 `npm run test:e2e --prefix ui`. The fresh-stage cases create a separate local
 authority per exercise. To repeat the Windows exercises, build and package the
