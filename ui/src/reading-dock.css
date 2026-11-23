@@ -203,3 +203,13 @@
   .canvas-console button { border: 1px solid ButtonText }
   .canvas-console #follow-audio[aria-pressed=true] { outline: 1px solid Highlight; outline-offset:-3px }
 }
+@media (max-height:500px) and (orientation:landscape) {
+  .workspace .canvas-tools { padding-block:3px }
+  @container steering-dock (min-width:515px) and (max-width:640px) {
+    .canvas-console { display:flex; inline-size:min(100%, 580px); gap:5px; padding:3px 7px }
+    .canvas-console:has(#canvas-exit:not([hidden])) .canvas-transport { padding-inline-end:0 }
+    .canvas-position { display:grid; gap:0; margin-inline:3px }
+    #canvas-position { grid-area:1 / 1; align-self:start; max-inline-size:100%; pointer-events:none }
+    .canvas-tools #canvas-scrub { grid-area:1 / 1; box-sizing:border-box; block-size:44px; padding-block-start:17px }
+  }
+}

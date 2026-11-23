@@ -278,6 +278,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   margin-block:3px;
   padding:.25em .55em .35em;
   border-inline-start:2px solid var(--stage-hot);
+  border-radius:0 5px 5px 0;
   background:var(--paper);
   color:var(--stage-ink);
   text-decoration:none;
@@ -291,6 +292,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 }
 .lexeme .draft-actions :is(small,pre) {max-inline-size:100%;white-space:pre-wrap;overflow-wrap:anywhere}
 .lexeme .draft-actions small:empty {display:none}
+.lexeme .draft-actions small {font:400 11px/1.5 var(--stage-type)}
 .selection-tools[role=toolbar] :is(.tool-primary,.tool-secondary) {
   display: flex;
   flex-wrap: wrap;
@@ -298,10 +300,11 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 }
 .selection-tools .tool-primary { padding-bottom: .25rem; border-bottom: 1px solid var(--border); }
 .selection-tools .tool-secondary { margin-top: .25rem; }
+.selection-tools .tool-secondary button {font-size:12px}
 .selection-tools[role=toolbar] button { min-height: 32px; border-radius: .3rem; }
 .selection-tools[role=toolbar] [data-action=coanalysis] { background: var(--selection-surface); color: var(--selection-ink); }
 .selection-tools[role=toolbar] button:hover:not(:disabled), .change-popover button:hover:not(:disabled) { background: var(--control-hover); }
-.selection-tools[role=toolbar] > small { margin-top: .2rem; padding-inline: .45rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.selection-tools[role=toolbar] > small { margin-top: .2rem; padding-inline: .45rem; color: var(--muted); font-size:11px; font-variant-numeric: tabular-nums; }
 #recording-pane .recording-heading strong .material-symbol { color: var(--selection-ink); }
 #recording-pane .audio-views { border: 1px solid var(--border); }
 #recording-pane .audio-views input:checked + span { color: var(--selection-ink); background: var(--selection-surface); }
@@ -311,6 +314,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 #recording-pane.audio[data-recording-source=linked][data-detail=expanded] { min-height: max(var(--recording-expanded-min), var(--recording-content-min, 0px)); }
 @media (pointer:coarse) {
   .selection-tools[role=toolbar] button { min-height: 44px; }
+  .lexeme .draft-actions button, .lexeme input#inline-replacement { min-height:44px }
 }
 
 /* The linked-media height remains a user preference. A text document can
@@ -349,4 +353,53 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
 @media (max-width: 400px) {
   #recording-pane.audio .actions { gap: 2px 4px; }
   #recording-pane.audio #listen-selected { padding-inline: .45rem; }
+}
+
+/* Keep the reading canvas available in landscape. The dock still controls playback
+   while the recording details are closed. Opening them leaves both panes scrollable. */
+@media (max-height:500px) and (orientation:landscape) {
+  #app #recording-pane[data-recording-source=linked] {
+    height:auto !important;
+    min-height:0;
+    padding-block:0;
+  }
+  #app #recording-pane[data-recording-source=linked] #timeline-resizer { display:none }
+  #app #recording-pane[data-recording-source=linked]:not([data-short-open])
+    :is(.audio-views,.recording-visual,.recording-analysis-info,.media-player,.actions,#recording-layers) { display:none }
+  #app #recording-pane[data-recording-source=linked]:not([data-short-open]) .recording-heading {
+    height:auto;
+    min-height:40px;
+    flex-wrap:nowrap;
+  }
+  #app #recording-pane[data-recording-source=linked] #timeline-toggle {
+    display:inline-flex;
+    width:auto;
+    min-width:44px;
+    min-height:44px;
+  }
+  #timeline-toggle .short-recording-label { font-size:12px; color:var(--ink) }
+  #app #recording-pane[data-short-open] {
+    max-height:min(40dvh,190px);
+    overflow:auto;
+    overscroll-behavior:contain;
+    padding-bottom:8px;
+  }
+  #app #recording-pane[data-short-open] :is(.recording-visual,#recording-layers,.text-only-tray) { display:block }
+  #app #recording-pane[data-short-open] :is(.actions,.recording-analysis-info,.timeline-lane) { display:flex }
+  #app #recording-pane[data-short-open] #recording-layers { max-height:none !important; overflow:visible }
+  #app #recording-pane[data-short-open] .recording-heading {
+    position:sticky;
+    top:0;
+    z-index:2;
+    background:var(--rail);
+  }
+}
+@media (min-width:570px) and (max-height:500px) and (orientation:landscape) {
+  #app #recording-pane[data-short-open] .recording-heading {
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto auto;
+    height:44px;
+  }
+  #app #recording-pane[data-short-open] .audio-views {order:2}
+  #app #recording-pane[data-short-open] #timeline-toggle {order:3}
 }

@@ -72,13 +72,19 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
 export class RecordingPanel {
   overview(){return this.visual.overview()}
   private visual:AudioView;private lanes:HTMLElement;private view:View|null=null;private doc:Document|null=null;
+  private shortWindow = matchMedia('(max-height: 500px) and (orientation: landscape)');
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
     panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);
     const availability = panel.querySelector<HTMLElement>('#audio-availability')!;
     availability.textContent = 'No audio linked';
     panel.querySelector('#timeline-toggle')!.before(availability);
     const player=new AudioPlayer(audio);
-    this.lanes=panel.querySelector('#recording-layers')!;panel.append(this.lanes);this.visual=new AudioView(panel,audio,panel.querySelector('#recording-summary')!);
+    this.lanes=panel.querySelector('#recording-layers')!;
+    this.lanes.tabIndex=0;
+    this.lanes.setAttribute('role','region');
+    this.lanes.setAttribute('aria-label','Recording timeline');
+    panel.append(this.lanes);
+    this.visual=new AudioView(panel,audio,panel.querySelector('#recording-summary')!);
     type Detail='minimal'|'compact'|'expanded';let preferredDetail:Detail|null=null;
     let compactHeight=preference('wb-recording-compact-height',180,110,440),expandedHeight=preference('wb-recording-expanded-height',360,220,440);
     try{const saved=localStorage.getItem('wb-recording-detail');if(saved==='minimal'||saved==='compact'||saved==='expanded')preferredDetail=saved}catch{/* Optional preference. */}
@@ -93,14 +99,32 @@ export class RecordingPanel {
       panel.dataset.detail=detail;panel.style.height=size+'px';document.documentElement.style.setProperty('--recording-height',panel.getBoundingClientRect().height+'px');
       this.syncTimelineToggle();
     },{maximum,minimum:()=>minimum('minimal'),measure:()=>panel.getBoundingClientRect().height,onCommit:size=>{preferredDetail=panel.dataset.detail as Detail;if(preferredDetail==='compact')compactHeight=size;if(preferredDetail==='expanded')expandedHeight=size;try{localStorage.setItem('wb-recording-detail',preferredDetail);if(preferredDetail!=='minimal')localStorage.setItem('wb-recording-'+preferredDetail+'-height',String(size))}catch{/* Optional preference. */}}});
-    panel.querySelector<HTMLButtonElement>('#timeline-toggle')!.onclick=()=>{
+    const toggle = panel.querySelector<HTMLButtonElement>('#timeline-toggle')!;
+    toggle.onclick=()=>{
       if (panel.dataset.recordingSource === 'absent') {
         panel.toggleAttribute('data-timing-open');
         this.syncTimelineToggle();
         return;
       }
+      if (this.shortWindow.matches) {
+        panel.toggleAttribute('data-short-open');
+        panel.scrollTop = 0;
+        this.syncTimelineToggle();
+        return;
+      }
       resize.set(panel.dataset.detail==='minimal'?Math.max(compactHeight,minimum('compact')):panel.dataset.detail==='compact'?Math.max(expandedHeight,minimum('expanded')):70);
     };
+    panel.addEventListener('keydown', event => {
+      if (event.key !== 'Escape' || !panel.hasAttribute('data-short-open') || event.defaultPrevented) return;
+      panel.removeAttribute('data-short-open');
+      this.syncTimelineToggle();
+      toggle.focus({preventScroll:true});
+      event.stopPropagation();
+    });
+    this.shortWindow.addEventListener('change', () => {
+      panel.removeAttribute('data-short-open');
+      this.syncTimelineToggle();
+    });
     audio.addEventListener('loadedmetadata',()=>this.renderLanes());
     let floors='';const refit=()=>{const next=[minimum('minimal'),minimum('compact'),minimum('expanded'),Math.round(maximum())].join(':');if(!resize.isDragging()&&next!==floors){floors=next;resize.set(resize.getPreferred(),false)}resize.sync()};
     window.addEventListener('resize',()=>{floors='';refit()});
@@ -119,13 +143,17 @@ export class RecordingPanel {
       const bounds = panel.getBoundingClientRect();
       document.documentElement.style.setProperty('--recording-height', bounds.height+'px');
       this.lanes.style.maxHeight = Math.max(0,Math.floor(bounds.bottom-this.lanes.getBoundingClientRect().top-padding))+'px';
+      this.lanes.tabIndex = this.lanes.clientHeight > 0 ? 0 : -1;
     };
     const layout=new ResizeObserver(fitLanes);
     for(const region of [panel,workspace,transcript,player.element,actions,panel.querySelector('.recording-analysis-info')!,panel.querySelector('canvas')!])layout.observe(region);
   }
   async update(view:View,doc:Document,media:string|undefined){
     const source = media ? 'linked' : 'absent';
-    if (this.doc?.path !== doc.path || this.panel.dataset.recordingSource !== source) this.panel.removeAttribute('data-timing-open');
+    if (this.doc?.path !== doc.path || this.panel.dataset.recordingSource !== source) {
+      this.panel.removeAttribute('data-timing-open');
+      this.panel.removeAttribute('data-short-open');
+    }
     this.panel.dataset.recordingSource = source;
     this.syncTimelineToggle();
     this.view=view;this.doc=doc;this.renderLanes();await this.visual.update(view,media);
@@ -133,15 +161,18 @@ export class RecordingPanel {
   private syncTimelineToggle() {
     const panel = this.panel;
     const unavailable = panel.dataset.recordingSource === 'absent';
-    const expanded = unavailable ? panel.hasAttribute('data-timing-open') : panel.dataset.detail === 'expanded';
+    const short = !unavailable && this.shortWindow.matches;
+    const expanded = unavailable ? panel.hasAttribute('data-timing-open')
+      : short ? panel.hasAttribute('data-short-open') : panel.dataset.detail === 'expanded';
     const label = unavailable ? (expanded ? 'Hide supplied timing' : 'Show supplied timing')
+      : short ? (expanded ? 'Hide recording controls' : 'Show recording controls')
       : expanded ? 'Collapse recording timeline' : panel.dataset.detail === 'minimal' ? 'Expand recording panel' : 'Show recording timeline';
     const toggle = panel.querySelector<HTMLButtonElement>('#timeline-toggle')!;
-    toggle.setAttribute('aria-controls', 'recording-layers');
+    toggle.setAttribute('aria-controls', short ? 'recording-waveform audio-play audio-seek audio-speed recording-layers' : 'recording-layers');
     toggle.setAttribute('aria-expanded', String(expanded));
     toggle.setAttribute('aria-label', label);
     toggle.title = label;
-    toggle.innerHTML = icon(expanded ? 'expand_more' : 'expand_less');
+    toggle.innerHTML = (short ? '<span class="short-recording-label">Controls</span>' : '') + icon(expanded ? 'expand_more' : 'expand_less');
   }
   private renderLanes(){if(!this.lanes||!this.doc||!this.view)return;const duration=this.audio.duration;const timed=this.doc.segments.filter(s=>s.start_us!==null&&s.end_us!==null&&s.start_us>=0&&s.end_us>s.start_us);
     const lane=(label:string,items:{id:string;start:number;end:number;className?:string;title:string}[])=>`<div class="timeline-lane"><span class="lane-label">${label}</span><div class="lane-track">${items.map(i=>`<span class="interval ${i.className??''}" data-start="${i.start}" data-end="${i.end}" title="${esc(i.title)}">${esc(i.id)}</span>`).join('')}</div></div>`;
