@@ -3,10 +3,32 @@ import {test} from './practice-fixture';
 
 test('remote sign-in uses the same-origin handoff and retains manual entry', async ({page,practiceUrl})=>{
   await page.goto(new URL(practiceUrl).origin);
-  await expect(page.getByLabel('Session code')).toBeVisible();
   const cloudflare=page.getByRole('link',{name:'Sign in with Cloudflare'});
-  if (process.env.VITE_WB_REMOTE_PREVIEW==='1') await expect(cloudflare).toHaveAttribute('href','/open');
+  if (process.env.VITE_WB_REMOTE_PREVIEW==='1') {
+    await expect(cloudflare).toHaveAttribute('href','/open');
+    await page.getByText('Use a session code',{exact:true}).click();
+  }
   else await expect(cloudflare).toHaveCount(0);
+  await expect(page.getByLabel('Session code')).toBeVisible();
+});
+
+test('an expired launcher link can be recovered with the current session code', async ({page,practiceUrl})=>{
+  const current=new URL(practiceUrl);
+  const validCode=new URLSearchParams(current.hash.slice(1)).get('session')!;
+  current.search='?view=reading';
+  current.hash='session=expired';
+  await page.goto(current.href);
+  await expect(page.getByRole('alert').filter({hasText:'This link has expired'})).toBeVisible();
+  await expect(page).toHaveURL(current.origin+'/?view=reading');
+  if(process.env.VITE_WB_REMOTE_PREVIEW==='1')await page.getByText('Use a session code',{exact:true}).click();
+  const input=page.getByLabel('Session code');
+  await input.fill('rejected');
+  await input.press('Enter');
+  await expect(input).toBeFocused();
+  await expect(input).toHaveAttribute('aria-invalid','true');
+  await input.fill(validCode);
+  await input.press('Enter');
+  await expect(page.locator('#save-state')).toContainText('R1');
 });
 
 test('the remote preview offers a guarded refresh only when deployed assets change', async ({page,practiceUrl}) => {

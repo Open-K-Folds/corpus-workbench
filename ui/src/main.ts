@@ -70,21 +70,39 @@ function message(text:string,isError=false){el('message').textContent=text;el('m
 function currentDoc():Document{return view.documents.find(d=>d.path===docPath)??view.documents[0]}
 async function start(){
   const code=new URLSearchParams(location.hash.slice(1)).get('session');
-  if(code){const fragment=new URLSearchParams(location.hash.slice(1));fragment.delete('session');history.replaceState({},'',location.pathname+(fragment.size?'#'+fragment.toString():''));await login(code)}
+  let expiredLink=false;
+  if(code){
+    const fragment=new URLSearchParams(location.hash.slice(1));fragment.delete('session');
+    history.replaceState({},'',location.pathname+location.search+(fragment.size?'#'+fragment.toString():''));
+    try{await login(code)}catch(error){if(!(error instanceof ApiError)||error.status!==403)throw error;expiredLink=true}
+  }
   try{await resumeSession();view=await loadView();
     if(!docPath && desktop && view.snapshot.project==='synthetic' && view.documents.some(doc=>doc.path==='xmlfiles/SYNTHETIC-WORKBENCH.xml'))
       docPath=view.documents.find(doc=>doc.path==='xmlfiles/noticeboard.xml')?.path??'';
-    shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
+    shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen(expiredLink);return}throw e}
 }
-function loginScreen(){
+function loginScreen(expiredLink=false){
+  const form=`<form id="login-form"><label for="login-code">Session code</label><input id="login-code" name="code" type="password" required autocomplete="off" spellcheck="false"><p id="login-error" role="alert"></p><button type="submit">Open workbench</button></form>`;
   const access=remotePreview
-    ? '<p><a class="cloudflare-sign-in" href="/open">Sign in with Cloudflare</a></p>'
-    : '<p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p>';
-  app.innerHTML=`${windowBar(false)}<main class="login"><h1>Corpus workbench</h1>${access}<form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;
-  el<HTMLFormElement>('login-form').onsubmit=async event=>{
+    ? `<a class="cloudflare-sign-in" href="/open">Sign in with Cloudflare${icon('arrow_forward')}</a><details class="login-fallback"><summary>Use a session code</summary>${form}</details>`
+    : form;
+  const help=remotePreview?'Sign in with the account authorized for this workspace.':'Open the protected launcher on this machine or enter its session code.';
+  const expired=expiredLink?`<p class="login-expired" role="alert">${remotePreview?'This link has expired. Sign in again to continue.':'This link has expired. Open the current launcher or enter its new code.'}</p>`:'';
+  app.innerHTML=`${windowBar(false)}<main class="login"><h1>Open your workbench</h1><p class="login-help">${help}</p>${expired}${access}</main>`;
+  const loginForm=el<HTMLFormElement>('login-form'), input=el<HTMLInputElement>('login-code'), error=el('login-error');
+  const submit=loginForm.querySelector('button')!;
+  input.oninput=()=>{input.removeAttribute('aria-invalid');input.removeAttribute('aria-describedby');error.textContent=''};
+  loginForm.onsubmit=async event=>{
     event.preventDefault();
-    try {await login(formValues(event.currentTarget as HTMLFormElement).code);await start()}
-    catch(error){el('login-error').textContent=String(error)}
+    if(submit.disabled)return;
+    submit.disabled=true;submit.textContent='Opening…';
+    try {await login(input.value.trim());await start()}
+    catch(failure){
+      if(failure instanceof ApiError && failure.status===403){
+        error.textContent='This session code was not accepted. Use the code from the current launcher.';
+        input.setAttribute('aria-invalid','true');input.setAttribute('aria-describedby','login-error');input.focus();input.select();
+      }else{error.textContent='Could not open the workbench. Check your connection and try again.'}
+    }finally{submit.disabled=false;submit.textContent='Open workbench'}
   };
 }
 function shell(){shellEvents?.abort();shellEvents=new AbortController();overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>

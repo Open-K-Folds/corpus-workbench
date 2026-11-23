@@ -117,9 +117,16 @@ test('duplicate preparation offers the existing copy and preserves its exact sav
 
 test('preparation controls remain reachable with long synthetic evidence at compact widths and both appearances',async({page})=>{
   await mockDesktop(page);await open(page);const data=preview();data.sources.transcript.name='SYNTHETIC '+('long-name-'.repeat(12))+'.txt';data.summary.text='SYNTHETIC '+('their  uncertain reading '.repeat(45));await setPreview(page,data);await dialog(page);await page.locator('#preparation-choose').click();await expect(page.locator('#preparation-preview')).toBeVisible();
+  await expect(page.getByRole('heading',{name:'Preview before import'})).toBeFocused();
+  await page.locator('.preparation-input-help summary').click();
   for(const theme of ['light','dark'])for(const width of [320,390,820,1440]){
     await page.setViewportSize({width,height:800});await page.evaluate(theme=>{document.documentElement.dataset.theme=theme},theme);await page.locator('#preparation-dialog').evaluate(element=>{element.scrollTop=0});
     const bounds=await page.locator('#preparation-dialog').evaluate(element=>{const r=element.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom,width:innerWidth,height:innerHeight}});expect(bounds.left).toBeGreaterThanOrEqual(0);expect(bounds.right).toBeLessThanOrEqual(bounds.width);expect(bounds.top).toBeGreaterThanOrEqual(0);expect(bounds.bottom).toBeLessThanOrEqual(bounds.height);
+    for(const action of ['preparation-confirm','preparation-cancel']){
+      const button=await page.locator('#'+action).boundingBox();
+      expect(button!.y).toBeGreaterThanOrEqual(bounds.top);
+      expect(button!.y+button!.height).toBeLessThanOrEqual(bounds.bottom);
+    }
     if(evidence&&(width===390||width===1440))await page.screenshot({path:resolve(evidence,`preparation-${theme}-${width===1440?'desktop':'mobile'}-top.png`),fullPage:true});
     for(const id of ['preparation-format','preparation-title','preparation-choose','preparation-confirm','preparation-cancel']){await page.locator('#'+id).scrollIntoViewIfNeeded();await expect(page.locator('#'+id)).toBeVisible();expect(await page.locator('#'+id).evaluate(element=>{const r=element.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight}),`${id} fits ${theme} ${width}`).toBe(true)}
     expect(await page.locator('#preparation-dialog').evaluate(element=>element.scrollWidth<=element.clientWidth),`${theme} ${width} has no dialog horizontal overflow`).toBe(true);
