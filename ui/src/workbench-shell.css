@@ -89,6 +89,9 @@ body {background:var(--paper);color:var(--ink)}
   color:var(--selection-ink);background:var(--selection-surface);border-color:color-mix(in srgb,var(--indicator) 15%,transparent);
 }
 .studio-rail .rail-button[aria-pressed=true] .material-symbol {font-variation-settings:'FILL' 1,'wght' 400,'GRAD' 0,'opsz' 24}
+.studio-rail:has(:is([data-inspect],#open-research)[aria-pressed=true]) #toggle-properties[aria-expanded=true]:not(:hover) {
+  background:transparent;color:var(--muted);border-color:transparent;
+}
 .studio-rail button:focus-visible,.window-bar button:focus-visible {outline:2px solid var(--indicator);outline-offset:-2px}
 .documents,.inspector {background:var(--rail);color:var(--ink)}
 .documents {padding:14px 12px;border-inline-end:1px solid var(--border)}
