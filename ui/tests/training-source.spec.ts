@@ -1,4 +1,5 @@
-import {expect,test} from '@playwright/test';
+import {expect} from '@playwright/test';
+import {test} from './practice-fixture';
 import {execFileSync,spawn} from 'node:child_process';
 import {existsSync,mkdirSync,mkdtempSync,readFileSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -50,7 +51,7 @@ test('saved comparison context plays its original bounded audio while an unrecor
     const seed=training.locator('[data-training-seed]');
     await seed.locator('summary').click();
     await expect(seed.locator('.training-context mark')).toHaveText('notice');
-    await expect(seed.getByRole('button',{name:/Listen/})).toHaveCount(0);
+    await expect(seed.getByRole('group',{name:'Passage audio'})).toHaveCount(0);
     await training.getByLabel('Collection name').fill('Recorded practice');
     await training.getByLabel('Relationship').fill('Same meaning');
     await training.getByRole('button',{name:'Save reviewed example'}).click();
@@ -72,7 +73,10 @@ test('saved comparison context plays its original bounded audio while an unrecor
     await comparison.locator('summary').click();
     await expect(comparison.locator('.training-context mark')).toHaveText('notice');
     await expect(comparison.getByText('R1',{exact:true})).toBeVisible();
-    const listen=comparison.getByRole('button',{name:/Listen · word timing/});
+    const listen=comparison.getByRole('button',{name:'Hear excerpt',exact:true});
+    const context=comparison.getByRole('button',{name:'Hear in context',exact:true});
+    const audioControls=comparison.getByRole('group',{name:'Passage audio'});
+    await expect(audioControls).toContainText('Word timing · 0.7–1.8 s');
     await expect(listen).toBeEnabled();
     const media=page.waitForResponse(response=>{
       const url=new URL(response.url());
@@ -91,6 +95,15 @@ test('saved comparison context plays its original bounded audio while an unrecor
     expect(stopped.paused).toBe(true);
     expect(stopped.time).toBeGreaterThanOrEqual(1.79);
     expect(stopped.time).toBeLessThan(2.05);
+    await context.click();
+    await expect(audioControls.getByRole('status')).toHaveText('Playing context · 0–3 s');
+    expect(await page.evaluate(()=>window.trainingStartedAt)).toBe(0);
+    await expect(context).toBeVisible();
+    const contextEnd=await page.evaluate(()=>({paused:window.trainingPlayback!.paused,time:window.trainingPlayback!.currentTime}));
+    expect(contextEnd.paused).toBe(true);
+    expect(contextEnd.time).toBeCloseTo(3,1);
+    await context.click();
+    await expect(comparison.getByRole('button',{name:'Stop context'})).toBeVisible();
     await listen.click();
     await expect(comparison.getByRole('button',{name:'Stop excerpt'})).toBeVisible();
     await comparison.locator('summary').click();
@@ -101,4 +114,28 @@ test('saved comparison context plays its original bounded audio while an unrecor
       server.kill();await exited;
     }
   }
+});
+
+test.describe('source listening on a phone',()=>{
+  test.use({practicePackage:resolve('../fixtures/spoken-reading'),viewport:{width:390,height:844},hasTouch:true});
+  test('a selected untimed word uses its utterance when hearing the surrounding conversation',async({page,practiceUrl},info)=>{
+    await page.goto(practiceUrl);
+    await page.locator('[data-token="w4-5"]').tap();
+    await page.locator('#rail-training').tap();
+    const seed=page.locator('[data-training-seed]');
+    await seed.getByText('Source context',{exact:true}).tap();
+    const group=seed.getByRole('group',{name:'Passage audio'});
+    await expect(group).toContainText('Utterance timing · 13.1–16.1 s');
+    await expect(seed.locator('mark')).toHaveText('pencil');
+    const play=group.getByRole('button',{name:'Hear in context'});
+    await play.scrollIntoViewIfNeeded();
+    expect((await play.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+    await info.attach('Phone source listening',{body:await page.screenshot(),contentType:'image/png'});
+    await play.tap();
+    await expect(group.getByRole('status')).toHaveText('Playing context · 11.1–18.1 s');
+    await expect(seed.locator('mark')).toHaveText('pencil');
+    await group.getByRole('button',{name:'Stop context'}).tap();
+    await expect(play).toBeVisible();
+  });
 });

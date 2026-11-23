@@ -1,0 +1,19 @@
+.training-source-audio {
+  display: grid;
+  gap: .45rem;
+  padding-block-start: .55rem;
+  border-block-start: 1px solid var(--border);
+}
+.training-source-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+.training-source-buttons button {
+  display: inline-flex;
+  align-items: center;
+  gap: .32rem;
+}
+@media (pointer: coarse) {
+  .training-source-buttons button { min-height: 44px; }
+}
