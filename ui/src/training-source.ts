@@ -1,9 +1,13 @@
 import {api} from './api';
-import type {View} from './contracts';
+import type {Document,View} from './contracts';
 import {esc} from './dom';
 import {icon} from './icons';
-import {suppliedCue} from './listening';
+import {suppliedCue,type RecordingCue} from './listening';
 import type {Passage} from './training-candidates';
+import './training-source.css';
+
+const contextSeconds = 2;
+const intervalText = (start:number, end:number) => `${Number(start.toFixed(3))}–${Number(end.toFixed(3))} s`;
 
 // Source inspection can follow a saved example back to an earlier revision.
 export function sourceCard(p:Passage, caption:string, current:View) {
@@ -15,15 +19,13 @@ export function sourceCard(p:Passage, caption:string, current:View) {
     <details><summary>Source context</summary><div></div></details>`;
   const details = card.querySelector('details')!;
   const body = details.querySelector('div')!;
-  let playback:HTMLAudioElement|null = null;
-  let timer:ReturnType<typeof setTimeout>|undefined;
-  let generation = 0, playRequest = 0;
-  const stop = () => {playRequest++;clearTimeout(timer); playback?.pause();};
-  card.addEventListener('training-stop', stop);
+  let stopPlayback:(()=>void)|undefined;
+  let generation = 0;
+  card.addEventListener('training-stop', () => stopPlayback?.());
   details.ontoggle = async () => {
     const ticket = ++generation;
-    stop();
-    playback = null;
+    stopPlayback?.();
+    stopPlayback = undefined;
     if (!details.open) return;
     body.textContent = 'Opening saved context…';
     try {
@@ -46,42 +48,103 @@ export function sourceCard(p:Passage, caption:string, current:View) {
       if ('reason' in cue || media.length !== 1) return;
       const projection = await api<{snapshot_hash:string;media_base_unsupported:boolean}>(`/api/reading?path=${encodeURIComponent(doc.path)}&revision=${p.revision}`);
       if (generation !== ticket || !details.open || projection.snapshot_hash !== p.snapshotHash || projection.media_base_unsupported) return;
-      const player = new Audio();
-      playback = player;
-      const button = document.createElement('button');
-      button.type = 'button'; button.className = 'secondary';
-      button.innerHTML = icon('headphones')+'Listen · '+cue.basis+' timing';
-      const status = document.createElement('small'); status.setAttribute('role','status');
-      body.append(button,status);
-      button.onclick = async () => {
-        if (!player.paused) {stop();return;}
-        document.querySelectorAll('.training-source').forEach(node=>node.dispatchEvent(new Event('training-stop')));
-        document.querySelector<HTMLAudioElement>('#audio')?.pause();
-        const started=++playRequest;
-        try {
-          if (!player.src) player.src = `/api/media?path=${encodeURIComponent(media[0])}&revision=${p.revision}`;
-          if (player.readyState < 1) await new Promise<void>((resolve,reject)=>{
-            const finish=(ok:boolean)=>{player.onloadedmetadata=null;player.onerror=null;ok?resolve():reject(new Error('Recording unavailable.'))};
-            player.onloadedmetadata=()=>finish(true);player.onerror=()=>finish(false);player.load();
-          });
-          if (!card.isConnected || !details.open || ticket !== generation || playback !== player || started !== playRequest) return;
-          const playable = suppliedCue(doc, p.tokenIds, player.duration);
-          if (!Number.isFinite(player.duration) || 'reason' in playable) throw new Error('The interval exceeds the recording.');
-          player.currentTime=playable.start;
-          await player.play();
-          const checkEnd=()=>{
-            if(started!==playRequest || player.paused)return;
-            if(!card.isConnected || player.currentTime>=playable.end){stop();return;}
-            timer=setTimeout(checkEnd,Math.max(15,(playable.end-player.currentTime)*1000));
-          };
-          checkEnd();
-        } catch(error) {status.textContent=String(error);}
-      };
-      player.onplay=()=>{button.textContent='Stop excerpt';};
-      player.onpause=()=>{button.innerHTML=icon('headphones')+'Listen · '+cue.basis+' timing';};
+      const mediaUrl = `/api/media?path=${encodeURIComponent(media[0])}&revision=${p.revision}`;
+      stopPlayback = addListeningControls(details,body,doc,p.tokenIds,cue,mediaUrl);
     } catch(error) {
       if (generation === ticket) body.textContent=String(error);
     }
   };
   return card;
+}
+
+function addListeningControls(details:HTMLDetailsElement, body:HTMLElement, doc:Document, ids:string[], cue:RecordingCue, mediaUrl:string) {
+  const player = new Audio();
+  const controls = document.createElement('div');
+  controls.className = 'training-source-audio';
+  controls.setAttribute('role','group');
+  controls.setAttribute('aria-label','Passage audio');
+  controls.innerHTML = `<small>${cue.basis === 'word' ? 'Word' : 'Utterance'} timing · ${intervalText(cue.start,cue.end)}</small>
+    <div class="training-source-buttons">
+      <button type="button" class="secondary" data-mode="excerpt"></button>
+      <button type="button" class="secondary" data-mode="context"></button>
+    </div><small role="status"></small>`;
+  body.append(controls);
+  const buttons = controls.querySelectorAll<HTMLButtonElement>('button');
+  const status = controls.querySelector<HTMLElement>('[role=status]')!;
+  let active: 'excerpt'|'context'|null = null;
+  let request = 0;
+  let timer:ReturnType<typeof setTimeout>|undefined;
+  function updateButtons() {
+    for (const button of buttons) {
+      const playing = active === button.dataset.mode;
+      const context = button.dataset.mode === 'context';
+      button.innerHTML = icon(playing ? 'stop_circle' : context ? 'graphic_eq' : 'headphones')
+        + (playing ? (context ? 'Stop context' : 'Stop excerpt') : (context ? 'Hear in context' : 'Hear excerpt'));
+    }
+  }
+  function stop() {
+    request++;
+    clearTimeout(timer);
+    player.pause();
+    active = null;
+    updateButtons();
+    status.textContent = `Context includes up to ${contextSeconds} s before and after the excerpt.`;
+  }
+  stop();
+
+  // Read the latest requested range when the recording metadata arrives.
+  async function start() {
+    if (!active || !controls.isConnected || !details.open) return;
+    const started = request;
+    const playable = suppliedCue(doc,ids,player.duration);
+    if (!Number.isFinite(player.duration) || 'reason' in playable) {
+      stop();
+      status.textContent = 'The supplied timing extends beyond this recording.';
+      return;
+    }
+    const context = active === 'context';
+    const from = context ? Math.max(0,playable.start-contextSeconds) : playable.start;
+    const until = context ? Math.min(player.duration,playable.end+contextSeconds) : playable.end;
+    try {
+      player.currentTime = from;
+      await player.play();
+      if (request !== started) return;
+      status.textContent = `Playing ${context ? 'context' : 'excerpt'} · ${intervalText(from,until)}`;
+      const checkEnd = () => {
+        if (started !== request) return;
+        if (!controls.isConnected || player.ended || player.currentTime >= until) {stop();return;}
+        timer = setTimeout(checkEnd,Math.max(15,Math.min(250,(until-player.currentTime)*1000)));
+      };
+      checkEnd();
+    } catch {
+      if (request !== started) return;
+      stop();
+      status.textContent = 'Playback could not start. Try again.';
+    }
+  }
+  player.onloadedmetadata = start;
+  player.onended = () => {if (player.ended) stop();};
+  player.onerror = () => {
+    if (!active) return;
+    stop();
+    status.textContent = 'Recording unavailable. Try again.';
+  };
+  for (const button of buttons) {
+    button.onclick = () => {
+      const mode = button.dataset.mode === 'context' ? 'context' : 'excerpt';
+      if (active === mode) {stop();return;}
+      document.querySelectorAll('.training-source').forEach(node=>node.dispatchEvent(new Event('training-stop')));
+      document.querySelector<HTMLAudioElement>('#audio')?.pause();
+      active = mode;
+      updateButtons();
+      status.textContent = 'Opening recording…';
+      if (player.readyState >= HTMLMediaElement.HAVE_METADATA && !player.error) {
+        void start();
+      } else if (!player.src || player.error) {
+        player.src = mediaUrl;
+        player.load();
+      }
+    };
+  }
+  return stop;
 }
