@@ -65,7 +65,30 @@ RUN mkdir -p /package && python3 scripts/prepare-synthetic.py --out /package/syn
     python3 scripts/container-inventory.py --commit "$SOURCE_COMMIT" --out /package --cargo /cargo-metadata.json --os /os-inventory && \
     find /package -type d -exec chmod 0755 {} + && find /package -type f -exec chmod 0644 {} + && chmod 0755 /package/bin/corpus-workbench
 
-FROM runtime-base AS runtime
+FROM runtime-base AS service-base
+RUN groupadd --gid 10001 workbench && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /data workbench && \
+    mkdir -p /data/authority /data/.runtime /backups && chown -R 10001:10001 /data /backups && chmod 700 /data /data/authority /data/.runtime /backups
+COPY --from=native-build /source/target/release/corpus-workbench /usr/local/bin/corpus-workbench
+COPY --chmod=0555 containers/entrypoint.sh /usr/local/bin/workbench-entrypoint
+USER 10001:10001
+WORKDIR /data
+ENV WB_PORT=18920 WB_PROJECT=synthetic WB_STORE=/data/authority
+EXPOSE 18920
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 CMD ["workbench-entrypoint", "health"]
+ENTRYPOINT ["workbench-entrypoint"]
+CMD ["serve-workbench"]
+
+FROM native-build AS preview-fixture
+COPY scripts/prepare-synthetic.py scripts/
+COPY fixtures/synthetic/ fixtures/synthetic/
+RUN python3 scripts/prepare-synthetic.py --out /demo/synthetic
+
+# The working-tree preview serves frontend builds from its read-only Compose mount.
+FROM service-base AS preview
+COPY --from=preview-fixture --chown=10001:10001 /demo/synthetic/ /opt/workbench/synthetic/
+COPY LICENSE NOTICE /opt/workbench/
+
+FROM service-base AS runtime
 ARG SOURCE_COMMIT=working-tree
 ARG VERSION=0.2.0-dev.10
 ARG TARGETPLATFORM
@@ -76,15 +99,4 @@ LABEL org.opencontainers.image.title="Corpus Workbench" \
       org.opencontainers.image.version="$VERSION" \
       org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.platform="$TARGETPLATFORM"
-RUN groupadd --gid 10001 workbench && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /data workbench && \
-    mkdir -p /data/authority /data/.runtime /backups && chown -R 10001:10001 /data /backups && chmod 700 /data /data/authority /data/.runtime /backups
 COPY --from=package-build /package/ /opt/workbench/
-COPY --from=native-build /source/target/release/corpus-workbench /usr/local/bin/corpus-workbench
-COPY --chmod=0555 containers/entrypoint.sh /usr/local/bin/workbench-entrypoint
-USER 10001:10001
-WORKDIR /data
-ENV WB_PORT=18920 WB_PROJECT=synthetic WB_STORE=/data/authority
-EXPOSE 18920
-HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=3 CMD ["workbench-entrypoint", "health"]
-ENTRYPOINT ["workbench-entrypoint"]
-CMD ["serve-workbench"]

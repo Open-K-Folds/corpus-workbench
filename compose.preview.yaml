@@ -1,0 +1,39 @@
+name: corpus-workbench-preview
+
+services:
+  authoring:
+    image: ${WB_PREVIEW_IMAGE:-corpus-workbench:preview}
+    build:
+      target: preview
+    restart: unless-stopped
+    environment:
+      WB_PUBLIC_ORIGIN: ${WB_PUBLIC_ORIGIN:?Set WB_PUBLIC_ORIGIN to the preview HTTPS origin}
+    volumes:
+      - type: bind
+        source: ./ui/dist
+        target: /opt/workbench/ui
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      edge:
+        aliases: [corpus-workbench-preview]
+    develop:
+      watch:
+        - {action: rebuild, path: ./src}
+        - {action: rebuild, path: ./assets/teitok-reader}
+        - {action: rebuild, path: ./Cargo.toml}
+        - {action: rebuild, path: ./Cargo.lock}
+        - {action: rebuild, path: ./rust-toolchain.toml}
+        - {action: rebuild, path: ./containers}
+        - {action: rebuild, path: ./Dockerfile}
+        - {action: rebuild, path: ./.dockerignore}
+        - {action: rebuild, path: ./fixtures/synthetic}
+        - {action: rebuild, path: ./scripts/prepare-synthetic.py}
+  tools:
+    image: ${WB_PREVIEW_IMAGE:-corpus-workbench:preview}
+
+networks:
+  edge:
+    external: true
+    name: ${WB_EDGE_NETWORK:-cloudflare_edge}
