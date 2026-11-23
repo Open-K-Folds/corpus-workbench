@@ -1,0 +1,76 @@
+#tokens:has(> .saved-mark-overlay) {position:relative}
+.saved-mark-overlay {
+  --mark-target:28px;
+  --mark-ink:color-mix(in srgb,var(--accent) 84%,var(--stage-ink));
+  position:absolute;inset:0;pointer-events:none;user-select:none;
+}
+::highlight(saved-annotations) {
+  text-decoration:underline dotted;
+  text-decoration-color:color-mix(in srgb,var(--accent) 54%,transparent);
+}
+.workspace .transcript #tokens .saved-annotation-pin {
+  position:absolute;inset-inline-start:calc(100% + 4px);
+  inline-size:var(--mark-target);block-size:var(--mark-target);
+  min-inline-size:0;min-block-size:0;margin:0;padding:0;display:grid;place-items:center;
+  color:var(--mark-ink);background:transparent;border:0;box-shadow:none;z-index:1;
+  cursor:pointer;pointer-events:auto;touch-action:manipulation;
+  font:550 10px/1 var(--stage-type);font-variant-numeric:tabular-nums;
+}
+.saved-annotation-pin::before {
+  content:attr(data-mark);display:grid;place-items:center;box-sizing:border-box;
+  min-inline-size:18px;block-size:18px;padding:0 3px;border:1px solid color-mix(in srgb,currentColor 54%,transparent);
+  border-radius:4px;background:var(--stage-floor);
+}
+.saved-annotation-pin:not([data-group="1"])::before {
+  content:attr(data-mark) "+";box-shadow:2px -2px 0 var(--stage-floor),3px -3px 0 color-mix(in srgb,currentColor 45%,transparent)
+}
+.saved-annotation-pin:is([data-active],:focus-visible)::before {color:var(--paper);background:var(--accent);border-color:var(--accent)}
+.saved-annotation-pin:focus-visible {outline:2px solid var(--mark-ink);outline-offset:-1px}
+.saved-mark-frames {position:absolute;inset:0;color:var(--mark-ink);pointer-events:none}
+.saved-span-frame,.saved-span-tether {position:absolute;box-sizing:border-box;pointer-events:none}
+.saved-span-frame {
+  --corner:linear-gradient(currentColor,currentColor);
+  background:var(--corner) top left / 4px 1px, var(--corner) top left / 1px 4px,
+    var(--corner) top right / 4px 1px, var(--corner) top right / 1px 4px,
+    var(--corner) bottom left / 4px 1px, var(--corner) bottom left / 1px 4px,
+    var(--corner) bottom right / 4px 1px, var(--corner) bottom right / 1px 4px;
+  background-repeat:no-repeat;background-color:color-mix(in srgb,currentColor 7%,transparent);
+}
+.saved-span-tether {block-size:1px;background:currentColor;opacity:.55;transform-origin:0 50%}
+.saved-annotation-detail {
+  position:fixed;z-index:50;box-sizing:border-box;width:305px;overflow:auto;overscroll-behavior:contain;
+  padding:13px 15px 9px;background:var(--paper);color:var(--ink);
+  border:1px solid var(--control-edge);border-radius:10px;box-shadow:0 6px 25px #0002;
+  font:400 13px/1.45 system-ui,sans-serif;overflow-wrap:anywhere;
+}
+.saved-annotation-detail .saved-detail-header,.saved-annotation-detail footer {
+  position:static;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  min-height:0;margin:0;padding:0;background:none;border:0;box-shadow:none;color:var(--muted)
+}
+.saved-detail-header [data-kind] {font:550 11px/1.3 system-ui,sans-serif;letter-spacing:.025em}
+.saved-annotation-detail button {display:inline-flex;align-items:center;justify-content:center;gap:3px;margin:0;min-width:30px;min-height:30px;padding:4px;border:0;border-radius:5px;background:transparent;color:var(--ink);font:550 12px/1.3 system-ui,sans-serif}
+.saved-annotation-detail button:hover {background:var(--control-hover)}
+.saved-annotation-detail h3 {font:620 16px/1.3 system-ui,sans-serif;margin:2px 0 8px;color:var(--ink)}
+.saved-annotation-detail blockquote {margin:8px 0;padding:3px 0 3px 10px;border-inline-start:2px solid var(--accent);font:400 13px/1.55 var(--font-mono);white-space:pre-wrap}
+.saved-annotation-detail .saved-mark-note {margin:8px 0;font:400 13px/1.45 system-ui,sans-serif;white-space:pre-wrap}
+.saved-annotation-detail .saved-mark-source {display:block;color:var(--muted);font-size:11px}
+.saved-annotation-detail footer {margin-top:11px;border-top:1px solid var(--border);padding-top:5px}
+.saved-annotation-detail .material-symbol {font-size:16px}
+.saved-mark-switch {display:flex}
+.saved-mark-switch [data-prev] .material-symbol {transform:rotate(180deg)}
+@container transcript-stage (max-width:700px) {
+  .workspace .transcript #tokens .has-saved-mark {padding-inline-end:32px}
+  .workspace .transcript #tokens .saved-annotation-pin {inset-inline-start:auto;inset-inline-end:0}
+}
+@media (pointer:coarse) {
+  .saved-mark-overlay {--mark-target:44px}
+  .saved-annotation-detail button {min-height:44px;min-width:44px}
+  @container transcript-stage (max-width:700px) {
+    .workspace .transcript #tokens .has-saved-mark {padding-inline-end:44px}
+  }
+}
+@media (forced-colors:active) {
+  .saved-span-frame {border:1px dashed Highlight}
+  .saved-span-tether {border-top:1px solid Highlight}
+  .saved-annotation-pin::before,.saved-annotation-detail {border:1px solid ButtonText}
+}
