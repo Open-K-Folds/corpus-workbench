@@ -80,7 +80,11 @@ test('guide skip, reload and resume preserve the project and never create a revi
 
 test('guide links preserve returning token and annotation drafts, selection and source evidence',async({page})=>{
   await open(page);const before=await head(page);await page.locator('[data-token="w2"]').click();await page.getByLabel('Human-corrected reading',{exact:true}).fill('SYNTHETIC retained listening draft');await page.getByLabel('Reviewer note',{exact:true}).fill('SYNTHETIC uncertain: retain competing interpretation');
-  await research(page);await page.getByRole('button',{name:'Annotate uncertainty',exact:true}).click();await expect(page.locator('#inspector-content')).toContainText('1 selected: w2');await page.getByLabel('Span label',{exact:true}).fill('SYNTHETIC unsaved uncertainty');
+  await research(page);
+  await page.getByRole('button',{name:'Annotate uncertainty',exact:true}).click();
+  await expect(page.locator('.annotation-selection')).toHaveText('1 word selected');
+  await expect(page.locator('.lexeme.selected')).toHaveAttribute('data-token','w2');
+  await page.getByLabel('Span label',{exact:true}).fill('SYNTHETIC unsaved uncertainty');
   await research(page);await page.getByRole('button',{name:'Inspect preserved source',exact:true}).click();await expect(page.locator('.source-path')).toHaveText('Raw/synthetic-asr.json');await research(page);await page.getByRole('button',{name:'Correct selected token',exact:true}).click();
   await expect(page.getByLabel('Human-corrected reading',{exact:true})).toHaveValue('SYNTHETIC retained listening draft');await expect(page.getByLabel('Reviewer note',{exact:true})).toHaveValue('SYNTHETIC uncertain: retain competing interpretation');
   await research(page);await page.getByRole('button',{name:'Annotate uncertainty',exact:true}).click();await expect(page.getByLabel('Span label',{exact:true})).toHaveValue('SYNTHETIC unsaved uncertainty');

@@ -1,12 +1,13 @@
 import {test,expect,type Page} from '@playwright/test';
 import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
-import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,existsSync} from 'node:fs';
 import {resolve} from 'node:path';
-const root=resolve('..'),runtime=resolve(root,'.private',`browser-controls-${process.pid}`);
+const root=resolve('..');let runtime:string;
 const binary=process.env.WB_BINARY??resolve(root,'target/debug/corpus-workbench'+(process.platform==='win32'?'.exe':''));
 let service:ChildProcess,code='';
 test.beforeAll(async()=>{
-  if(existsSync(runtime))throw new Error('Fresh synthetic authority required');
+  mkdirSync(resolve(root,'.private'),{recursive:true});
+  runtime=mkdtempSync(resolve(root,'.private/browser-controls-'));
   for(const folder of ['Resources','xmlfiles','Audio'])mkdirSync(resolve(runtime,'package',folder),{recursive:true});
   writeFileSync(resolve(runtime,'package/Resources/settings.xml'),'<ttsettings/>');
   const text=Array.from({length:90},(_,i)=>`<u id='u${i}' start='0' end='8'><tok id='w${i}'>SYNTHETIC${i}</tok> <tok id='timed${i}' start='1' end='2'>timed</tok>.</u>`).join('\n');

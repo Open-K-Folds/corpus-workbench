@@ -1,11 +1,12 @@
 import {test,expect,type Page} from '@playwright/test';
 import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
-import {readFileSync,writeFileSync,mkdirSync,existsSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,existsSync} from 'node:fs';
 import {resolve} from 'node:path';
-const root=resolve('..'),runtime=resolve(root,'.private',`editor-${process.pid}`);let service:ChildProcess;let code='';
+const root=resolve('..');let runtime:string;let service:ChildProcess;let code='';
 const binary=process.env.WB_BINARY??resolve(root,'target/debug/corpus-workbench'+(process.platform==='win32'?'.exe':''));
 test.beforeAll(async()=>{
-  if(existsSync(runtime))throw new Error('Fresh synthetic authority required');
+  mkdirSync(resolve(root,'.private'),{recursive:true});
+  runtime=mkdtempSync(resolve(root,'.private/editor-'));
   for(const dir of ['Resources','xmlfiles','Audio'])mkdirSync(resolve(runtime,'package',dir),{recursive:true});
   writeFileSync(resolve(runtime,'package/Resources/settings.xml'),'<ttsettings/>');
   writeFileSync(resolve(runtime,'package/xmlfiles/editor.xml'),"<TEI><teiHeader><title>SYNTHETIC correction workspace</title><media url='tone.wav'/></teiHeader><text><body><u id='u1' start='0' end='4'><tok id='w1'>We</tok> <tok id='w2'>their</tok>,  <tok id='w3'>yesterday</tok>.</u>\n<u id='u2' start='2' end='8'><tok id='w4'>😀é👩‍💻مرحبا</tok><tok id='w5'>adjacent</tok><unknown>!</unknown></u></body></text></TEI>");
