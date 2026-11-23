@@ -5,7 +5,7 @@
   #tokens[data-playback-following] .lexeme[data-playback-upcoming] {--upcoming-word-opacity:.74}
   #tokens .reading-block[data-playback-progress=upcoming] {--upcoming-turn-opacity:.60}
   /* Apply ink strength to the text so selections, pins and the caret stay distinct. */
-  #tokens:not([data-training-gesture],.moving-passage-pin) :is(
+  #tokens:not(.moving-passage-pin) :is(
     .lexeme:not([data-playback-word],.selected,.passage-pinned) > .reading-text,
     .reading-content > .separator
   ) {

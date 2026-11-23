@@ -1,5 +1,5 @@
 .training-fan {
-  --fan-shade: rgb(26 40 32 / 16%);
+  --fan-shade: rgb(235 240 234 / 46%);
   --fan-stroke: color-mix(in srgb, var(--indicator) 60%, var(--paper));
   position: fixed;
   inset: 0;
@@ -7,13 +7,23 @@
   overflow: hidden;
   pointer-events: none;
   user-select: none;
-  background: radial-gradient(ellipse var(--opening-width) var(--opening-height) at var(--opening-x) var(--opening-y),
-    transparent 51%, var(--fan-shade) 100%);
   color: var(--ink);
   font: 550 13px/1.35 system-ui, sans-serif;
 }
 
-:root[data-theme=dark] .training-fan { --fan-shade: rgb(0 5 3 / 32%); }
+:root[data-theme=dark] .training-fan { --fan-shade: rgb(0 5 3 / 44%); }
+.training-fan::before {
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:radial-gradient(ellipse var(--opening-width) var(--opening-height) at var(--opening-x) var(--opening-y),
+    transparent 51%, var(--fan-shade) 100%);
+}
+@media (prefers-reduced-motion:no-preference) and (forced-colors:none) {
+  .training-fan::before { animation:reveal-lens-scrim 120ms ease-out }
+  @keyframes reveal-lens-scrim { from {opacity:0} to {opacity:1} }
+}
 
 .training-fan-ray {
   position: absolute;
