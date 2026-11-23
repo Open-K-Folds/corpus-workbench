@@ -1,5 +1,5 @@
 import {api,ApiError,commit,draftContext,loadView,makeCommand} from './api';
-import type {Command,Diff,Document,Revision,Token,View} from './contracts';
+import type {Command,Diff,Document,Revision,Span,Token,View} from './contracts';
 import {esc} from './dom';
 import {icon} from './icons';
 import {passageAnchor,type Listening} from './listening';
@@ -7,13 +7,14 @@ import {reading,visibleToken,type ReadingPreferences} from './workspace';
 import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from './draft-storage';
 import {TrainingGesture,type TrainingLens,type TrainingPassage} from './training-gesture';
 import {PassagePin} from './passage-pin';
+import {AnnotationMarks} from './annotation-marks';
 import {TranscriptDrag} from './transcript-drag';
 
 interface Block {source_id:string|null;source_kind:string;anchor_token:string|null;sections:{id:string;kind:string;number:string|null}[];runs:{token:string|null;text:string}[]}
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
 interface SelectionBasis {view:View;document:string;ids:string[];start:number;end:number;quote:string;layer:string;range:Range|null;backward?:boolean}
 interface Draft {id:string;basis:SelectionBasis;before:string;prefix:string;suffix:string;replacement:string;command:Command|null;phase:'editing'|'saving'|'unknown'|'conflict';latest:View|null;compared:boolean;epoch?:number;unlock?:()=>void}
-interface Host {view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;training?:(lens:TrainingLens,ids:string[],limit:number)=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
+interface Host {openAnnotation?:(span:Span)=>void;view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;training?:(lens:TrainingLens,ids:string[],limit:number)=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
 export class Transcript {
   private projection:Projection|null=null;private epoch=0;private selection:SelectionBasis|null=null;
   private draft:Draft|null=null;private composing=false;private settling=false;
@@ -28,6 +29,7 @@ export class Transcript {
   private training?:TrainingGesture;
   private pin:PassagePin;
   private drag:TranscriptDrag;
+  private annotationMarks:AnnotationMarks;
   private menuFollowsRange=false;
   private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
@@ -67,6 +69,7 @@ export class Transcript {
       ()=>this.currentProjection()&&!this.dirty()&&!this.host.busy());
     if(this.host.training)this.training=new TrainingGesture(this.surface,token=>this.pinTraining(token));
     const readingPane=this.surface.closest<HTMLElement>('.transcript');
+    this.annotationMarks=new AnnotationMarks(this.surface,readingPane!, (card,rect)=>this.position(card,rect),span=>this.host.openAnnotation?.(span));
     const updatePopovers=()=>{
       const geometry=this.readingGeometry();
       for(const popup of [this.menu,this.details]){
@@ -101,6 +104,7 @@ export class Transcript {
           return;
         }
       }
+      if(target.closest('.saved-annotation-detail,.saved-annotation-pin')){this.menu.hidden=true;this.details.hidden=true;return}
       if(this.menu.contains(target)||this.details.contains(target))return;
       if(!interactingWithSelection){this.menu.hidden=true;this.details.hidden=true}
       if(event.type!=='pointerdown'||target.closest('dialog[open]'))return;
@@ -152,11 +156,13 @@ export class Transcript {
     document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.drag.active&&!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
     window.addEventListener('keydown',e=>{
       if(e.key!=='Escape'||e.isComposing||this.composing||this.draft||document.querySelector('dialog[open]'))return;
+      if(this.annotationMarks.close(true)){e.preventDefault();e.stopImmediatePropagation();return}
       if(e.target instanceof Element && e.target.closest('#recording-pane[data-short-open]'))return;
       if(this.rangeStart){this.cancelRange(true);e.preventDefault();e.stopImmediatePropagation();return}
       if(this.clearSelection()){e.preventDefault();e.stopImmediatePropagation()}
     },{capture:true});
   }
+  revealAnnotation(span:Span){return this.currentProjection() && !this.draft && !this.host.busy() && this.annotationMarks.reveal(span)}
   private clearSelection(){
     if(!this.surface.isConnected)return false;
     const native=window.getSelection();
@@ -219,7 +225,7 @@ export class Transcript {
   private storePreferences(){try{localStorage.setItem('wb-reading:'+this.host.view().snapshot.project,JSON.stringify({layout:this.layout,interlinear:this.interlinear}))}catch{/* Preferences are optional. */}}
   async render(){
     if(this.draft)return;
-    this.cancelRange(false);
+    this.annotationMarks.clear();this.cancelRange(false);
     this.drag.cancel();this.pin.clear();this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
@@ -244,6 +250,7 @@ export class Transcript {
           const shown=visibleToken(t,this.host.preferences);return `<span class="lexeme ${shown?'':'filtered'} ${this.host.selected().includes(t.id)?'selected':''}" ${shown?'data-token':'data-filtered-token'}="${esc(t.id)}" tabindex="-1" title="${esc(t.id)} · ${esc(t.language_effective??'Unknown language')}"><span class="reading-text">${esc(reading(t,this.host.preferences.layer))}</span>${this.interlinear?`<span class="interlinear" aria-hidden="true"><span>Raw ${esc(t.original)}</span><span>Normalized ${esc(t.normalized??'—')}${t.attrs.wb_normalized_status==='unresolved'?' · unresolved':''}</span><span>${esc(t.language_effective??'Unknown language')}</span></span>`:''}</span>`;
         }).join('')}</span></section>`;
       }).join('');
+      this.annotationMarks.render(doc,view.snapshot.project);
       const shown=doc.tokens.filter(t=>visibleToken(t,this.host.preferences));this.updateCount(shown.length);
       (document.getElementById('next-match') as HTMLButtonElement).disabled=!shown.length;
       if(!shown.length)this.surface.insertAdjacentHTML('afterbegin','<p class="empty-state">No matching tokens. Clear the filter to return to the transcript.</p>');
@@ -534,6 +541,7 @@ export class Transcript {
     this.pin.clear();this.menu.hidden=true;this.details.hidden=true;this.persist();this.drawDraft();
   }
   private drawDraft(){
+    this.annotationMarks.clear();
     this.selectionButton.replaceWith(`${this.host.selected().length} selected`);
     const d=this.draft!;const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(d.basis.ids[0])}"]`)!;
     span.innerHTML=`<span class="draft-prefix reading-text">${esc(d.prefix)}</span><s class="draft-ghost" aria-hidden="true">${esc(d.basis.quote)}</s><input id="inline-replacement" aria-label="Proposed correction" autocomplete="off" spellcheck="false" value="${esc(d.replacement)}"><span class="draft-suffix reading-text">${esc(d.suffix)}</span><span class="draft-actions"><button id="undo-draft" type="button">Undo draft</button><button id="accept-draft" type="button">Accept ↵</button><button id="retry-draft" type="button" hidden>Resolve save outcome</button><button id="compare-draft" type="button" hidden>Compare current revision</button><button id="reapply-draft" type="button" hidden>Reapply after comparison</button><small id="draft-explanation" role="status"></small><pre id="draft-comparison" hidden></pre></span>`;
