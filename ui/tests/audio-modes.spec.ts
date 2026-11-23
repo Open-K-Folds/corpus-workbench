@@ -293,6 +293,7 @@ test('mode controls and player fit narrow panes, both themes and reduced motion 
   const playerControls=['#audio-play','#audio-seek','#audio-mute','#audio-volume','#audio-speed'];
   for(const width of [1440,820,390,320]){
     await page.setViewportSize({width,height:1000});
+    if(width<=700 && await page.locator('#timeline-toggle').getAttribute('aria-expanded')==='false')await page.getByRole('button',{name:'Show recording controls'}).click();
     for(const theme of ['light','dark']){
       if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:'Dark appearance',exact:true}).click();
       for(const label of ['Waveform','Spectrogram','Spectrum']){
@@ -304,9 +305,14 @@ test('mode controls and player fit narrow panes, both themes and reduced motion 
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       expect(await audio.getAttribute('src')).toBe(source);expect(await audio.evaluate((a:HTMLAudioElement)=>a.paused)).toBe(false);
     }
+    if(width<=700) {
+      await page.getByRole('button',{name:'Hide recording controls'}).click();
+      await expect(page.locator('#audio-seek')).toBeHidden();
+      continue;
+    }
     await page.locator('#timeline-resizer').focus();await page.keyboard.press('Home');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','minimal');
     for(const selector of playerControls)await expect.poll(()=>fits(selector),{message:`${width}px minimal ${selector}`}).toBe(true);
     await page.getByRole('button',{name:'Expand recording panel',exact:true}).click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','compact');
   }
-  await page.getByRole('button',{name:'Pause recording',exact:true}).click();
+  await page.locator('#canvas-play').click();
 });

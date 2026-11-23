@@ -406,7 +406,7 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   #recording-pane.audio #listen-selected { padding-inline: .45rem; }
 }
 
-/* On a short screen or beside a phone tool, keep the full recording controls behind one disclosure. */
+/* On a phone or a short screen, the recording details open on demand. */
 @media (max-width:700px), (max-height:500px) and (orientation:landscape) {
   #app #recording-pane[data-recording-source=linked][data-compact-controls] {
     height:auto !important;
@@ -454,26 +454,30 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   #app #recording-pane[data-short-open] #timeline-toggle {order:3}
 }
 
-#app #recording-pane[data-recording-source=linked][data-tool-transport]:not([data-short-open]) {
+/* Keep one playback target while the reader or a tool occupies the phone. */
+#app #recording-pane[data-recording-source=linked][data-compact-controls]:not([data-short-open]) {
   display:grid;
   grid-template-columns:auto minmax(0,1fr);
   align-items:center;
-  gap:8px;
+  column-gap:8px;
 }
-#app #recording-pane[data-recording-source=linked][data-tool-transport]:not([data-short-open]) .recording-heading :is(strong,#recording-summary) { display:none }
-#app #recording-pane[data-recording-source=linked][data-tool-transport]:not([data-short-open]) .media-player:not([hidden]) {
-  display:flex;
-  width:auto;
-  margin:0;
-  justify-content:flex-end;
-  gap:0 8px;
+#app #recording-pane[data-compact-controls]:not([data-short-open]) .recording-heading :is(strong,#recording-summary) { display:none }
+#app #recording-pane[data-recording-source=linked][data-compact-controls]:not([data-short-open]) .media-player:not([hidden]) { display:contents }
+#app #recording-pane[data-compact-controls]:not([data-short-open]) .media-player :is(.player-settings,.player-seek,.actions) { display:none }
+#app #recording-pane[data-compact-controls]:not([data-short-open]) .player-position {
+  grid-column:2;
+  grid-row:1;
+  justify-self:end;
 }
-#app #recording-pane[data-tool-transport]:not([data-short-open]) .media-player :is(.player-settings,.player-seek,.actions,.player-status) { display:none }
-#app #recording-pane[data-tool-transport]:not([data-short-open]) .player-position { flex:none }
+#app #recording-pane[data-compact-controls]:not([data-short-open]) .player-status:not(:empty) {
+  grid-column:1 / -1;
+  padding-block-end:6px;
+}
+#app #recording-pane[data-compact-controls]:not([data-tool-transport],[data-short-open]) .player-play { display:none }
 #app #recording-pane[data-tool-transport]:not([data-short-open]) .player-play {
   width:44px;
   min-height:44px !important;
 }
 @media (min-height:501px) {
-  #app #recording-pane[data-tool-transport][data-short-open] { max-height:min(44dvh,370px) }
+  #app #recording-pane[data-compact-controls][data-short-open] { max-height:min(44dvh,370px) }
 }

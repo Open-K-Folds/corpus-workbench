@@ -79,6 +79,7 @@ test('both themes and mobile widths keep custom controls within the pane and Mat
     for(const theme of ['light','dark']){
       if(await page.locator('html').getAttribute('data-theme')!==theme)await page.getByRole('button',{name:'Dark appearance',exact:true}).click();
       await expect(page.locator('html')).toHaveAttribute('data-theme',theme);
+      if(width<=700)await page.getByRole('button',{name:'Show recording controls'}).click();
       for(const control of ['#audio-play','#audio-seek','#audio-mute','#audio-volume','#audio-speed','#listen-selected','#loop-selection'])expect(await page.locator(control).evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('#recording-pane')!.getBoundingClientRect();return r.left>=p.left&&r.right<=p.right&&r.top>=p.top&&r.bottom<=p.bottom}),control).toBe(true);
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       if(width<=700){await page.getByRole('button',{name:'Tools',exact:true}).click();await expect(page.locator('.inspector')).toBeVisible();await page.getByRole('button',{name:'Tools',exact:true}).click()}
@@ -118,11 +119,25 @@ test('collapsed recording pane keeps loading, error and ended explanations fully
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
   await page.route('**/api/media?**',route=>route.abort());await page.reload();await expect(page.locator('#audio-status')).toContainText('Recording unavailable');
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
+  await page.setViewportSize({width:1440,height:1000});
   await page.locator('#timeline-resizer').focus();for(let i=0;i<13;i++)await page.keyboard.press('ArrowUp');await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','expanded');
-  for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(()=>page.locator('#recording-layers').evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('#recording-pane')!.getBoundingClientRect();return r.height>0&&r.top>=p.top&&r.bottom<=p.bottom})).toBe(true)}
+  for(const width of [1440,1101,820,700,390,320]){
+    await page.setViewportSize({width,height:1000});
+    const lanes=page.locator('#recording-layers');
+    if(width<=700){
+      const toggle=page.locator('#timeline-toggle');
+      if(await toggle.getAttribute('aria-expanded')==='false')await toggle.click();
+      await lanes.focus();
+      await expect(lanes).toBeInViewport();
+    }else{
+      await expect.poll(()=>lanes.evaluate(e=>{const r=e.getBoundingClientRect(),p=e.closest('#recording-pane')!.getBoundingClientRect();return r.height>0&&r.top>=p.top&&r.bottom<=p.bottom})).toBe(true);
+    }
+  }
+  await page.setViewportSize({width:1440,height:1000});
   await page.locator('#timeline-resizer').focus();await page.keyboard.press('Home');
   await page.unroute('**/api/media?**');let release!:()=>void;const held=new Promise<void>(resolve=>release=resolve);await page.route('**/api/media?**',async route=>{await held;await route.continue()});await page.reload();await expect(page.locator('#audio-status')).toContainText('Loading recording');
   for(const width of [1440,1101,820,700,390,320]){await page.setViewportSize({width,height:1000});await expect.poll(fits).toBe(true)}
   release();await expect(page.locator('#audio-play')).toBeEnabled();
+  await page.setViewportSize({width:1440,height:1000});
   await page.getByRole('button',{name:'Expand recording panel',exact:true}).click();await expect(page.locator('#recording-pane')).toHaveAttribute('data-detail','compact');await expect(page.getByRole('button',{name:'Show recording timeline',exact:true})).toBeVisible();
 });
