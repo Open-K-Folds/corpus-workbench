@@ -23,6 +23,8 @@ export class AnnotationMarks {
   private events?:AbortController;
   private frame = 0;
   private highlighted?:Highlight;
+  private activeHighlight?:Highlight;
+  private bright:HTMLElement[]=[];
   constructor(private surface:HTMLElement, private pane:HTMLElement,
     private position:(card:HTMLElement,anchor:DOMRect)=>void, private inspect:(span:Span)=>void) {
     this.overlay.className='saved-mark-overlay';
@@ -34,10 +36,10 @@ export class AnnotationMarks {
     this.card.setAttribute('role','dialog');
     this.card.setAttribute('aria-labelledby','saved-mark-title');
     this.card.innerHTML=`<header class="saved-detail-header"><span data-kind></span><button type="button" aria-label="Close annotation detail" data-close>${icon('close')}</button></header>
-      <h3 id="saved-mark-title"></h3><blockquote dir="auto"></blockquote><p dir="auto" class="saved-mark-note"></p>
-      <small class="saved-mark-source"></small><footer><button type="button" data-inspect>Open in annotations ${icon('chevron_right')}</button>
+      <div class="saved-detail-body" role="region" aria-label="Annotation text"><h3 id="saved-mark-title"></h3><blockquote dir="auto"></blockquote><p dir="auto" class="saved-mark-note"></p>
+      <small class="saved-mark-source"></small></div><footer><button type="button" data-inspect>Open in annotations ${icon('chevron_right')}</button>
       <span class="saved-mark-switch"><button type="button" aria-label="Previous annotation here" data-prev>${icon('chevron_right')}</button>
-      <button type="button" aria-label="Next annotation here" data-next>${icon('chevron_right')}</button></span></footer>`;
+      <small class="saved-mark-index"></small><button type="button" aria-label="Next annotation here" data-next>${icon('chevron_right')}</button></span></footer>`;
     this.card.querySelector<HTMLButtonElement>('[data-close]')!.onclick=()=>this.close(true);
     this.card.querySelector<HTMLButtonElement>('[data-inspect]')!.onclick=()=>{
       const span=this.open?.span;
@@ -56,9 +58,10 @@ export class AnnotationMarks {
   clear() {
     this.events?.abort();this.observer.disconnect();cancelAnimationFrame(this.frame);this.frame=0;
     if(this.highlighted && CSS.highlights?.get(highlighted)===this.highlighted)CSS.highlights.delete(highlighted);
-    this.highlighted=undefined;
+    this.highlighted=undefined;this.clearEmphasis();
     this.open=null;this.preview=null;this.marks=[];this.groups=[];this.atWord=new WeakMap();
     this.overlay.remove();this.overlay.replaceChildren();this.lines.replaceChildren();
+    this.surface.removeAttribute('data-mark-gutter');
     this.card.hidden=true;this.card.remove();
     this.surface.querySelectorAll('.has-saved-mark').forEach(block=>block.classList.remove('has-saved-mark'));
   }
@@ -144,8 +147,11 @@ export class AnnotationMarks {
   }
   private layout(){
     if(!this.overlay.isConnected)return;
-    const origin=this.overlay.getBoundingClientRect();
-    const size=parseFloat(getComputedStyle(this.overlay).getPropertyValue('--mark-target'))||28;
+    const origin=this.overlay.getBoundingClientRect(),pane=this.pane.getBoundingClientRect();
+    const style=getComputedStyle(this.overlay),size=parseFloat(style.getPropertyValue('--mark-target'))||28;
+    const paneLeft=pane.left+this.pane.clientLeft;
+    const margin=style.direction==='rtl'?origin.left-paneLeft:paneLeft+this.pane.clientWidth-origin.right;
+    this.surface.toggleAttribute('data-mark-gutter',margin<size+8);
     // Cluster targets by rendered line, so adjacent notes never cover each other's controls after a reflow.
     const positions=this.marks.map(mark=>({mark,rect:mark.ranges[0].getClientRects()[0]}))
       .filter(({rect})=>rect && rect.height).sort((a,b)=>a.rect.top-b.rect.top || a.mark.number-b.mark.number);
@@ -170,8 +176,14 @@ export class AnnotationMarks {
     }
     this.paint();this.positionCard();
   }
+  private clearEmphasis(){
+    if(this.activeHighlight && CSS.highlights?.get('active-saved-annotation')===this.activeHighlight)CSS.highlights.delete('active-saved-annotation');
+    this.activeHighlight=undefined;
+    for(const text of this.bright)text.classList.remove('saved-mark-ink','saved-mark-partial');
+    this.bright=[];
+  }
   private paint(){
-    this.lines.replaceChildren();
+    this.clearEmphasis();this.lines.replaceChildren();
     const mark=this.open??this.preview,group=this.groupFor(mark);
     for(const item of this.groups){
       const active=item===group;
@@ -179,9 +191,17 @@ export class AnnotationMarks {
       item.button.dataset.mark=String(active && mark?mark.number:item.marks[0].number);
     }
     if(!mark||!group)return;
+    if(mark.detail.character && this.highlighted){
+      this.activeHighlight=new Highlight(mark.ranges[0]);this.activeHighlight.priority=1;
+      CSS.highlights.set('active-saved-annotation',this.activeHighlight);
+    }
     const frames:Frame[]=[];
     let previous=-2;
     for(const [index,range] of mark.ranges.entries()){
+      const text=range.startContainer.parentElement!;
+      text.classList.add('saved-mark-ink');
+      text.classList.toggle('saved-mark-partial',!!this.activeHighlight);
+      this.bright.push(text);
       for(const r of range.getClientRects()){
         if(!r.width||!r.height)continue;
         const last=frames.at(-1);
@@ -219,6 +239,8 @@ export class AnnotationMarks {
     note.textContent=detail.note;note.hidden=!detail.note;
     this.card.querySelector('.saved-mark-source')!.textContent=detail.source;
     this.card.querySelector<HTMLElement>('.saved-mark-switch')!.hidden=group.marks.length<2;
+    this.card.querySelector('.saved-mark-index')!.textContent=`${group.marks.indexOf(mark)+1} / ${group.marks.length}`;
+    this.card.querySelector<HTMLElement>('.saved-detail-body')!.scrollTop=0;
     this.card.hidden=false;
     for(const item of this.groups)item.button.setAttribute('aria-expanded',String(item===group));
     this.paint();this.positionCard();
@@ -229,6 +251,8 @@ export class AnnotationMarks {
     const button=this.groupFor(this.open)?.button,rect=button?.getBoundingClientRect(),pane=this.pane.getBoundingClientRect();
     if(!rect || rect.bottom<=pane.top || rect.top>=pane.bottom){this.close(false);return}
     this.position(this.card,rect);
+    const body=this.card.querySelector<HTMLElement>('.saved-detail-body')!;
+    body.tabIndex=body.scrollHeight>body.clientHeight+1?0:-1;
   }
   close(focus:boolean){
     if(!this.open && !this.preview)return false;
