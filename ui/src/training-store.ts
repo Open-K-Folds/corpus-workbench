@@ -71,7 +71,7 @@ function sameSnapshot(a: Passage, b: Passage) {
   return a.project === b.project && a.revision === b.revision && a.snapshotHash === b.snapshotHash;
 }
 
-function readRecord(id: string, document: string, note: string): TrainingRecord | null {
+export function readTrainingRecord(id: string, document: string, note: string): TrainingRecord | null {
   try {
     const record = JSON.parse(note) as Partial<TrainingRecord> | null;
     if (!record || record.format !== format || id !== record.id || !present(record.collection) ||
@@ -90,7 +90,7 @@ export function trainingCollections(view: View): Map<string, TrainingRecord[]> {
   for (const doc of view.documents) {
     for (const span of doc.spans) {
       if (!span.id.startsWith('training-')) continue;
-      const record = readRecord(span.id, doc.path, span.fields.note);
+      const record = readTrainingRecord(span.id, doc.path, span.fields.note);
       if (!record) continue;
       const entries = collections.get(record.collection);
       if (entries) entries.push(record);

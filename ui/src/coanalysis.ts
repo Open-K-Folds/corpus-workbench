@@ -3,6 +3,7 @@ import type {Document, Operation, View} from './contracts';
 import {desktop} from './desktop';
 import {esc} from './dom';
 import {icon} from './icons';
+import {savedExcerpt, type Memo} from './coanalysis-memo';
 import {quoteCheck} from './quote-check';
 import type {Listening} from './listening';
 import './coanalysis.css';
@@ -12,39 +13,6 @@ const lenses = [
   ['Language in context', 'Where might register or language use shift, and what would a speaker or listener need to clarify?', 'notes'],
   ['Follow-up questions', 'What question would help a researcher distinguish what is said here from what is being inferred?', 'search'],
 ] as const;
-
-interface Memo {
-  format: 'corpus-workbench/coanalysis-1';
-  revision: number;
-  snapshot_hash: string;
-  document: string;
-  project: string;
-  prompt: string;
-  question: string;
-  first_reading?: string;
-  model: string;
-  method: 'llama.cpp' | 'manual';
-  proposal: string;
-  decision: string;
-  interpretation: string;
-}
-
-type PassageGroups = ReturnType<typeof preparePassage>['groups'];
-
-// Existing exported annotations carry their original source words in the saved prompt.
-function savedExcerpt(memo: Memo): PassageGroups | null {
-  const marker = '\n\nTranscript excerpt: ';
-  const start = typeof memo.prompt === 'string' ? memo.prompt.lastIndexOf(marker) : -1;
-  if (start < 0) return null;
-  try {
-    const groups = JSON.parse(memo.prompt.slice(start + marker.length)) as PassageGroups;
-    if (!Array.isArray(groups) || !groups.length || !groups.every(group =>
-      group && (group.utterance === null || typeof group.utterance === 'string') &&
-      typeof group.gap_before === 'boolean' && Array.isArray(group.tokens) && group.tokens.length &&
-      group.tokens.every(token => token && typeof token.id === 'string' && typeof token.text === 'string'))) return null;
-    return groups;
-  } catch { return null; }
-}
 
 function savedMemos(view: View, doc: Document, expand: boolean, actions: Actions) {
   const library = document.createElement('details');
