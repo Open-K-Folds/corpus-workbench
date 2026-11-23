@@ -15,6 +15,13 @@ test('the stage tool chooser keeps the active tool visible after a keyboard sele
   await expect(chooser).toBeHidden();
   await expect(page.getByRole('region',{name:'Split / merge'})).toBeFocused();
   await expect(page.locator('.inspector-tools > summary')).toContainText('Split / merge');
+  await page.getByRole('button',{name:'Close inspector'}).click();
+  const tools=page.getByRole('button',{name:'Tools',exact:true});
+  await expect(tools).toHaveAttribute('aria-expanded','false');
+  await expect(tools).toBeFocused();
+  await page.getByRole('button',{name:'Projects',exact:true}).click();
+  await page.getByRole('button',{name:'Close project files'}).click();
+  await expect(page.getByRole('button',{name:'Projects',exact:true})).toBeFocused();
 });
 
 test('fresh studio opens on the passage and activities keep the same document',async({page,practiceUrl})=>{

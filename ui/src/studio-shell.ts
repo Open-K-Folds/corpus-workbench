@@ -41,6 +41,13 @@ export function activityRail() {
   </nav>`;
 }
 
+export function drawerClose(side:'navigation'|'properties') {
+  const label=side==='navigation'?'Close project files':'Close inspector';
+  return `<button type="button" class="drawer-close pane-return" data-close-drawer="${side}" title="${label}">
+    ${icon('close')}<span class="sr-only drawer-desktop-name">${label}</span><span class="sr-only drawer-phone-name">Back to transcript</span>
+  </button>`;
+}
+
 /** Pin labels beside a wide workspace. On smaller screens the same rail overlays it. */
 export function bindActivityRail(app:HTMLElement, signal:AbortSignal) {
   const rail = app.querySelector<HTMLElement>('.studio-rail')!;

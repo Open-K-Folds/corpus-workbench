@@ -12,7 +12,7 @@ import {ResearchOverview} from './overview';
 import {ReadingCanvas,stageControls} from './reading-canvas';
 import {PlaybackSync} from './playback-sync';
 import {watchPreviewUpdates} from './preview-updates';
-import {windowBar,activityRail,bindActivityRail,workspaceSettings,initialLayout} from './studio-shell';
+import {windowBar,activityRail,drawerClose,bindActivityRail,workspaceSettings,initialLayout} from './studio-shell';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
@@ -27,6 +27,7 @@ import './editor.css';
 import './controls.css';
 import './review.css';
 import './workbench-shell.css';
+import './drawers.css';
 import {readingToolbar} from './reading-toolbar';
 import {icon} from './icons';
 import {buttonGroup,scrollIndicators} from './controls';
@@ -108,7 +109,7 @@ function loginScreen(expiredLink=false){
 }
 function shell(){shellEvents?.abort();shellEvents=new AbortController();overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
   ${windowBar(true)}${activityRail()}
-  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><button type="button" class="pane-return secondary">${icon('arrow_back')}Back to transcript</button><div class="navigation-heading"><h2>Project files</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><button type="button" id="clear-navigation" class="secondary" hidden>Clear filter</button><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
+  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div role="region" aria-label="Transcript workspace" class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="drawer-bar"><div class="drawer-trail"><span>Workspace</span><span aria-hidden="true">/</span><strong>Projects</strong></div>${drawerClose('navigation')}</div><div class="navigation-heading"><h2>Project files</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><button type="button" id="clear-navigation" class="secondary" hidden>Clear filter</button><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
   <main class="transcript">
     <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
     ${readingToolbar()}
@@ -118,11 +119,11 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   </main>
   <section id="training-comparison" aria-label="Compare with selected transcript"></section>
   ${stageControls()}
-  <aside class="inspector" aria-label="Inspector"><button type="button" class="pane-return secondary">${icon('arrow_back')}Back to transcript</button>
+  <aside class="inspector" aria-label="Inspector"><div class="drawer-bar">
     <details class="inspector-tools" open>
-      <summary>${icon('tune')}<span>Inspector tools</span><strong id="current-inspector"></strong>${icon('expand_more')}</summary>
+      <summary class="drawer-trail" title="Choose inspector tool"><span>Tools</span><span aria-hidden="true">/</span><strong id="current-inspector"></strong>${icon('expand_more')}</summary>
       <nav aria-label="Inspector">${inspectorNavigation()}</nav>
-    </details>
+    </details>${drawerClose('properties')}</div>
     <div id="inspector-content" role="region" tabindex="-1"></div></aside></div>
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
@@ -182,7 +183,14 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   for(const button of app.querySelectorAll<HTMLButtonElement>('.studio-rail [data-inspect]')){
     button.onclick=()=>{const target=button.dataset.inspect;if(target && isInspectorView(target))openInspectorActivity(target)}
   }
-  app.querySelectorAll<HTMLButtonElement>('.pane-return').forEach(button=>button.onclick=showTranscript);
+  for(const button of app.querySelectorAll<HTMLButtonElement>('[data-close-drawer]')){
+    button.onclick=()=>{
+      if(matchMedia('(max-width:700px)').matches){showTranscript();return}
+      const side=button.dataset.closeDrawer!;
+      fold(side==='navigation'?'navigation':'properties');
+      el('toggle-'+side).focus({preventScroll:true});
+    };
+  }
   const settingsDialog=el<HTMLDialogElement>('workspace-settings');
   el('workspace-options').onclick=()=>{const layout=settingsDialog.querySelector<HTMLInputElement>(`[value="${initialLayout()}"]`)!;layout.checked=true;settingsDialog.showModal()};
   settingsDialog.addEventListener('change',event=>{

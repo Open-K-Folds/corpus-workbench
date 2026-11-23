@@ -1,0 +1,88 @@
+/* A drawer owns its scroll position. Its breadcrumb and dismiss control stay
+   reachable while the researcher moves through a long file list or form. */
+.workspace > :is(.documents,.inspector) {
+  --drawer-surface:#fff;
+  --drawer-inset:clamp(14px,1.4vw,22px);
+}
+:root[data-theme=dark] .workspace > :is(.documents,.inspector) {--drawer-surface:#141916}
+#app .workspace > :is(.documents,.inspector) {
+  background:var(--drawer-surface);
+  padding:0;
+  scrollbar-gutter:auto;
+  overscroll-behavior:contain;
+}
+.drawer-bar {
+  position:sticky;
+  inset-block-start:0;
+  z-index:3;
+  isolation:isolate;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  min-height:46px;
+  padding-inline:var(--drawer-inset) 9px;
+  background:var(--drawer-surface);
+  border-bottom:1px solid var(--border);
+}
+.drawer-trail {
+  display:flex;
+  align-items:center;
+  gap:7px;
+  min-width:0;
+  color:var(--muted);
+  font:400 12px/1.4 system-ui,sans-serif;
+}
+.drawer-trail > [aria-hidden=true]:not(.material-symbol) {color:var(--control-edge)}
+.drawer-trail strong {color:var(--ink);font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#app .workspace .drawer-close {
+  display:inline-grid;
+  place-items:center;
+  flex:none;
+  width:32px;
+  min-width:32px;
+  min-height:32px;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:6px;
+  background:transparent;
+  color:var(--muted);
+}
+.drawer-close .material-symbol {font-size:18px}
+#app .workspace .drawer-close:hover {background:var(--control-hover);color:var(--ink)}
+.drawer-phone-name {display:none}
+.inspector > .drawer-bar {display:block}
+.inspector .drawer-close {position:absolute;inset:7px 9px auto auto}
+.drawer-bar .inspector-tools {margin:0;padding:0;border:0}
+.drawer-bar .inspector-tools > summary {
+  width:fit-content;
+  max-width:calc(100% - 38px);
+  min-height:45px;
+  gap:7px;
+}
+.drawer-bar .inspector-tools > summary strong {margin:0}
+.drawer-bar .inspector-tools > summary:hover strong {text-decoration:underline;text-underline-offset:3px}
+.drawer-bar .inspector-tools nav {padding:0 0 12px;margin:0;gap:10px}
+.drawer-bar:has(.inspector-tools[open]) {position:relative}
+#properties-pane > #inspector-content {
+  padding:20px var(--drawer-inset) 30px;
+  scroll-margin-block-start:48px;
+}
+.inspector #inspector-content > :first-child:is(h2),.inspector #inspector-content > section > h2:first-child {
+  margin-block-start:0;
+  font-size:1.35rem;
+  line-height:1.3;
+}
+@container corpus-nav (max-width:180px) {
+  .documents .drawer-trail > :not(strong) {display:none}
+}
+@media (max-width:700px) {
+  .drawer-desktop-name {display:none}
+  .drawer-phone-name {display:inline}
+}
+@media (pointer:coarse) {
+  #app .workspace .drawer-close {min-width:44px;min-height:44px}
+  .inspector .drawer-close {inset:1px 4px auto auto}
+  .drawer-bar .inspector-tools > summary {max-width:calc(100% - 44px)}
+}
