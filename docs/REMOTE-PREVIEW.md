@@ -77,7 +77,7 @@ On the existing tunnel, insert these two public-hostname ingress rules in order,
       audTag: [your-application-audience]
 ```
 
-The second rule matches every other path on this hostname, including API and audio requests. Preserve the public HTTP Host header. Both rules require the connector to validate the Access JWT. The login service also verifies the signature, issuer, audience and expiry, sets a secure HTTP-only Workbench cookie, then redirects to `/`. The actual session code stays on the host. [Cloudflare tunnel origin parameters](https://developers.cloudflare.com/tunnel/reference/origin-parameters/)
+The second rule matches every other path on this hostname, including API and audio requests. Both rules require the connector to validate the Access JWT. The login service also verifies the signature, issuer, audience and expiry. It reads the current Workbench session code from a read-only volume and returns it to the authorized browser as a Secure, HttpOnly cookie before redirecting to `/`. The address contains no credential. [Cloudflare tunnel origin parameters](https://developers.cloudflare.com/tunnel/reference/origin-parameters/)
 
 ## Start, verify and update
 

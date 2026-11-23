@@ -36,6 +36,11 @@ jobs:
       - run: npm run build --prefix ui
       - run: npm ci --ignore-scripts
       - run: npm run test:desktop
+      - name: Verify private preview sign-in
+        working-directory: containers/preview-login
+        run: |
+          npm ci --ignore-scripts
+          npm test
       - name: Verify local preparation with the native authority
         run: node scripts/verify-local-transcript-import.cjs --binary target/debug/corpus-workbench --out "${{ runner.temp }}/local-transcript-native"
       - run: npm run test:audio --prefix ui

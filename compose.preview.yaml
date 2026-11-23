@@ -10,7 +10,7 @@ services:
       WB_PUBLIC_ORIGIN: ${WB_PUBLIC_ORIGIN:?Set WB_PUBLIC_ORIGIN to the preview HTTPS origin}
     volumes:
       - type: bind
-        source: ./ui/dist
+        source: ./.runtime/remote-preview/ui
         target: /opt/workbench/ui
         read_only: true
         bind:
@@ -25,13 +25,45 @@ services:
         - {action: rebuild, path: ./Cargo.toml}
         - {action: rebuild, path: ./Cargo.lock}
         - {action: rebuild, path: ./rust-toolchain.toml}
-        - {action: rebuild, path: ./containers}
+        - {action: rebuild, path: ./containers/entrypoint.sh}
         - {action: rebuild, path: ./Dockerfile}
         - {action: rebuild, path: ./.dockerignore}
         - {action: rebuild, path: ./fixtures/synthetic}
         - {action: rebuild, path: ./scripts/prepare-synthetic.py}
   tools:
     image: ${WB_PREVIEW_IMAGE:-corpus-workbench:preview}
+  login:
+    build: ./containers/preview-login
+    user: '10001:10001'
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    environment:
+      WB_ACCESS_TEAM: ${WB_ACCESS_TEAM:?Set the Cloudflare Access team name}
+      WB_ACCESS_AUD: ${WB_ACCESS_AUD:?Set the Access application audience}
+    volumes:
+      - runtime:/run/workbench:ro
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - --input-type=module
+        - -e
+        - |
+          import {access} from 'node:fs/promises';
+          await access('/run/workbench/session-code', 4);
+          const response = await fetch('http://127.0.0.1:8080/open');
+          process.exitCode = response.status === 403 ? 0 : 1;
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
+    networks:
+      edge:
+        aliases: [corpus-workbench-preview-login]
+    develop:
+      watch:
+        - {action: rebuild, path: ./containers/preview-login}
 
 networks:
   edge:

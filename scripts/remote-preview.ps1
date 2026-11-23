@@ -85,7 +85,7 @@ if ($Action -eq 'Supervise') {
         }
         $compose += @('-f',(Join-Path $repo 'compose.yaml'),'-f',(Join-Path $repo 'compose.preview.yaml'))
         # The selected env file owns the project, authority, port and network across logins.
-        foreach ($name in @('WB_PROJECT','WB_STORE','WB_PUBLIC_ORIGIN','WB_PORT','WB_EDGE_NETWORK','WB_PREVIEW_IMAGE','COMPOSE_PROJECT_NAME')) {
+        foreach ($name in @('WB_PROJECT','WB_STORE','WB_PUBLIC_ORIGIN','WB_PORT','WB_EDGE_NETWORK','WB_PREVIEW_IMAGE','WB_ACCESS_TEAM','WB_ACCESS_AUD','COMPOSE_PROJECT_NAME')) {
             [Environment]::SetEnvironmentVariable($name,$null,'Process')
         }
         & $docker @compose config --quiet

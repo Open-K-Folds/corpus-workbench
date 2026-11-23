@@ -4,6 +4,7 @@
 /ui/dist-next/
 /.private/
 /.runtime/
+/.env.preview
 /evidence/private/
 *.log
 __pycache__/
