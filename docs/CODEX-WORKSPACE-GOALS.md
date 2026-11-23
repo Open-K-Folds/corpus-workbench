@@ -17,6 +17,7 @@ integrate them on main. Record the build and observations used to close a goal.
 | G8 · Align real speech locally | Replay the original acoustic model to estimate word timing in an independent copy of a real transcript. | Verify the chunk recordings and source tokens, trace word times to model frames, and watch the packaged caret advance during playback and clear in an inter-word gap. |
 | G9 · Correct and steer while reading | Accept a phrase as the correction of one source token. Give selection, passage tools and training distinct gestures. Preserve reading space with labelled navigation and show which timed words are still ahead. | Accept and recover a phrase, check its original ID and timing, dismiss a selection, open both gesture tools, expand the rail at wide and narrow widths, then play, rewind and rejoin the real aligned transcript. |
 | G10 · Reading, playback and drawer composition | Give the transcript a single command row. Show passage playback when a timed passage is selected. Give project files and inspector tools a shared header, clear source identity and one relevant primary action. | Open the reader controls, search, play and seek, then select a passage. Browse project files, inspect a word and preview a split. Close and reopen the drawer with the same selection. Exercise light and dark themes, a narrow touch viewport and a resizable desktop window. |
+| G11 · Inspect annotations while reading | Link a numbered margin pin to its source words and a compact evidence card. Open the corresponding saved annotation in the drawer and return to its words. | Exercise overlapping passages, a discontinuous selection and a Unicode character anchor. Open with keyboard and touch. Change a reviewed word and verify its saved quote is still available in the drawer while the live mark disappears. |
 
 The [whole-app UI audit](ui-audit/README.md) records the issues found in these
 journeys and the acceptance exercises for repeating them.
@@ -28,6 +29,8 @@ instruments. The Workbench adapts phrase locking to selecting evidence, the
 wheel to moving through saved turns, and directional steering to choosing an
 analytical question. The Codex window reference supplies the compact vertical
 rail, grouped actions and clear active icon. [Spaceship IDE and author’s citation](https://github.com/chuanqisun/spaceship) · [Interactive simulator](https://chuanqisun.github.io/spaceship/)
+
+Beyond Chat’s *Story Pilot* connects a margin pin to the quoted words behind an assessment. It credits the rail, boxes, knobs and margin pins to Chuanqi Sun’s *Spaceship IDE*. The Workbench adapts the pin and evidence card for annotations that a researcher has saved against transcript words. Reviewed model records retain their original quotation, revision and model attribution. [Beyond Chat’s Story Pilot](https://beyondchat.design/lab/story-pilot/) · [Chuanqi Sun’s Spaceship IDE](https://github.com/chuanqisun/spaceship)
 
 ## Acceptance record · 22 November 2026
 

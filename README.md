@@ -18,6 +18,11 @@ your assessment at the source anchors. Try the fictional noticeboard conversatio
 in the [co-analysis guide](docs/CO-ANALYSIS.md). The interaction draws on
 Chuanqi Sun’s [Spaceship IDE](https://github.com/chuanqisun/spaceship).
 
+Saved annotations have numbered pins beside their transcript passages. Focus a
+pin to see the words it covers, then open it to read the quote, note and source.
+The evidence-card interaction draws on Beyond Chat’s [Story Pilot](https://beyondchat.design/lab/story-pilot/),
+which adapts the margin pins and attention boxes from Chuanqi Sun’s Spaceship IDE.
+
 **Training collections** turns selected words into reviewed examples for machine learning.
 Label a passage, compare different accounts or collect a difficult negative. Reopen the
 collection and export its labels, source readings and optional model proposals as JSONL.

@@ -1,5 +1,5 @@
 import {api,ApiError,commit,loadView,login,makeCommand,resumeSession} from './api';
-import type {Command,Document,Operation,View} from './contracts';
+import type {Command,Document,Operation,Span,View} from './contracts';
 import {el,esc,field,formValues,seconds} from './dom';
 import {emptyTokenInspector,tokenInspector,annotationInspector} from './inspector';
 import {historyInspector} from './history';
@@ -21,6 +21,7 @@ import {corpusSearch,type SearchPanel} from './search';
 import {documentNavigation,sourceNavigation,inspectorNavigation,inspectorViews,isInspectorView,reading,visibleToken,type InspectorView,type ReadingPreferences} from './workspace';
 import {sourceInspector} from './source';
 import {Transcript} from './transcript';
+import {annotationDetail} from './annotation-detail';
 import {RecordingPanel,resizeWorkbenchSides} from './panes';
 import './style.css';
 import './editor.css';
@@ -133,7 +134,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
       <label class="selection-loop" title="Loop selection"><input id="loop-selection" type="checkbox" role="switch" aria-label="Loop selection">${icon('repeat')}</label>
     </div>
   </section>
-  <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span><span id="token-count" role="status"></span></footer>
+  <footer class="studio-status"><span id="stage-file"></span><button type="button" id="stage-metadata" title="Open annotations"></button><span id="token-count" role="status"></span></footer>
   <div id="passage-tools-layer" role="region" aria-label="Passage actions"></div>
   ${workspaceSettings()}`;
   bindActivityRail(app,shellEvents.signal);
@@ -218,7 +219,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   const setTheme=(theme:string)=>{document.documentElement.dataset.theme=theme;desktop?.reportAppearance(theme==='dark'?'dark':'light');el('toggle-theme').querySelector('.material-symbol')!.textContent=theme==='dark'?'light_mode':'dark_mode';el('toggle-theme').setAttribute('aria-pressed',String(theme==='dark'));try{localStorage.setItem('wb-theme',theme)}catch{}};
   try{setTheme(localStorage.getItem('wb-theme')??'dark')}catch{setTheme('dark')}
   el('toggle-theme').onclick=()=>setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
-  transcript=new Transcript(el('tokens'),{training:(mode,ids,limit)=>{
+  transcript=new Transcript(el('tokens'),{openAnnotation:span=>void openSavedAnnotation(span),training:(mode,ids,limit)=>{
     if(saving||pendingWrite||transcript.busy()||transcript.activeDraft())return;
     selected=[...ids];tab='training';app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;showProperties();training.update(view,currentDoc(),ids,{mode,limit});
     void renderInspector().then(()=>{const heading=training.node.querySelector<HTMLElement>('h2');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}});
@@ -379,6 +380,7 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   el('drawer-project-title').textContent=view.snapshot.project;
   el('stage-file').textContent=doc.path;
   el('stage-metadata').textContent=`${doc.spans.length} ${doc.spans.length===1?'annotation':'annotations'}`;
+  el('stage-metadata').onclick=()=>openInspectorActivity('annotations');
   el('package-count').textContent=`${view.documents.length} document${view.documents.length===1?'':'s'}`;
   renderNavigation();
   el('package-report').innerHTML=`<p>${Object.keys(view.snapshot.files).length} preserved files</p><p>${esc(view.snapshot.index_status)}</p><p>${esc(view.snapshot.config.rights)}</p><p>Unknown structures: ${esc(doc.opaque_elements.join(', ')||'none')}</p>`;
@@ -596,31 +598,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
     if (!coanalysisDraft || (coanalysisDraft.key !== key && !coanalysisDraft.panel.querySelector('form[data-dirty="true"]'))) {
       coanalysisDraft = {key, revision: view.revision.id, document: doc.path, panel: coanalysisInspector(view, doc, selected, {
         read: () => el('rail-reading').click(),
-        reveal: async ids => {
-          const navigationEpoch = inspectorEpoch;
-          if (saving || pendingWrite || transcript.dirty() || transcript.busy()) return 'Finish the current edit before opening the passage.';
-          if (doc !== currentDoc()) return 'Reopen co-analysis on the current document to see this passage.';
-          const tokens = doc.tokens.filter(token => ids.includes(token.id));
-          const switchLayer = tokens.some(token => reading(token,readingPreferences.layer) !== (token.corrected ?? token.original));
-          const clearFilter = tokens.some(token => !visibleToken(token,readingPreferences));
-          if (switchLayer || clearFilter) {
-            if (switchLayer) {
-              readingPreferences.layer = 'corrected';
-              el<HTMLSelectElement>('reading-layer').value = 'corrected';
-            }
-            if (clearFilter) {
-              findOrigin = null;
-              readingPreferences.query = ''; readingPreferences.filter = 'all';
-              el<HTMLInputElement>('token-query').value = ''; el<HTMLSelectElement>('token-filter').value = 'all';
-            }
-            refreshFindControls();
-            await transcript.render();
-            if (doc !== currentDoc() || navigationEpoch !== inspectorEpoch) return 'The open passage changed.';
-          }
-          showTranscript();
-          if (!transcript.revealPassage(ids)) message('The passage is unavailable in this view.',true);
-          return '';
-        },
+        reveal: ids => revealSavedSource(doc, ids, () => transcript.revealPassage(ids)),
         dirty: draftStatus, save, listening:{check:checkCue,play:listen}, discard: async stale => {
           if (saving || pendingWrite) return;
           if (stale) {
@@ -663,8 +641,21 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   }
   if(tab==='annotations'){
     const key=JSON.stringify([doc.path,selected]);let draft=annotationDrafts.get(key);
-    if(!draft){draft=annotationInspector(view,doc,selected,save,()=>{el<HTMLButtonElement>('discard-annotation-drafts').disabled=false;el('save-state').textContent='Unsaved annotation draft - saved head R'+view.revision.id});annotationDrafts.set(key,draft)}
-    const discard=document.createElement('button');discard.id='discard-annotation-drafts';discard.className='secondary';discard.textContent='Discard annotation drafts';discard.disabled=![...annotationDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]')!==null);
+    if (!draft) {
+      draft = annotationInspector(view,doc,selected,save,() => {
+        const action = el<HTMLButtonElement>('discard-annotation-drafts');
+        action.disabled = false;
+        action.hidden = false;
+        el('save-state').textContent='Unsaved annotation draft - saved head R'+view.revision.id;
+      }, async span => {
+        const ids = annotationDetail(doc,span,view.snapshot.project).tokenIds;
+        const status = await revealSavedSource(doc, ids, () => transcript.revealAnnotation(span));
+        if (status) message(status,true);
+      });
+      annotationDrafts.set(key,draft);
+    }
+    const discard=document.createElement('button');discard.id='discard-annotation-drafts';discard.className='secondary';discard.textContent='Discard annotation drafts';
+    discard.hidden=discard.disabled=![...annotationDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]')!==null);
     discard.onclick=()=>{annotationDrafts.clear();el('save-state').textContent=`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;void renderInspector()};content.append(discard,draft);
   }
   if([...tokenDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]')))el('save-state').textContent='Unsaved token draft - saved head R'+view.revision.id;
@@ -774,6 +765,52 @@ function showTranscript(){
   updatePaneAccessibility();
   const heading=el('document-title');heading.tabIndex=-1;heading.focus({preventScroll:true});
 }
+async function openSavedAnnotation(span: Span) {
+  const doc = currentDoc();
+  if (saving || pendingWrite || transcript.busy() || transcript.dirty() || !doc.spans.includes(span)) return;
+  tab = 'annotations';
+  app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open = false;
+  showProperties();
+  await renderInspector();
+  if (doc !== currentDoc() || tab !== 'annotations') return;
+  const panel = el('inspector-content');
+  const row = [...panel.querySelectorAll<HTMLDetailsElement>('details[data-saved-annotation]')]
+    .find(item => item.dataset.savedAnnotation === span.id && item.dataset.sidecar === span.sidecar);
+  if (!row) return;
+  const compose = panel.querySelector<HTMLDetailsElement>('.annotation-compose');
+  if (compose && !compose.querySelector('form[data-dirty="true"]')) compose.open = false;
+  row.open = true;
+  const heading = row.querySelector('summary');
+  heading?.focus({preventScroll:true});
+  heading?.scrollIntoView({block:'nearest'});
+}
+
+async function revealSavedSource(doc: Document, ids: string[], reveal: () => boolean): Promise<string> {
+  const navigationEpoch = inspectorEpoch;
+  if (saving || pendingWrite || transcript.dirty() || transcript.busy()) return 'Finish the current edit before opening the passage.';
+  if (doc !== currentDoc() || !ids.length) return 'The saved passage is unavailable in the current document.';
+  const requested = new Set(ids);
+  const tokens = doc.tokens.filter(token => requested.has(token.id));
+  const switchLayer = tokens.some(token => reading(token,readingPreferences.layer) !== (token.corrected ?? token.original));
+  const clearFilter = tokens.some(token => !visibleToken(token,readingPreferences));
+  if (switchLayer || clearFilter) {
+    if (switchLayer) {
+      readingPreferences.layer = 'corrected';
+      el<HTMLSelectElement>('reading-layer').value = 'corrected';
+    }
+    if (clearFilter) {
+      findOrigin = null;
+      readingPreferences.query = ''; readingPreferences.filter = 'all';
+      el<HTMLInputElement>('token-query').value = ''; el<HTMLSelectElement>('token-filter').value = 'all';
+    }
+    refreshFindControls();
+    await transcript.render();
+    if (doc !== currentDoc() || navigationEpoch !== inspectorEpoch) return 'The open passage changed.';
+  }
+  showTranscript();
+  return reveal() ? '' : 'The passage is unavailable in this view.';
+}
+
 function openInspectorActivity(target:InspectorView|'source'){
   tab=target;
   app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;

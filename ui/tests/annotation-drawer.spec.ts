@@ -26,6 +26,7 @@ test('saved annotations lead with their source and disclose the stored fields', 
 
   const rows = page.locator('details[data-saved-annotation]');
   await expect(rows).toHaveCount(2);
+  await expect(page.getByRole('button',{name:'Discard annotation drafts'})).toBeHidden();
   await expect(rows.first().locator(':scope > summary')).toContainText('We … notice');
   const later = rows.filter({has:page.locator('summary .annotation-summary strong', {hasText:'only heard after'})});
   const summary = later.locator(':scope > summary');
@@ -44,4 +45,13 @@ test('saved annotations lead with their source and disclose the stored fields', 
   await expect(later.locator('dd')).toContainText(['xmlfiles/noticeboard.xml', 'Annotations/', 'an-later', 'b2 → b3 → b4']);
   await later.getByRole('button',{name:'Edit span an-later'}).click();
   await expect(later.getByLabel('Saved span label')).toBeFocused();
+  await later.getByLabel('Saved span note').fill('An unsaved reading of this passage');
+  await later.getByRole('button',{name:'Show in transcript'}).click();
+  const card=page.getByRole('dialog',{name:'Timing'});
+  await expect(card.locator('blockquote')).toHaveText('only heard after');
+  await expect(card).toContainText('The timing qualifies who could act on the notice.');
+  await card.getByRole('button',{name:'Open in annotations'}).click();
+  await expect(summary).toBeFocused();
+  await expect(later.getByLabel('Saved span note')).toHaveValue('An unsaved reading of this passage');
+  await expect(page.getByRole('button',{name:'Discard annotation drafts'})).toBeEnabled();
 });
