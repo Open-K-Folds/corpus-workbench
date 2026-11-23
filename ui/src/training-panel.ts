@@ -127,24 +127,28 @@ export class TrainingPanel {
         const buttons=[...this.comparison.querySelectorAll<HTMLButtonElement>('[data-move]:not(:disabled)')];
         (buttons.find(b=>b.dataset.move===button.dataset.move)??buttons[0])?.focus({preventScroll:true});};
     });
-    this.comparison.querySelector<HTMLButtonElement>('[data-review]')!.onclick=()=>{
-      const field=this.node.querySelector<HTMLInputElement>('[name="label"]');field?.focus();field?.scrollIntoView({block:'nearest'});
-    };
+    this.comparison.querySelector<HTMLButtonElement>('[data-review]')!.onclick=()=>this.focusReview();
+  }
+  private focusReview() {
+    const field=this.node.querySelector<HTMLInputElement>('[name="label"]');
+    field?.focus();
+    field?.scrollIntoView({block:'nearest'});
   }
   private drawDiscovery(body:HTMLElement,candidate:Passage|null) {
     const section=document.createElement('section');section.className='training-discovery';
-    section.innerHTML=`<h3>Find a comparison</h3><p class="muted">${esc(lensDescriptions[this.mode as TrainingLens])}</p>
+    section.innerHTML=`<details class="training-search" ${!candidate || this.query?'open':''}><summary>Refine search</summary>
+      <p class="muted">${esc(lensDescriptions[this.mode as TrainingLens])}</p>
       <search><form aria-label="Find a comparison" data-dirty="false"><label>Find words in the corpus<input type="search" name="query" value="${esc(this.query)}" autocomplete="off"></label>
       <label>Search result span<select name="manual-scope"><option value="passage">Surrounding passage</option><option value="matched" ${this.matchedWordsOnly?'selected':''}>Matched words only</option></select></label>
-      <label>Candidate limit<select name="limit">${[3,6,12].map(n=>`<option ${n===this.limit?'selected':''}>${n}</option>`).join('')}</select></label><button type="submit" class="secondary">${icon('search')}Find passages</button></form></search>`;
+      <label>Candidate limit<select name="limit">${[3,6,12].map(n=>`<option ${n===this.limit?'selected':''}>${n}</option>`).join('')}</select></label><button type="submit" class="secondary">${icon('search')}Find passages</button></form></search></details>`;
     body.append(section);
     section.querySelector('form')!.onsubmit=e=>{
       e.preventDefault();const data=new FormData(e.currentTarget as HTMLFormElement);
       this.query=String(data.get('query')??'').trim();this.limit=Number(data.get('limit'));
       this.matchedWordsOnly=data.get('manual-scope')==='matched';this.assistance=undefined;this.rerank();this.draw();
-      this.node.querySelector<HTMLSelectElement>('[name="candidate"]')?.focus();
+      (this.node.querySelector<HTMLSelectElement>('[name="candidate"]') ?? this.node.querySelector<HTMLInputElement>('[name="query"]'))?.focus();
     };
-    if(!candidate){section.insertAdjacentHTML('beforeend','<p class="training-empty">No other passage matched. Change the search words or clear the search.</p>');return;}
+    if(!candidate){section.insertAdjacentHTML('afterbegin','<p role="status" class="training-empty">No other passage matched. Change the search words or clear the search.</p>');return;}
     const label=document.createElement('label');label.textContent='Comparison passage';
     const select=document.createElement('select');select.name='candidate';
     for(const [index,p] of this.candidates.entries()){
@@ -154,7 +158,13 @@ export class TrainingPanel {
     }
     select.value=String(this.candidateIndex);
     select.onchange=()=>{this.candidateIndex=Number(select.value);this.assistance=undefined;this.draw();this.node.querySelector<HTMLSelectElement>('[name="candidate"]')?.focus();};
-    label.append(select);section.append(label,sourceCard(candidate,'Comparison passage',this.view));
+    label.append(select);
+    const card=sourceCard(candidate,`Comparison ${this.candidateIndex+1} of ${this.candidates.length}`,this.view);
+    const review=document.createElement('button');
+    review.type='button';review.className='secondary training-card-review';review.textContent='Review example';
+    review.onclick=()=>this.focusReview();
+    card.querySelector('.training-byline')!.append(review);
+    section.prepend(card,label);
   }
   private drawReview(body:HTMLElement,candidate:Passage|null) {
     const form=document.createElement('form');form.id='training-review';form.dataset.dirty='false';
@@ -229,8 +239,12 @@ export class TrainingPanel {
   }
   private drawLibrary(body:HTMLElement) {
     if(!this.collections.size){
-      body.innerHTML=`<div class="training-library-empty"><h3>No reviewed examples yet</h3><p>Choose a passage, give it a label or compare it with another passage, then save it to a collection.</p><button type="button" class="secondary">${icon('menu_book')}Choose a passage</button></div>`;
-      body.querySelector('button')!.onclick=()=>{this.library=false;this.draw();this.actions.read();};
+      body.innerHTML=`<div class="training-library-empty"><h3>No reviewed examples yet</h3><p>${this.seed?'Label your selected passage or compare it with another passage to start a collection.':'Choose a passage, give it a label or compare it with another passage, then save it to a collection.'}</p><button type="button" class="secondary">${icon('menu_book')}${this.seed?'Use selected passage':'Choose a passage'}</button></div>`;
+      body.querySelector('button')!.onclick=()=>{
+        this.library=false;this.draw();
+        if(this.seed)this.node.querySelector<HTMLInputElement>('[name="training-mode"]:checked')?.focus();
+        else this.actions.read();
+      };
       return;
     }
     if(!this.collections.has(this.libraryName))this.libraryName=this.collections.keys().next().value!;
