@@ -1,5 +1,7 @@
 import './inspector-workflows.css';
 import './token-drawer.css';
+import './annotation-details.css';
+import {annotationDetail} from './annotation-detail';
 import type {Document, Operation, Span, Token, View} from './contracts';
 import {esc, field, formValues, seconds} from './dom';
 import {buttonGroup} from './controls';
@@ -126,21 +128,51 @@ export function tokenInspector(
   });
   return section;
 }
-export function annotationInspector(view:View,doc:Document,selected:string[],onSave:(operations:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void):HTMLElement {
+export function annotationInspector(view:View,doc:Document,selected:string[],onSave:(operations:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void,onReveal?:(span:Span)=>void):HTMLElement {
   const section=document.createElement('section');
-  section.innerHTML=`<h2>Annotate selection</h2><p>${selected.length} selected: ${esc(selected.join(', '))}</p><p class="muted">Shift-click selects a range. Ctrl / Command-click selects discontinuous tokens.</p>
+  section.className='annotation-drawer';
+  const relations=doc.tokens.filter(token=>token.attrs.relation_target);
+  section.innerHTML=`<hgroup class="annotation-heading"><h2>Annotations</h2><p dir="auto">${esc(doc.title)} <span>· R${view.revision.id}</span></p></hgroup>
+    <details class="annotation-compose" ${selected.length?'open':''}><summary>${icon('edit_note')}Annotate selection${icon('expand_more')}</summary>
+    <p class="annotation-selection">${selected.length ? `${selected.length} ${selected.length===1?'word':'words'} selected` : 'Select words in the transcript to create a span.'}</p>
     <form id="span-form">${field('label','Span label')}${field('variety','Language / variety')}${field('note','Note')}
     <details><summary>Subtoken judgment (one token)</summary><p class="muted">Offsets count Unicode code points in the corrected reading.</p>${field('start','Start code point')}${field('end','End code point')}${field('quote','Exact quote')}</details>
-    <button type="submit" ${selected.length?'':'disabled'}>Create span</button></form>
+    <button type="submit" ${selected.length?'':'disabled'}>Create span</button></form></details>
+    <h3 class="annotation-list-heading">Saved annotations <span>${doc.spans.length}</span></h3>
+    <div class="annotation-list">${doc.spans.map((span,index)=>{
+      const detail=annotationDetail(doc,span,view.snapshot.project);
+      const caption = detail.quote && detail.title !== detail.kind ? `${detail.kind} · ${detail.title}` : detail.kind;
+      return `<details class="annotation annotation-record" data-saved-annotation="${esc(span.id)}" data-sidecar="${esc(span.sidecar)}" ${doc.spans.length===1?'open':''}>
+        <summary><span class="annotation-number">${index+1}</span><span class="annotation-summary">
+          <strong dir="auto">${esc(detail.quote || detail.title)}</strong><small dir="auto">${esc(caption)}</small>
+        </span>${icon('expand_more')}</summary>
+        <div class="annotation-body">
+          ${detail.note?`<p class="annotation-note" dir="auto">${esc(detail.note)}</p>`:''}
+          <p class="annotation-source">${icon('menu_book')}<span dir="auto">${esc(detail.source)}</span></p>
+          <div class="annotation-actions">
+            ${onReveal && detail.tokenIds.length?`<button type="button" class="secondary" data-reveal-span="${index}">${icon('menu_book')}Show in transcript</button>`:''}
+            <button type="button" class="secondary" data-edit-span="${index}" aria-label="Edit span ${esc(span.id)}">${icon('edit_note')}Edit span</button>
+          </div>
+          <div data-span-editor="${index}"></div>
+          <details class="annotation-provenance"><summary>Source record</summary><dl>
+            <dt>File</dt><dd>${esc(doc.path)}</dd><dt>Sidecar</dt><dd>${esc(span.sidecar)}</dd>
+            <dt>Span ID</dt><dd>${esc(span.id)}</dd><dt>Tokens</dt><dd>${esc(span.token_ids.join(' → ')) || 'No token IDs supplied'}</dd>
+          </dl><pre>${esc(JSON.stringify(span.fields,null,2))}</pre></details>
+        </div></details>`;
+    }).join('')||'<p class="annotation-empty">No saved annotations in this transcript.</p>'}</div>
+    <details class="annotation-relations" ${selected.length || relations.length?'open':''}><summary>Token relations</summary>
     <h3>Directed relation</h3><form id="relation-form">${field('target','Target token ID',selected[1]??'')}${field('relation_type','Relation type')}${field('note','Relation note')}<button type="submit" ${selected.length?'':'disabled'}>Create relation</button></form>
-    <h3>Saved spans</h3><div>${doc.spans.map((s,i)=>`<article class="annotation"><strong>${esc(s.id)}</strong><p class="muted">${esc(s.sidecar)}</p><p>${esc(s.token_ids.join(' → '))}</p><pre>${esc(JSON.stringify(s.fields,null,2))}</pre><button type="button" class="secondary" data-edit-span="${i}">Edit span ${esc(s.id)}</button><div data-span-editor="${i}"></div></article>`).join('')||'<p class="muted">No supported spans yet.</p>'}</div>
-    <h3>Saved relations</h3>${doc.tokens.filter(t=>t.attrs.relation_target).map(t=>`<article class="annotation"><p>${esc(t.id)} → ${esc(t.attrs.relation_target)} · ${esc(t.attrs.relation_type)}</p><button type="button" class="secondary" data-edit-relation="${esc(t.id)}">Edit relation from ${esc(t.id)}</button><button type="button" class="secondary" data-clear-relation="${esc(t.id)}">Clear relation from ${esc(t.id)}</button><div data-relation-editor="${esc(t.id)}"></div></article>`).join('')||'<p class="muted">No relations yet.</p>'}`;
+    <h3>Saved relations</h3>${relations.map(t=>`<article class="annotation"><p>${esc(t.id)} → ${esc(t.attrs.relation_target)} · ${esc(t.attrs.relation_type)}</p><button type="button" class="secondary" data-edit-relation="${esc(t.id)}">Edit relation from ${esc(t.id)}</button><button type="button" class="secondary" data-clear-relation="${esc(t.id)}">Clear relation from ${esc(t.id)}</button><div data-relation-editor="${esc(t.id)}"></div></article>`).join('')||'<p class="muted">No relations yet.</p>'}</details>`;
   const dirty=(event:Event)=>{const form=(event.target as HTMLElement).closest("form");if(form){form.dataset.dirty="true";onDirty()}};section.addEventListener("input",dirty);section.addEventListener("change",dirty);
   section.querySelector<HTMLFormElement>('#span-form')!.onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await onSave([{kind:'add_span',document:doc.path,id:`an-${crypto.randomUUID()}`,token_ids:selected,fields:{label:v.label,variety:v.variety,note:v.note},character:v.start!==''?{token:selected[0],start:Number(v.start),end:Number(v.end),quote:v.quote,coordinate:'unicode-codepoint',layer:'corrected'}:null}],`Create span: ${v.label}`,e.currentTarget as HTMLFormElement)};
   section.querySelector<HTMLFormElement>('#relation-form')!.onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await onSave([{kind:'add_relation',document:doc.path,from:selected[0],to:v.target,relation_type:v.relation_type,note:v.note}],`Relation: ${v.relation_type}`,e.currentTarget as HTMLFormElement)};
+  for(const button of section.querySelectorAll<HTMLButtonElement>('[data-reveal-span]')){
+    button.onclick=()=>onReveal?.(doc.spans[Number(button.dataset.revealSpan)]);
+  }
   section.querySelectorAll<HTMLButtonElement>('[data-edit-span]').forEach(button=>button.onclick=()=>{
     const index=Number(button.dataset.editSpan);const destination=section.querySelector(`[data-span-editor="${index}"]`)!;
-    if(destination.childElementCount)return;destination.replaceChildren(spanEditor(doc,doc.spans[index],selected,onSave,onDirty));
+    if(!destination.childElementCount)destination.replaceChildren(spanEditor(doc,doc.spans[index],selected,onSave,onDirty));
+    destination.querySelector<HTMLInputElement>('input')?.focus();
   });
   section.querySelectorAll<HTMLButtonElement>('[data-edit-relation]').forEach(button=>button.onclick=()=>{
     const token=doc.tokens.find(t=>t.id===button.dataset.editRelation)!;

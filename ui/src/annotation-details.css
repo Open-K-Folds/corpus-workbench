@@ -1,0 +1,54 @@
+.annotation-drawer {
+  min-inline-size:0;
+  color:var(--ink);
+}
+.annotation-drawer .annotation-heading {margin:8px 0 18px}
+#inspector-content .annotation-heading h2 {margin:0;font-size:1.45rem;line-height:1.2;letter-spacing:-.025em}
+.annotation-heading p {margin:5px 0 0;color:var(--muted);overflow-wrap:anywhere}
+.annotation-heading p span {white-space:nowrap}
+.annotation-drawer .annotation-compose {margin:0;padding:0;border-block:1px solid var(--border)}
+.annotation-compose > summary,.annotation-record > summary {
+  display:flex;align-items:center;gap:8px;min-height:42px;margin:0;list-style:none;
+  cursor:pointer;color:var(--ink);font-weight:600;
+}
+.annotation-compose > summary::-webkit-details-marker,.annotation-record > summary::-webkit-details-marker {display:none}
+.annotation-compose > summary > .material-symbol,.annotation-record > summary > .material-symbol {
+  color:var(--muted);font-size:17px;
+}
+.annotation-compose > summary > :last-child,.annotation-record > summary > :last-child {margin-inline-start:auto}
+.annotation-compose[open] > summary > :last-child,.annotation-record[open] > summary > :last-child {transform:rotate(180deg)}
+.annotation-selection {margin:0 0 12px;color:var(--muted)}
+.annotation-compose form {padding-bottom:14px}
+.annotation-drawer .annotation-list-heading {display:flex;align-items:baseline;gap:7px;margin:20px 0 7px}
+.annotation-list-heading span {color:var(--muted);font-size:.85em;font-weight:500}
+.annotation-list {border-top:1px solid var(--border)}
+.annotation-list .annotation-record {margin:0;padding:0;border:0;border-bottom:1px solid var(--border)}
+.annotation-record > summary {align-items:start;gap:9px;padding:12px 0}
+.annotation-record > summary > .material-symbol {align-self:center}
+.annotation-number {
+  display:inline-grid;place-items:center;flex:none;min-inline-size:22px;min-block-size:22px;padding-inline:3px;
+  border:1px solid var(--border);border-radius:50%;color:var(--muted);font:550 11px/1 var(--font-mono);
+}
+.annotation-record[open] .annotation-number {border-color:var(--accent);color:var(--accent)}
+.annotation-summary {flex:1;min-width:0;overflow-wrap:anywhere}
+.annotation-summary strong {display:block;color:var(--ink);font:500 .98rem/1.5 var(--font-mono);white-space:pre-line}
+.annotation-record:not([open]) .annotation-summary strong {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.annotation-summary small {display:block;margin-top:3px;color:var(--muted);font-size:.84rem;font-weight:500}
+.annotation-body {padding:0 0 12px}
+.annotation-body p.annotation-note {margin:0 0 10px;color:var(--ink);font-size:1rem;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere}
+.annotation-body .annotation-source {display:flex;align-items:baseline;gap:6px;margin:0 0 9px;color:var(--muted);font-size:.87rem;overflow-wrap:anywhere}
+.annotation-source .material-symbol,.annotation-actions .material-symbol {font-size:15px}
+.annotation-actions {display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+#inspector-content .annotation-actions button {display:inline-flex;align-items:center;gap:5px;min-block-size:34px;padding:5px 9px;margin:0}
+.annotation-provenance {margin-top:8px}
+.annotation-provenance summary {min-height:30px;align-content:center;margin:0;color:var(--muted)}
+.annotation-provenance dl {display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 12px;margin:6px 0 10px;font-size:.85rem}
+.annotation-provenance dt {color:var(--muted)}
+.annotation-provenance dd {margin:0;overflow-wrap:anywhere}
+.annotation-provenance pre {max-block-size:16rem;overflow:auto}
+.annotation-empty {margin:12px 0;color:var(--muted)}
+.annotation-relations {margin-top:14px}
+.annotation-relations > summary {min-height:36px;align-content:center;margin:0;font-weight:550}
+@media (pointer:coarse) {
+  .annotation-compose > summary,.annotation-provenance summary,.annotation-relations > summary,#inspector-content .annotation-actions button {min-height:44px}
+}
