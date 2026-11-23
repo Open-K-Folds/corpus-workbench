@@ -1,0 +1,59 @@
+/* Keep the primary action legible against the studio accent in both themes. */
+#inspector-content :is(form button[type="submit"], #review-form button, [data-run], #undo-committed, #redo-committed, #research-run):not(.secondary) {
+  color:var(--paper);
+  background:var(--accent);
+  border-color:var(--accent);
+}
+
+#inspector-content .search-panel form {
+  gap:.65rem;
+  align-items:start;
+}
+
+#inspector-content .search-panel form > :is(label,small) {margin:0}
+.search-query-actions {display:flex; flex-wrap:wrap; align-items:center; gap:.45rem}
+#inspector-content .search-panel .search-options {
+  width:100%;
+  margin-top:.25rem;
+  border-block:1px solid var(--border);
+}
+
+.search-options > summary {
+  padding:.7rem .15rem;
+  color:var(--ink);
+  cursor:pointer;
+  font-weight:600;
+}
+
+.search-options .search-group {
+  margin:.75rem 0;
+}
+
+#inspector-content .search-panel > #corpus-search-status:not(:empty) {
+  margin:1rem 0 .35rem;
+  color:var(--ink);
+  font-size:.93rem;
+  font-weight:600;
+}
+
+#inspector-content .review-panel #review-form {
+  margin:.85rem 0 1.5rem;
+}
+
+#inspector-content .research-panel p,
+#inspector-content .source-inspector p {
+  font-size:.9rem;
+  line-height:1.55;
+}
+
+#inspector-content .research-panel :is(button, summary) {
+  min-height:32px;
+  align-content:center;
+}
+
+@media (pointer:coarse) {
+  #inspector-content :is(.search-panel, .review-panel, .research-panel) :is(button, summary, select) {
+    min-height:44px;
+    align-content:center;
+  }
+}

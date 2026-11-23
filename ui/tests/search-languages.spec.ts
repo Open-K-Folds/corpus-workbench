@@ -36,7 +36,7 @@ async function open(page:Page,words='bonjour\nworld'){
   await page.goto('/#session='+code);await expect(page).toHaveTitle(/Corpus workbench/i);
   await page.getByRole('button',{name:'Corpus search',exact:true}).click();
   await page.getByLabel('Exact token sequence',{exact:true}).fill(words);
-  await page.locator('.search-term-languages > summary').click();
+  await page.locator('.search-options > summary').click();await page.locator('.search-term-languages > summary').click();
 }
 const language=(page:Page,n:number)=>page.getByRole('combobox',{name:`Term ${n} language`,exact:true});
 const exactLanguage=(page:Page,n:number)=>page.getByRole('textbox',{name:`Term ${n} exact language`,exact:true});
@@ -89,7 +89,7 @@ test('literal token and custom language spelling retain spaces and Unicode while
   await exactLanguage(page,1).fill(customLanguage.normalize('NFC'));await search(page,0);
   await exactLanguage(page,1).fill(' ');expect((await search(page,0)).result.query.terms[0].language).toBe(' ');
   let requests=0;page.on('request',r=>{if(new URL(r.url()).pathname==='/api/search')requests++});
-  await exactLanguage(page,1).fill('');await page.locator('.search-term-languages > summary').click();await page.getByRole('button',{name:'Search corpus',exact:true}).click();
+  await exactLanguage(page,1).fill('');await page.locator('.search-term-languages > summary').click();await page.locator('.search-options > summary').click();await page.getByRole('button',{name:'Search corpus',exact:true}).click();
   await expect(page.locator('.search-term-languages')).toHaveAttribute('open','');
   expect(await exactLanguage(page,1).evaluate((e:HTMLInputElement)=>e.validity.valueMissing)).toBe(true);await expect(exactLanguage(page,1)).toBeFocused();expect(requests).toBe(0);
   await language(page,1).selectOption('any');await expect(page.locator('input[name="term-language-1"]')).toBeDisabled();
@@ -173,7 +173,7 @@ test('current stale guards and historical inspection, audio and export keep the 
 
 test('per-term language search navigation preserves authoring drafts and refuses evidence reload while a draft exists',async({page})=>{
   await page.goto('/#session='+code);await page.locator('[data-token="a0"]').click();await page.getByLabel('Human-corrected reading',{exact:true}).fill('Protected language draft');
-  await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill('bonjour\nworld');await page.locator('.search-term-languages > summary').click();await exact(page,1,'fr');await language(page,2).selectOption('any');await search(page,27);
+  await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill('bonjour\nworld');await page.locator('.search-options > summary').click();await page.locator('.search-term-languages > summary').click();await exact(page,1,'fr');await language(page,2).selectOption('any');await search(page,27);
   await page.getByRole('button',{name:'Open matched tokens',exact:true}).last().click();await expect(page.locator('#document-title')).toHaveText('SYNTHETIC language controls');
   await page.locator('[data-document="xmlfiles/a.xml"]').click();await page.locator('[data-token="a0"]').click();await expect(page.getByLabel('Human-corrected reading',{exact:true})).toHaveValue('Protected language draft');
   otherEdit();await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByRole('button',{name:'Reload saved evidence',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText('Save or discard authoring drafts');

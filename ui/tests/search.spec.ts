@@ -23,7 +23,7 @@ test.beforeEach(async()=>{
   await expect.poll(async()=>{try{return(await fetch('http://127.0.0.1:18912/')).status}catch{return 0}}).toBe(200);
 });
 test.afterEach(async()=>{if(service&&service.exitCode===null){service.kill();await new Promise<void>(resolve=>service.once('exit',()=>resolve()))}});
-async function open(page:Page,words='é\n🙂'){await page.goto('/#session='+code);await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill(words);}
+async function open(page:Page,words='é\n🙂'){await page.goto('/#session='+code);await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill(words);await page.locator('.search-options > summary').click();}
 async function search(page:Page,total:number){await page.getByRole('button',{name:'Search corpus',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText(`${total} hits`);}
 
 test('whole-token span constraints combine real layers, export witnesses and work with keyboard and both themes',async({page})=>{
