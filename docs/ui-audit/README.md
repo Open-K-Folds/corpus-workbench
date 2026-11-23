@@ -2,6 +2,8 @@
 
 23 November 2026
 
+The [researcher workflow study](researcher-workflows.md) follows the next design pass from selecting words to reviewing and exporting an example.
+
 The audit followed a researcher from opening a project through reading, listening, correcting a passage, collecting training examples, reviewing evidence and exporting it. The comparison below shows the same eight-turn practice transcript in a 640 × 360 touch viewport.
 
 ![Before and after at 640 by 360. Previously the transcript was reduced to a narrow strip above the recording. Now its title and three utterances are visible, with playback in a single row.](landscape-reading.png)
