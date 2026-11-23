@@ -71,12 +71,12 @@ function sameSnapshot(a: Passage, b: Passage) {
   return a.project === b.project && a.revision === b.revision && a.snapshotHash === b.snapshotHash;
 }
 
-export function readTrainingRecord(id: string, document: string, note: string): TrainingRecord | null {
+export function readTrainingRecord(id: string, document: string | null, note: string): TrainingRecord | null {
   try {
     const record = JSON.parse(note) as Partial<TrainingRecord> | null;
     if (!record || record.format !== format || id !== record.id || !present(record.collection) ||
         !present(record.label) || !present(record.reviewer) || typeof record.note !== 'string' ||
-        typeof record.discovery !== 'string' || !isPassage(record.seed) || record.seed.document !== document ||
+        typeof record.discovery !== 'string' || !isPassage(record.seed) || (document !== null && record.seed.document !== document) ||
         record.assistance !== undefined && !isAssistance(record.assistance)) return null;
     if (record.kind === 'classification' && record.lens === 'label' && record.candidate === null ||
         record.kind === 'pair' && record.lens && record.lens !== 'label' && pairLenses.has(record.lens) &&

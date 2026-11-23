@@ -18,11 +18,12 @@ function tokenPositions(doc: Document) {
 }
 
 // A reviewed record keeps the wording used for its judgment even after a correction.
-function reviewedEvidence(doc: Document, span: Span) {
+function reviewedEvidence(span: Span) {
   if (span.id.startsWith('training-')) {
-    const record = readTrainingRecord(span.id, doc.path, span.fields.note);
+    const record = readTrainingRecord(span.id, null, span.fields.note);
     if (record) return {
       kind:'Training example', title:record.label, note:record.note, quote:record.seed.quote,
+      project:record.seed.project, document:record.seed.document,
       ids:record.seed.tokenIds, words:record.seed.readings?.map(r => r.corrected ?? r.original),
       revision:record.seed.revision, by:'Reviewed by '+record.reviewer, model:record.assistance?.model,
       utterances:[record.seed.utterance], gaps:[] as number[],
@@ -31,7 +32,7 @@ function reviewedEvidence(doc: Document, span: Span) {
   if (!span.id.startsWith('coanalysis-')) return null;
   try {
     const memo = JSON.parse(span.fields.note) as Memo;
-    if (memo?.format !== 'corpus-workbench/coanalysis-1' || memo.document !== doc.path ||
+    if (memo?.format !== 'corpus-workbench/coanalysis-1' || typeof memo.document !== 'string' || typeof memo.project !== 'string' ||
         typeof memo.interpretation !== 'string' || typeof memo.decision !== 'string' || !Number.isSafeInteger(memo.revision)) return null;
     const groups = savedExcerpt(memo) ?? [];
     const ids:string[] = [], gaps:number[] = [], utterances:(string|null)[] = [];
@@ -40,7 +41,7 @@ function reviewedEvidence(doc: Document, span: Span) {
       for (const token of group.tokens) {ids.push(token.id); utterances.push(group.utterance);}
     }
     return {
-      kind:'Co-analysis', title:memo.decision, note:memo.interpretation,
+      kind:'Co-analysis', title:memo.decision, note:memo.interpretation, project:memo.project, document:memo.document,
       quote:groups.map(group => (group.gap_before ? '… ' : '') + group.tokens.map(token => token.text).join(' ')).join(' '),
       ids, words:groups.flatMap(group => group.tokens.map(t => t.text)),
       revision:memo.revision, by:'', model:typeof memo.model === 'string' ? memo.model : '', utterances, gaps,
@@ -48,7 +49,7 @@ function reviewedEvidence(doc: Document, span: Span) {
   } catch {return null;}
 }
 
-export function annotationDetail(doc: Document, span: Span) {
+export function annotationDetail(doc: Document, span: Span, project?: string) {
   const index = tokenPositions(doc);
   const positions = span.token_ids.map(id => index.get(id) ?? -1).sort((a,b) => a-b);
   const known = positions.length > 0 && positions[0] >= 0 && new Set(positions).size === positions.length;
@@ -74,7 +75,11 @@ export function annotationDetail(doc: Document, span: Span) {
       character = {token:ids[0], start, end, quote};
     } else {reason = 'Character anchor needs review';}
   }
-  const record = reviewedEvidence(doc, span);
+  const record = reviewedEvidence(span);
+  const unsupported = !record && /^(training|coanalysis)-/.test(span.id) &&
+    (/^\s*[{[]/.test(fields.note ?? '') || /^(Training|Co-analysis) · /.test(fields.label ?? ''));
+  if (unsupported) {reason = 'Saved record needs review'; quote = '';}
+  const sameDocument = record && record.document === doc.path && record.project === project;
   if (record) {
     const groupsMatch = record.kind === 'Training example'
       ? tokens.every(token => token.utterance === record.utterances[0])
@@ -84,14 +89,16 @@ export function annotationDetail(doc: Document, span: Span) {
         record.ids.length !== ids.length || record.ids.some((id,i) => id !== ids[i])) {
       reason = 'Saved wording or anchors differ';
     }
+    if (!sameDocument) reason = 'Different source project or document';
     quote = record.quote;
   }
   const turns = reason ? [] : [...new Set(tokens.map(t => t.utterance).filter(Boolean))];
-  const source = [doc.title || doc.path, turns.join(', '), record && 'R'+record.revision, record?.by || fields.resp,
+  const location = record && !sameDocument ? record.project+' / '+record.document : doc.title || doc.path;
+  const source = [location, turns.join(', '), record && 'R'+record.revision, record?.by || fields.resp,
     record?.model && 'Model: '+record.model, reason].filter(Boolean).join(' · ');
   return {
     title:record?.title || fields.label || fields.type || 'Untitled annotation',
-    kind:record?.kind ?? 'Annotation', quote, note:record?.note ?? fields.note ?? '', source,
+    kind:record?.kind ?? (unsupported ? 'Saved record' : 'Annotation'), quote, note:unsupported ? '' : record?.note ?? fields.note ?? '', source,
     tokenIds:reason ? [] : ids, character:reason ? null : character,
   };
 }
