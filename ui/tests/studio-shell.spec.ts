@@ -14,6 +14,7 @@ test('fresh studio opens on the passage and activities keep the same document',a
   await text.click();
   await page.getByRole('button',{name:'Open co-analysis',exact:true}).click();
   await expect(page.locator('.ca-source')).toContainText('after');
+  await expect(page.getByRole('button',{name:'Back to transcript'})).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Open co-analysis'})).toHaveAttribute('aria-pressed','true');
   await page.getByRole('button',{name:'Open revision history'}).click();
   await expect(page.getByRole('button',{name:'Open revision history'})).toHaveAttribute('aria-pressed','true');
@@ -87,6 +88,7 @@ test('sidebar labels pin on desktop and overlay a compact workspace',async({page
   const measure=()=>page.locator('#tokens').evaluate(node=>node.getBoundingClientRect().width);
   await expect(page.locator('[data-token="a1"]')).toBeVisible();
   const wideMeasure=await measure();
+  const readingSize=await page.locator('#tokens').evaluate(node=>getComputedStyle(node).fontSize);
   await toggle.focus();
   await toggle.press('Enter');
   await expect(toggle).toHaveAccessibleName('Collapse sidebar');
@@ -108,7 +110,12 @@ test('sidebar labels pin on desktop and overlay a compact workspace',async({page
   await projects.click();
   await expect(projects).toHaveAttribute('aria-expanded','true');
   await expect(tools).toHaveAttribute('aria-expanded','false');
-  expect(await measure()).toBeCloseTo(wideMeasure,0);
+  const compactMeasure=await measure();
+  const available=(await transcript.boundingBox())!.width;
+  expect(compactMeasure).toBeLessThanOrEqual(wideMeasure);
+  // Leave room for the turn numbers, scrollbar and outer padding before wrapping.
+  expect(compactMeasure).toBeGreaterThanOrEqual(Math.min(wideMeasure,available-85));
+  await expect(page.locator('#tokens')).toHaveCSS('font-size',readingSize);
   await info.attach('Compact split workspace',{body:await page.screenshot(),contentType:'image/png'});
 
   await page.setViewportSize({width:390,height:844});

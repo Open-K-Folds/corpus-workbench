@@ -110,7 +110,7 @@ body {background:var(--paper);color:var(--ink)}
 .documents .document.selected {background:var(--selection-surface);color:var(--selection-ink);box-shadow:inset 2px 0 var(--indicator)}
 .documents .document strong {font:550 13px/1.45 system-ui,sans-serif}
 .documents .document small,.documents .document-count {color:var(--muted)}
-.pane-return {display:none}
+#app .workspace .pane-return {display:none}
 .documents #clear-navigation {margin:-4px 0 12px;color:var(--ink)}
 .documents #source-list {max-height:none;overflow:visible}
 .documents .source-group {border-top:1px solid var(--border)}
@@ -194,7 +194,7 @@ body {background:var(--paper);color:var(--ink)}
   #app>.window-bar {gap:4px}
   .window-bar #window-library {flex:0 1 auto;max-width:none;min-height:var(--studio-bar)}
   .window-bar #project-title {display:block;color:var(--chrome-ink);font-weight:600}
-  .workspace .pane-return {display:inline-flex;align-items:center;gap:5px;min-height:44px;margin:0 0 6px;padding:0 5px;color:var(--muted);border:0;background:transparent}
+  #app .workspace .pane-return {display:inline-flex;align-items:center;gap:5px;min-height:44px;margin:0 0 6px;padding:0 5px;color:var(--muted);border:0;background:transparent}
   .pane-return .material-symbol {font-size:17px}
   .documents .source-file,.documents .source-group summary,.documents #clear-navigation {min-height:44px}
   .documents .document {padding-block:12px}
