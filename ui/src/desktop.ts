@@ -62,23 +62,22 @@ export function desktopScreen(host:HTMLElement,state:DesktopState){
   const busy=state.status==='loading';
   const disabled = busy ? 'disabled' : '';
   host.innerHTML = `${windowBar(false)}<main class="desktop-welcome">
-    <div class="welcome-brand">${icon('description')}<span>Open K-Folds</span></div>
     <h1 class="welcome-heading">Open a project</h1>
-    <p class="welcome-intro">Start from source materials or resume a saved workbench.</p>
+    <p class="welcome-intro">Choose your source materials or return to a saved workbench.</p>
+    ${state.recent.length?`<section class="welcome-recent"><h2>Recent projects</h2>${recentButtons(state,state.recent.slice(0,3))}${state.recent.length>3?`<details><summary>Show ${state.recent.length-3} more</summary>${recentButtons(state,state.recent.slice(3))}</details>`:''}</section>`:''}
     <div class="welcome-actions">
       <button id="desktop-prepare" ${disabled}>${icon('graphic_eq')}<span>Recording + transcript</span><small>Pair audio with UTF-8 text or Omnilingual JSON.</small></button>
       <button id="desktop-import" class="secondary" ${disabled}>${icon('folder_open')}<span>Import TEITOK package</span><small>Create a working copy of a complete corpus folder.</small></button>
-      <button id="desktop-open" class="secondary" ${disabled}>${icon('history')}<span>Open existing workbench</span><small>Resume from a local authority folder.</small></button>
+      <button id="desktop-open" class="secondary" ${disabled}>${icon('history')}<span>Open existing workbench</span><small>Choose the folder containing your saved workbench.</small></button>
       <button id="desktop-demo" class="secondary" ${disabled}>${icon('notes')}<span>Start a new practice copy</span><small>Try the workflow with generated text and a tone.</small></button>
     </div>
     <div id="desktop-status" role="status" class="${state.status==='error'?'notice error':'desktop-status'}">${busy?'Opening your corpus…':esc(state.error??'')}</div>
     ${state.status==='error'?'<button id="desktop-retry" class="secondary">Try again</button>':''}
-    ${state.recent.length?`<section class="welcome-recent"><h2>Recent projects</h2>${recentButtons(state)}</section>`:''}
     <footer><span>Version ${esc(state.version)}</span></footer>
   </main>`;
   bindActions(host);
 }
-function recentButtons(state:DesktopState){return state.recent.map(p=>`<button class="desktop-recent secondary" data-desktop-project="${esc(p.id)}" ${state.status==='loading'?'disabled':''}><strong>${esc(p.title)}</strong><span>${esc(p.project)}</span>${icon('skip_next')}</button>`).join('')}
+function recentButtons(state:DesktopState,entries=state.recent){return entries.map(p=>`<button class="desktop-recent secondary" data-desktop-project="${esc(p.id)}" ${state.status==='loading'?'disabled':''}><strong>${esc(p.title)}</strong><span>${esc(p.project)}</span>${icon('chevron_right')}</button>`).join('')}
 function bindActions(host:HTMLElement){
   const action=(selector:string,run:()=>Promise<unknown>)=>{const button=host.querySelector<HTMLButtonElement>(selector);if(button)button.onclick=()=>void run().catch(error=>{const status=document.getElementById('desktop-status')??document.getElementById('message');if(status){status.textContent=String(error);status.className='notice error'}})};
   action('#desktop-open',()=>desktop!.chooseOpen());action('#desktop-import',()=>desktop!.importPackage());action('#desktop-demo',()=>desktop!.createDemo());action('#desktop-retry',()=>desktop!.retry());
