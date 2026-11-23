@@ -355,23 +355,22 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   #recording-pane.audio #listen-selected { padding-inline: .45rem; }
 }
 
-/* Keep the reading canvas available in landscape. The dock still controls playback
-   while the recording details are closed. Opening them leaves both panes scrollable. */
-@media (max-height:500px) and (orientation:landscape) {
-  #app #recording-pane[data-recording-source=linked] {
+/* On a short screen or beside a phone tool, keep the full recording controls behind one disclosure. */
+@media (max-width:700px), (max-height:500px) and (orientation:landscape) {
+  #app #recording-pane[data-recording-source=linked][data-compact-controls] {
     height:auto !important;
     min-height:0;
     padding-block:0;
   }
-  #app #recording-pane[data-recording-source=linked] #timeline-resizer { display:none }
-  #app #recording-pane[data-recording-source=linked]:not([data-short-open])
-    :is(.audio-views,.recording-visual,.recording-analysis-info,.media-player,.actions,#recording-layers) { display:none }
-  #app #recording-pane[data-recording-source=linked]:not([data-short-open]) .recording-heading {
+  #app #recording-pane[data-recording-source=linked][data-compact-controls] #timeline-resizer { display:none }
+  #app #recording-pane[data-recording-source=linked][data-compact-controls]:not([data-short-open])
+    :where(.audio-views,.recording-visual,.recording-analysis-info,.media-player,.actions,#recording-layers) { display:none }
+  #app #recording-pane[data-recording-source=linked][data-compact-controls]:not([data-short-open]) .recording-heading {
     height:auto;
     min-height:40px;
     flex-wrap:nowrap;
   }
-  #app #recording-pane[data-recording-source=linked] #timeline-toggle {
+  #app #recording-pane[data-recording-source=linked][data-compact-controls] #timeline-toggle {
     display:inline-flex;
     width:auto;
     min-width:44px;
@@ -402,4 +401,27 @@ input[type=range]::-moz-range-thumb{width:12px;height:12px;border:0;border-radiu
   }
   #app #recording-pane[data-short-open] .audio-views {order:2}
   #app #recording-pane[data-short-open] #timeline-toggle {order:3}
+}
+
+#app #recording-pane[data-recording-source=linked][data-tool-transport]:not([data-short-open]) {
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  align-items:center;
+  gap:8px;
+}
+#app #recording-pane[data-recording-source=linked][data-tool-transport]:not([data-short-open]) .recording-heading :is(strong,#recording-summary) { display:none }
+#app #recording-pane[data-recording-source=linked][data-tool-transport]:not([data-short-open]) .media-player:not([hidden]) {
+  display:flex;
+  width:auto;
+  margin:0;
+  justify-content:flex-end;
+  gap:0 8px;
+}
+#app #recording-pane[data-tool-transport]:not([data-short-open]) .media-player :is(.player-volume,.player-speed,.player-seek) { display:none }
+#app #recording-pane[data-tool-transport]:not([data-short-open]) .player-play {
+  width:44px;
+  min-height:44px !important;
+}
+@media (min-height:501px) {
+  #app #recording-pane[data-tool-transport][data-short-open] { max-height:min(44dvh,370px) }
 }

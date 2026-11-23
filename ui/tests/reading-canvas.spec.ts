@@ -105,6 +105,42 @@ test.describe('touch dock with a linked recording', () => {
     await expect(page.locator('#audio-speed')).toHaveValue('1.5');
   });
 
+  test('phone tools keep a compact playable recording and preserve the listening position',async({page,practiceUrl})=>{
+    await page.setViewportSize({width:390,height:844});
+    await page.goto(practiceUrl);
+    const panel=page.locator('#recording-pane'), play=page.locator('#audio-play'), audio=page.locator('#audio');
+    await expect(play).toBeEnabled();
+    for(const size of [{width:390,height:844},{width:640,height:360}]){
+      await page.setViewportSize(size);
+      await page.locator('#toggle-navigation').tap();
+      await expect(page.locator('#projects-pane')).toBeVisible();
+      await expect.poll(()=>panel.evaluate(node=>node.getBoundingClientRect().height)).toBeLessThan(60);
+      await page.locator('#rail-search').tap();
+      await expect(page.locator('#properties-pane')).toBeVisible();
+      const controls=page.getByRole('button',{name:'Show recording controls'});
+      for(const target of [play,controls]){
+        const rect=await target.boundingBox();
+        expect(rect!.width).toBeGreaterThanOrEqual(44);
+        expect(rect!.height).toBeGreaterThanOrEqual(44);
+      }
+      await play.tap();
+      await expect(play).toHaveAccessibleName('Pause recording');
+      await controls.tap();
+      await page.locator('#audio-speed').selectOption('1.25');
+      await page.locator('#audio-seek').fill('3.1');
+      await page.locator('#audio-speed').press('Escape');
+      await expect(controls).toBeFocused();
+      await expect(page.locator('#audio-speed')).toBeHidden();
+      await expect(play).toHaveAccessibleName('Pause recording');
+      await play.tap();
+      const at=await audio.evaluate((node:HTMLAudioElement)=>node.currentTime);
+      expect(at).toBeGreaterThanOrEqual(3);
+      await page.locator('#properties-pane .pane-return').tap();
+      await expect(page.locator('.transcript')).toBeVisible();
+      expect(await audio.evaluate((node:HTMLAudioElement)=>[node.currentTime,node.playbackRate,node.paused])).toEqual([at,1.25,true]);
+    }
+  });
+
   for (const mode of ['workspace', 'focus']) {
     test(`each control has a separate touch target in a 320px ${mode}`, async ({page,practiceUrl}) => {
       await page.goto(practiceUrl);

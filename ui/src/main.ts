@@ -568,6 +568,7 @@ function configureMedia(unsupportedBase:boolean){
 }
 function updatePaneAccessibility(){
   const workspace=document.querySelector<HTMLElement>('.workspace')!;
+  recording?.fitToWorkspace();
   const narrow=matchMedia('(max-width:700px)').matches;
   const bothOpen=!workspace.classList.contains('navigation-folded') && !workspace.classList.contains('properties-folded');
   if(singleSidePane.matches && bothOpen){
