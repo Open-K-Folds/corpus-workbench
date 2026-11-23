@@ -94,6 +94,8 @@ export class RecordingPanel {
     availability.textContent = 'No audio linked';
     panel.querySelector('#timeline-toggle')!.before(availability);
     const player=new AudioPlayer(audio);
+    const actions = panel.querySelector<HTMLElement>('.actions')!;
+    player.element.querySelector('.player-status')!.before(actions);
     this.lanes=panel.querySelector('#recording-layers')!;
     this.lanes.tabIndex=0;
     this.lanes.setAttribute('role','region');
@@ -141,7 +143,6 @@ export class RecordingPanel {
     audio.addEventListener('loadedmetadata',()=>this.renderLanes());
     let floors='';const refit=()=>{const next=[minimum('minimal'),minimum('compact'),minimum('expanded'),Math.round(maximum())].join(':');if(!resize.isDragging()&&next!==floors){floors=next;resize.set(resize.getPreferred(),false)}resize.sync()};
     window.addEventListener('resize',()=>{floors='';refit()});
-    const actions = panel.querySelector<HTMLElement>('.actions')!;
     const fitLanes=()=>{
       refit();
       const padding = parseFloat(getComputedStyle(panel).paddingBottom) || 0;

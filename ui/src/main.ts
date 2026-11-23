@@ -149,7 +149,10 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     <div id="inspector-content" role="region" tabindex="-1"></div></aside></div>
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
-    <div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div>
+    <div class="actions" role="group" aria-label="Selection playback" hidden>
+      <button type="button" id="listen-selected" class="secondary" aria-label="Listen to selection">${icon('headphones')}<span>From selection</span></button>
+      <label class="selection-loop" title="Loop selection"><input id="loop-selection" type="checkbox" role="switch" aria-label="Loop selection">${icon('repeat')}</label>
+    </div>
   </section>
   <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span><span id="token-count" role="status"></span></footer>
   ${workspaceSettings()}`;
@@ -406,6 +409,7 @@ function checkCue(anchor:PassageAnchor):CueState {
 function refreshListenControls(){
   if(!view||saving||pendingWrite||transcript?.busy())return;
   const state=checkCue(currentAnchor()),button=el<HTMLButtonElement>('listen-selected');
+  button.closest<HTMLElement>('.actions')!.hidden=!selected.length;
   button.disabled='reason' in state;
   button.title='reason' in state?state.reason:`Start playback at the supplied ${state.basis} time (${state.start} s).`;
   transcript?.refreshListen();

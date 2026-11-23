@@ -32,6 +32,8 @@ test('view radios, switches and grouped navigation expose real keyboard state an
   await page.reload();await expect(lines).toBeChecked();await expect(interlinear).toBeChecked();
   await page.getByRole('button',{name:'Documents',exact:true}).focus();await page.keyboard.press('ArrowRight');await expect(page.getByRole('button',{name:'Sources',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('button',{name:'Sources',exact:true})).toBeFocused();
   await page.keyboard.press('Home');await expect(page.getByRole('button',{name:'Documents',exact:true})).toHaveAttribute('aria-pressed','true');
+  await expect(page.getByRole('group',{name:'Selection playback'})).toBeHidden();
+  await page.locator('[data-token="timed0"]').click();
   await page.getByRole('switch',{name:'Loop selection',exact:true}).check();await expect(page.locator('#loop-selection')).toBeChecked();
   await page.getByRole('button',{name:'History',exact:true}).click();await expect(page.getByRole('button',{name:'History',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('heading',{name:'Per-edit history',exact:true})).toBeVisible();
 });
@@ -69,6 +71,8 @@ test('resizing panes preserves running audio and collapsed controls, and nested 
 test('both themes and mobile widths keep custom controls within the pane and Material Symbols local',async({page})=>{
   const external:string[]=[];page.on('request',request=>{if(!request.url().startsWith('http://127.0.0.1:18912/'))external.push(request.url())});
   await open(page);await page.evaluate(()=>document.fonts.ready);expect(await page.evaluate(()=>document.fonts.check('20px "Material Symbols Outlined"'))).toBe(true);
+  await expect(page.locator('#listen-selected')).toBeHidden();
+  await page.locator('[data-token="timed0"]').click();
   for(const width of [1440,820,390,320]){
     await page.setViewportSize({width,height:width>700?1000:844});
     for(const theme of ['light','dark']){

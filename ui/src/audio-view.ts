@@ -144,7 +144,15 @@ export class AudioView {
         c.fillStyle=wave;for(let i=0;i<count;i++){const lo=20*(max/20)**(i/count),hi=20*(max/20)**((i+1)/count);let db=-90;const first=Math.max(1,Math.floor(lo/this.context!.sampleRate*2048)),last=Math.min(this.frequencies.length-1,Math.ceil(hi/this.context!.sampleRate*2048));for(let bin=first;bin<=last;bin++)db=Math.max(db,this.frequencies[bin]);const h=Math.max(0,Math.min(1,(db+90)/90))*(height-3*ratio);c.fillRect(i/count*width,height-h,Math.max(ratio,width/count-2*ratio),h)}
       }
     }else if(this.available()){
-      const x=this.audio.currentTime/this.audio.duration*width;c.strokeStyle=this.mode==='spectrogram'?'#f2f2f2':ink;c.lineWidth=ratio;c.beginPath();c.moveTo(x,0);c.lineTo(x,height);c.stroke();
+      const x=this.audio.currentTime/this.audio.duration*width;
+      if(this.mode==='waveform'){
+        c.save();
+        c.globalCompositeOperation='source-atop';
+        c.fillStyle=style.getPropertyValue('--accent').trim();
+        c.fillRect(0,0,x,height);
+        c.restore();
+      }
+      c.strokeStyle=this.mode==='spectrogram'?'#f2f2f2':ink;c.lineWidth=ratio;c.beginPath();c.moveTo(x,0);c.lineTo(x,height);c.stroke();
     }
   }
 }
