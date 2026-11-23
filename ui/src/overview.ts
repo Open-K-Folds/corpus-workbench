@@ -33,7 +33,9 @@ export class ResearchOverview {
     this.dialog.setAttribute('aria-labelledby','overview-heading');this.dialog.setAttribute('aria-describedby','overview-intro');
     this.dialog.innerHTML=`<div class="overview-header"><div class="overview-title"><h2 id="overview-heading">Research overview</h2><p id="overview-intro" class="overview-project"></p></div><div class="overview-controls"><button id="overview-refresh" class="secondary">Refresh state</button><button id="overview-pause" class="secondary" aria-pressed="false">Pause motion</button><button id="overview-close">Return to transcript</button></div></div>
       <div id="overview-basis" class="overview-basis"></div>
-      <div class="overview-stage"><section class="overview-evidence" aria-labelledby="overview-evidence-heading"><h3 id="overview-evidence-heading">Preserved evidence <span class="overview-label">Snapshot membership</span></h3><svg id="overview-map" role="img" viewBox="0 0 570 390" aria-labelledby="overview-map-title overview-map-description"></svg><p class="overview-label">Lines connect files to this saved package. They are not semantic relationships or a claim that one file generated another.</p></section>
+      <div class="overview-stage"><section class="overview-evidence" aria-labelledby="overview-evidence-heading"><h3 id="overview-evidence-heading">Preserved evidence <span class="overview-label">Snapshot membership</span></h3><div class="overview-diagram"><svg id="overview-map" role="img" viewBox="0 0 570 390" aria-labelledby="overview-map-title overview-map-description"></svg><p class="overview-label">Lines connect files to this saved package. They are not semantic relationships or a claim that one file generated another.</p></div>
+        <ul id="overview-file-preview" aria-label="Snapshot files"></ul>
+        <details class="overview-files"><summary id="overview-files-summary"></summary><ul id="overview-files-list"></ul></details></section>
       <section class="overview-signal" aria-labelledby="overview-signal-heading"><h3 id="overview-signal-heading">Recording trace <span id="overview-media" class="overview-label"></span></h3>
         <div class="overview-plot"><canvas id="overview-traces" role="img" aria-label="Recording peak envelope and eight sampled frequency bands"></canvas>
           <div id="overview-trace-key" role="group" aria-label="Recording trace labels" hidden>
@@ -45,7 +47,7 @@ export class ResearchOverview {
         <p id="overview-analysis-status" class="overview-label"></p><div class="overview-player"><button id="overview-play" class="secondary">Play recording</button><label>Recording position<input id="overview-seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Seek recording"></label><output id="overview-time"></output></div><p id="overview-motion-status" class="overview-label"></p></section></div>
       <div class="overview-instruments"><section class="overview-instrument"><span>Preserved files</span><strong id="overview-file-count"></strong><small id="overview-file-bytes"></small></section><section class="overview-instrument"><span>Selected tokens</span><strong id="overview-selection-count"></strong><small id="overview-token-total"></small></section><section class="overview-instrument"><span>Exact-revision review</span><strong id="overview-review"></strong><button id="overview-open-review" class="secondary">Inspect review</button></section><section class="overview-instrument"><span>Local Semantica</span><strong id="overview-runtime"></strong><small id="overview-generation"></small><button id="overview-open-handoff" class="secondary">Open handoff</button></section></div>
       <div class="overview-detail-row"><section class="overview-selection"><h3>Selection in context</h3><p id="overview-selection-text"></p><p id="overview-selection-timing" class="overview-label"></p><p id="overview-draft-status" class="overview-label">Saved readings only. Unsaved drafts are excluded.</p></section><section class="overview-activity"><h3>This session <span class="overview-label">Observed changes</span></h3><ol id="overview-events"></ol></section></div>
-      <details class="overview-files"><summary id="overview-files-summary"></summary><ul id="overview-files-list"></ul></details><footer class="overview-footer">Local evidence, not inferred certainty. Waveforms and sampled frequency bands describe the recording, not speech alignment, language, confidence or transcription accuracy.</footer>`;
+      <footer class="overview-footer">Local evidence, not inferred certainty. Waveforms and sampled frequency bands describe the recording, not speech alignment, language, confidence or transcription accuracy.</footer>`;
     document.body.append(this.dialog);
     this.enableCanvasLabels();
     this.find('overview-close').onclick=()=>this.close();
@@ -113,6 +115,7 @@ export class ResearchOverview {
     if(this.basis!==basis){if(this.basis)this.record(`Saved basis observed: R${v.revision.id}${v.approved?' approved':' unreviewed'}`);this.basis=basis;this.state=null;this.stateKey='';this.generation();}
     const selection=[d.path,...tokens.map(token=>token.id)].join(':');if(this.selection!==selection){if(this.selection)this.record(`${tokens.length} token${tokens.length===1?'':'s'} selected`);this.selection=selection;}
     this.media=this.resolveMedia(v,d);
+    this.dialog.toggleAttribute('data-no-recording', !this.media);
     const priority=(path:string)=>path===d.path?0:path===this.media?1:2;
     const entries=Object.entries(v.snapshot.files).sort(([a],[b])=>priority(a)-priority(b)||a.localeCompare(b));
     this.find('overview-basis').textContent=`Saved R${v.revision.id} · ${v.revision.snapshot_hash} · ${v.documents.length} document${v.documents.length===1?'':'s'}`;
@@ -126,6 +129,12 @@ export class ResearchOverview {
     this.find('overview-selection-timing').textContent=!tokens.length?'No selection.':timed.length===tokens.length?`Supplied word bounds: ${duration(bounds![0])}–${duration(bounds![1])}.`:bounds?`Supplied segment/chunk bounds: ${duration(bounds[0])}–${duration(bounds[1])}. Word timing is incomplete or unknown.`:'No supplied timing. Word positions are not aligned to the recording.';
     this.find('overview-files-summary').textContent=`Inspect snapshot files · ${entries.length} total${entries.length>16?' · first 16 shown':''}`;
     this.find('overview-files-list').innerHTML=entries.slice(0,16).map(([path,file])=>`<li><span>${esc(path)}</span><code title="${esc(file.sha256)}">${esc(file.sha256.slice(0,12))}</code><small>${bytes(file.bytes)} · ${esc(file.role)}</small></li>`).join('');
+    const preview=entries.filter(([path])=>path===d.path || path===this.media);
+    if(!preview.length) preview.push(...entries.slice(0,1));
+    this.find('overview-file-preview').innerHTML=preview.map(([path,file])=>{
+      const label=path===d.path?'Active transcript':path===this.media?'Linked recording':file.role;
+      return `<li><small>${esc(label)}</small><span>${esc(path)}</span></li>`;
+    }).join('');
     this.map(entries);this.player();this.generation();this.draw();
   }
   private resolveMedia(v:View,d:Document){const paths=[...new Set(d.media.flatMap(path=>[path,`Audio/${path}`,`Video/${path}`]).filter(path=>v.snapshot.files[path]?.role==='source-media'))];return paths.length===1?paths[0]:undefined}
@@ -139,14 +148,22 @@ export class ResearchOverview {
   private motion(){const reduced=this.reduced.matches,a=this.sources.audio;this.dialog.dataset.motion=reduced?'reduced':this.paused?'paused':!a.paused&&this.playable()&&!document.hidden?'playing':'ready';this.dialog.dataset.canFlow=String(!document.hidden&&this.playable()&&!a.paused&&!a.ended&&!a.seeking&&a.readyState>=3);const button=this.find<HTMLButtonElement>('overview-pause');button.disabled=reduced;button.textContent=this.paused?'Resume motion':'Pause motion';button.setAttribute('aria-pressed',String(this.paused||reduced));this.find('overview-motion-status').textContent=reduced?'Reduced motion: static view':this.paused?'Motion paused; playback continues':'Motion follows playback';}
   private animate(){cancelAnimationFrame(this.frame);this.frame=0;if(!this.dialog.open||document.hidden||this.paused||this.reduced.matches||!this.playable()||this.sources.audio.paused)return;const tick=(now:number)=>{if(now-this.lastFrame>=100){this.lastFrame=now;this.draw();this.player()}this.frame=requestAnimationFrame(tick)};this.frame=requestAnimationFrame(tick)}
   private draw(){
-    if(!this.dialog.open||document.hidden)return;const canvas=this.find<HTMLCanvasElement>('overview-traces'),rect=canvas.getBoundingClientRect();if(!rect.width)return;
+    if(!this.dialog.open||document.hidden)return;
+    const canvas=this.find<HTMLCanvasElement>('overview-traces');
+    if(!this.media){
+      this.find('overview-analysis-status').textContent='A single recording could not be matched to this document.';
+      this.find('overview-trace-key').hidden=true;
+      canvas.setAttribute('aria-label','No recording association; no measured trace available');
+      return;
+    }
+    const rect=canvas.getBoundingClientRect();if(!rect.width)return;
     if(!this.paused&&!this.reduced.matches)this.displayTime=this.sources.audio.currentTime;
     const scale=Math.min(devicePixelRatio||1,2);canvas.width=Math.round(rect.width*scale);canvas.height=Math.round(rect.height*scale);const c=canvas.getContext('2d');if(!c)return;c.scale(scale,scale);
     const styles=getComputedStyle(this.dialog),ink=styles.getPropertyValue('--ov-ink').trim()||'#fff',muted=styles.getPropertyValue('--ov-muted').trim()||'#888',line=styles.getPropertyValue('--ov-line').trim()||'#444';
     const width=rect.width,height=rect.height,left=38,right=width-15,plot=right-left;const {state,analysis:a}=this.sources.analysis();
     this.find('overview-trace-key').hidden=!this.playable()||!a;
     c.font='10px ui-monospace,Consolas,monospace';c.fillStyle=muted;
-    if(!this.playable()||!a){this.find('overview-analysis-status').textContent=!this.media?'No recording association. No signal has been invented.':state==='loading'?'Preparing bounded local audio analysis…':'Audio overview unavailable. Playback may remain available in the recording panel.';canvas.setAttribute('aria-label',!this.media?'No recording association; no measured trace available':state==='loading'?'Recording analysis loading; no measured trace available':'Recording analysis unavailable; no measured trace available');c.fillText('No measured trace available',left,height/2);return;}
+    if(!this.playable()||!a){this.find('overview-analysis-status').textContent=state==='loading'?'Preparing bounded local audio analysis…':'Audio overview unavailable. Playback may remain available in the recording panel.';canvas.setAttribute('aria-label',state==='loading'?'Recording analysis loading; no measured trace available':'Recording analysis unavailable; no measured trace available');c.fillText('No measured trace available',left,height/2);return;}
     this.find('overview-analysis-status').textContent='Peak amplitude + 8 sampled frequency bands · display intensity, low → high. No word alignment.';
     const mid=this.find('overview-trace-mid'),end=this.find('overview-trace-end');
     if(mid.textContent!==duration(a.duration/2))mid.textContent=duration(a.duration/2);

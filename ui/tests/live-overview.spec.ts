@@ -212,6 +212,13 @@ test('dark and light overview remain bounded and usable at desktop and phone wid
     if((await page.locator('html').getAttribute('data-theme'))!==theme)await page.locator('#toggle-theme').click();
     for(const viewport of [{width:1440,height:1000},{width:390,height:844}]){
       await page.setViewportSize(viewport);const dialog=await overview(page);
+      if(viewport.width===390){
+        await expect(dialog.locator('#overview-file-preview')).toBeVisible();
+        await expect(dialog.locator('#overview-file-preview')).toContainText('Linked recording');
+        await expect(dialog.locator('#overview-map')).toBeHidden();
+      }else{
+        await expect(dialog.locator('#overview-map')).toBeVisible();
+      }
       const bounds=await dialog.boundingBox();expect(bounds).not.toBeNull();expect(bounds!.x).toBeGreaterThanOrEqual(-1);expect(bounds!.y).toBeGreaterThanOrEqual(-1);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(viewport.width+1);expect(bounds!.y+bounds!.height).toBeLessThanOrEqual(viewport.height+1);
       expect(await dialog.evaluate(element=>element.scrollWidth<=element.clientWidth+1)).toBe(true);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
       await expect(page.locator('#overview-close')).toBeVisible();await evidence(page,`overview-${theme}-${viewport.width}`);await page.locator('#overview-close').click();

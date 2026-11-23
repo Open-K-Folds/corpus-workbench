@@ -1,3 +1,4 @@
+import './inspector-workflows.css';
 import type {Document,Operation,Span,Token,View} from './contracts';
 import {esc,field,formValues} from './dom';
 export function tokenInspector(view:View,doc:Document,token:Token,onSave:(operations:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void):HTMLElement {

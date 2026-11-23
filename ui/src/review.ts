@@ -15,13 +15,13 @@ export function reviewInspector(view:View):HTMLElement {
     <details class="review-validation" ${view.issues.some(i=>i.blocking)?'open':''}><summary>Validation · ${view.issues.filter(i=>i.blocking).length} blocking · ${view.issues.filter(i=>!i.blocking).length} advisory</summary>
       <p class="muted">Approval covers this transcript, sidecars, definitions, settings and media hashes.</p>
       <ul>${view.issues.map(i=>`<li class="${i.blocking?'error':''}">${esc(i.target)}: ${esc(i.message)} ${i.blocking?'(blocks approval)':''}</li>`).join('')||'<li>No validation issues.</li>'}</ul></details>
+    <form id="review-form"><label>Decision<select name="decision"><option value="approved">Approve exact revision</option><option value="rejected">Reject</option><option value="needs-adjudication">Needs adjudication</option></select></label>
+      <label>Review rationale<textarea name="note" rows="3" placeholder="What did you check or what needs attention?"></textarea></label><button>Record review</button></form>
     <div class="review-history-heading"><h3>Decision history</h3><span class="muted">Read-only</span></div>
     <label>Decision history for<select id="review-history-revision" disabled><option value="${view.revision.id}">R${view.revision.id} · ${esc(view.revision.label)} · current</option></select></label>
     <p id="review-revisions-status" class="muted" role="status"></p><button id="retry-review-revisions" type="button" class="secondary" hidden>Retry revision list</button>
     <div id="review-history" aria-busy="true"><p role="status">Loading review history…</p></div>
     <button id="retry-review-history" type="button" class="secondary" hidden>Retry review history</button>
-    <form id="review-form"><label>Decision<select name="decision"><option value="approved">Approve exact revision</option><option value="rejected">Reject</option><option value="needs-adjudication">Needs adjudication</option></select></label>
-      <label>Review rationale<textarea name="note" rows="3" placeholder="What did you check or what needs attention?"></textarea></label><button>Record review</button></form>
     <div class="review-contract"><button id="compiler-contract" type="button" class="secondary" disabled>Inspect approved export contract</button><pre id="contract-preview"></pre></div>`;
   const status=section.querySelector<HTMLElement>('#review-current-status')!;
   const history=section.querySelector<HTMLElement>('#review-history')!;

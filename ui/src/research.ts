@@ -16,6 +16,11 @@ export function researchInspector(view:View,actions:Actions):HTMLElement {
   const blockers=view.issues.filter(issue=>issue.blocking);
   panel.innerHTML=`<div class="research-heading"><h2>Research handoff</h2><span class="research-local">Local only</span></div>
     <p>Turn the saved, reviewed corpus into traceable research evidence.</p>
+    <div class="research-basis"><strong>Exact saved basis · R${view.revision.id}</strong><span>${view.approved?'Approved full package':'Awaiting exact-revision approval'} · ${blockers.length} blocking ${blockers.length===1?'issue':'issues'}</span><details><summary>Snapshot identity</summary><code>${esc(view.revision.snapshot_hash)}</code></details></div>
+    <div id="research-status" role="status" data-state="loading">Checking local handoff state.</div>
+    <div id="research-runtime"></div><div id="research-generation"></div>
+    <div class="research-actions"><button id="research-configure" class="secondary">Configure local runtime</button><button id="research-run" disabled>Run local Semantica</button><button id="research-refresh" class="secondary">Refresh handoff state</button></div>
+    <div class="research-export"><h3>Portable graph package</h3><p>The versioned folder contains the graph, exact review contract, completion receipt and checksums. Export verifies that Semantica can reopen it. Preserve original media separately with <strong>Export complete package</strong>.</p><button id="research-export" class="secondary" disabled>Export validated graph</button><button id="research-reveal" class="secondary" hidden>Show exported folder</button><p id="research-export-status" role="status"></p></div>
     <button id="research-show-guide" class="secondary" ${guide?'hidden':''}>Resume guide</button>
     <section id="research-guide" aria-label="Corpus workflow" ${guide?'':'hidden'}>
       <div class="research-guide-heading"><h3>From source to research</h3><button id="research-skip-guide" class="secondary">Skip guide</button></div>
@@ -25,12 +30,7 @@ export function researchInspector(view:View,actions:Actions):HTMLElement {
         <li><strong>Review the saved revision</strong><p>Save all drafts, inspect validation, then make an explicit full-package review decision. Notes do not automatically prevent approval.</p><button class="secondary" data-research-go="review">Review R${view.revision.id}</button></li>
         <li><strong>Run and verify locally</strong><p>Semantica maps authored evidence with stable IDs and provenance. This path performs no ASR, model extraction or public transfer.</p></li>
       </ol>
-    </section>
-    <div class="research-basis"><strong>Exact saved basis · R${view.revision.id}</strong><span>${view.approved?'Approved full package':'Awaiting exact-revision approval'} · ${blockers.length} blocking ${blockers.length===1?'issue':'issues'}</span><details><summary>Snapshot identity</summary><code>${esc(view.revision.snapshot_hash)}</code></details></div>
-    <div id="research-status" role="status" data-state="loading">Checking local handoff state.</div>
-    <div id="research-runtime"></div><div id="research-generation"></div>
-    <div class="research-actions"><button id="research-configure" class="secondary">Configure local runtime</button><button id="research-run" disabled>Run local Semantica</button><button id="research-refresh" class="secondary">Refresh handoff state</button></div>
-    <div class="research-export"><h3>Portable graph package</h3><p>The versioned folder contains the graph, exact review contract, completion receipt and checksums. Export verifies that Semantica can reopen it. Preserve original media separately with <strong>Export complete package</strong>.</p><button id="research-export" class="secondary" disabled>Export validated graph</button><button id="research-reveal" class="secondary" hidden>Show exported folder</button><p id="research-export-status" role="status"></p></div>`;
+    </section>`;
   const find=<T extends HTMLElement>(id:string)=>panel.querySelector<T>(`#${id}`)!;
   const status=find('research-status'),runtime=find('research-runtime'),generation=find('research-generation');
   const configure=find<HTMLButtonElement>('research-configure'),run=find<HTMLButtonElement>('research-run'),exportButton=find<HTMLButtonElement>('research-export'),refresh=find<HTMLButtonElement>('research-refresh');
