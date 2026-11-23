@@ -170,8 +170,38 @@ test.describe('touch dock with a linked recording', () => {
     await expect(toggle).toBeFocused();
     await expect(page.locator('#audio-speed')).toBeHidden();
     await page.setViewportSize({width:390,height:844});
+    await expect(page.locator('#audio-speed')).toBeHidden();
+    await toggle.tap();
     await expect(page.locator('#audio-speed')).toBeVisible();
     await expect(page.locator('#audio-speed')).toHaveValue('1.5');
+  });
+
+  test('a phone reader can open settings, follow playback and reveal the recording details',async({page,practiceUrl})=>{
+    await page.setViewportSize({width:320,height:640});
+    await page.goto(practiceUrl);
+    const panel=page.locator('#recording-pane'), audio=page.locator('#audio');
+    const toggle=page.getByRole('button',{name:'Show recording controls'});
+    await expect(page.locator('#canvas-play')).toBeEnabled();
+    await expect(page.locator('#audio-play')).toBeHidden();
+    await expect(page.locator('#audio-clock')).toBeVisible();
+    await expect.poll(()=>panel.evaluate(node=>node.getBoundingClientRect().height)).toBeLessThan(60);
+    await page.locator('.reading-settings > summary').tap();
+    const first=token(page,'w1-1');
+    await expect.poll(()=>first.evaluate(node=>{
+      const r=node.getBoundingClientRect();
+      return node.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2));
+    })).toBe(true);
+    await page.locator('.reading-settings > summary').tap();
+    await page.locator('#canvas-play').tap();
+    await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(0);
+    await toggle.tap();
+    await expect(page.locator('#audio-seek')).toBeVisible();
+    await expect(page.locator('#recording-waveform')).toBeVisible();
+    await page.getByRole('button',{name:'Hide recording controls'}).press('Escape');
+    await expect(toggle).toBeFocused();
+    await expect(page.locator('#audio-seek')).toBeHidden();
+    expect(await audio.evaluate((a:HTMLAudioElement)=>a.paused)).toBe(false);
+    await page.locator('#canvas-play').tap();
   });
 
   test('phone tools keep a compact playable recording and preserve the listening position',async({page,practiceUrl})=>{

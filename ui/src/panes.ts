@@ -87,8 +87,8 @@ export class RecordingPanel {
   private workspace:HTMLElement;
   fitToWorkspace(){
     const {panel}=this;
-    const tools=this.workspace.dataset.focus!=='transcript' && (this.phone.matches || this.shortWindow.matches);
-    const disclosure=this.shortWindow.matches || tools;
+    const disclosure=this.phone.matches || this.shortWindow.matches;
+    const tools=disclosure && this.workspace.dataset.focus!=='transcript';
     const changed=panel.hasAttribute('data-compact-controls')!==disclosure || panel.hasAttribute('data-tool-transport')!==tools;
     panel.toggleAttribute('data-compact-controls',disclosure);
     panel.toggleAttribute('data-tool-transport',tools);
@@ -150,6 +150,7 @@ export class RecordingPanel {
       event.stopPropagation();
     });
     this.shortWindow.addEventListener('change',()=>this.fitToWorkspace());
+    this.phone.addEventListener('change',()=>this.fitToWorkspace());
     audio.addEventListener('loadedmetadata',()=>this.renderLanes());
     let floors='';const refit=()=>{const next=[minimum('minimal'),minimum('compact'),minimum('expanded'),Math.round(maximum())].join(':');if(!resize.isDragging()&&next!==floors){floors=next;resize.set(resize.getPreferred(),false)}resize.sync()};
     window.addEventListener('resize',()=>{floors='';refit()});
@@ -198,7 +199,7 @@ export class RecordingPanel {
     toggle.setAttribute('aria-expanded', String(expanded));
     toggle.setAttribute('aria-label', label);
     toggle.title = label;
-    const visibleLabel=panel.hasAttribute('data-tool-transport') && !expanded?'Recording controls':'Controls';
+    const visibleLabel=expanded?'Controls':'Recording controls';
     toggle.innerHTML = (short ? `<span class="short-recording-label">${visibleLabel}</span>` : '') + icon(expanded ? 'expand_more' : 'expand_less');
   }
   private renderLanes(){if(!this.lanes||!this.doc||!this.view)return;const duration=this.audio.duration;const timed=this.doc.segments.filter(s=>s.start_us!==null&&s.end_us!==null&&s.start_us>=0&&s.end_us>s.start_us);
