@@ -10,22 +10,37 @@ const time=(value:number)=>{
 export class AudioPlayer {
   readonly element:HTMLElement;
   private play:HTMLButtonElement;private mute:HTMLButtonElement;private seek:HTMLInputElement;
-  private volume:HTMLInputElement;private speed:HTMLSelectElement;private clock:HTMLElement;private status:HTMLElement;
+  private volume:HTMLInputElement;private speed:HTMLSelectElement;private elapsed:HTMLElement;private duration:HTMLElement;private status:HTMLElement;
   private waiting=false;private enabled=true;private playable:boolean|undefined;
   constructor(private audio:HTMLAudioElement,label='Recording playback'){
     audio.controls=false;audio.classList.add('media-engine');
     const prefix=audio.id;
     this.element=document.createElement('div');this.element.className='media-player';this.element.setAttribute('role','group');this.element.setAttribute('aria-label',label);
-    this.element.innerHTML=`<button type="button" id="${prefix}-play" class="icon-button player-play" aria-label="Play recording">${icon('play_arrow')}</button><span id="${prefix}-clock" class="player-time" aria-hidden="true">0:00 / --:--</span><label class="player-seek"><span class="sr-only">Seek recording</span><input id="${prefix}-seek" type="range" min="0" max="0" step="0.1" value="0"></label><div class="player-volume"><button type="button" id="${prefix}-mute" class="icon-button" aria-label="Mute recording" aria-pressed="false">${icon('volume_up')}</button><label><span class="sr-only">Recording volume</span><input id="${prefix}-volume" type="range" min="0" max="1" step="0.05" value="1"></label></div><label class="player-speed">Speed<select id="${prefix}-speed"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option></select></label><span id="${prefix}-status" class="player-status" role="status"></span>`;
+    this.element.innerHTML=`
+      <div class="player-position">
+        <button type="button" id="${prefix}-play" class="icon-button player-play" aria-label="Play recording">${icon('play_arrow')}</button>
+        <span id="${prefix}-clock" class="player-time" aria-hidden="true"><b>0:00</b><span> / --:--</span></span>
+        <label class="player-seek"><span class="sr-only">Seek recording</span><input id="${prefix}-seek" type="range" min="0" max="0" step="0.1" value="0"></label>
+      </div>
+      <div class="player-settings">
+        <div class="player-volume">
+          <button type="button" id="${prefix}-mute" class="icon-button" aria-label="Mute recording" aria-pressed="false">${icon('volume_up')}</button>
+          <label><span class="sr-only">Recording volume</span><input id="${prefix}-volume" type="range" min="0" max="1" step="0.05" value="1"></label>
+        </div>
+        <label class="player-speed" title="Playback speed"><span class="sr-only">Speed</span><select id="${prefix}-speed">
+          <option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option>
+        </select></label>
+      </div>
+      <span id="${prefix}-status" class="player-status" role="status"></span>`;
     audio.after(this.element);
     const find=<T extends HTMLElement>(id:string)=>this.element.querySelector<T>('#'+prefix+'-'+id)!;
-    this.play=find('play');this.mute=find('mute');this.seek=find('seek');this.volume=find('volume');this.speed=find('speed');this.clock=find('clock');this.status=find('status');
+    this.play=find('play');this.mute=find('mute');this.seek=find('seek');this.volume=find('volume');this.speed=find('speed');this.elapsed=find('clock').querySelector('b')!;this.duration=find('clock').querySelector('span')!;this.status=find('status');
     this.play.onclick=()=>{if(!audio.paused){audio.pause();return}if(audio.ended)audio.currentTime=0;void audio.play().catch(()=>{this.waiting=false;this.sync();this.status.textContent='Playback could not start. Try Play again.'})};
     this.seek.oninput=()=>{if(Number.isFinite(audio.duration)&&audio.duration>0)audio.currentTime=Math.max(0,Math.min(audio.duration,Number(this.seek.value)))};
     this.mute.onclick=()=>{audio.muted=!audio.muted};
     this.volume.oninput=()=>{audio.volume=Number(this.volume.value);if(audio.volume>0)audio.muted=false};
     this.speed.onchange=()=>{audio.playbackRate=Number(this.speed.value)};
-    for(const event of ['loadedmetadata','durationchange','timeupdate','play','pause','ended','volumechange','ratechange','error','emptied'])audio.addEventListener(event,()=>this.sync());
+    for(const event of ['loadedmetadata','durationchange','timeupdate','seeking','seeked','play','pause','ended','volumechange','ratechange','error','emptied'])audio.addEventListener(event,()=>this.sync());
     audio.addEventListener('waiting',()=>{this.waiting=true;this.sync()});
     audio.addEventListener('loadstart',()=>{this.waiting=true;this.sync()});
     audio.addEventListener('playing',()=>{this.waiting=false;this.sync()});
@@ -45,7 +60,7 @@ export class AudioPlayer {
     this.play.setAttribute('aria-label',a.paused?(a.ended?'Play recording from start':'Play recording'):'Pause recording');
     this.mute.innerHTML=icon(a.muted||a.volume===0?'volume_off':'volume_up');this.mute.setAttribute('aria-pressed',String(a.muted));this.mute.setAttribute('aria-label',a.muted?'Unmute recording':'Mute recording');
     this.play.title=this.play.getAttribute('aria-label')!;this.mute.title=this.mute.getAttribute('aria-label')!;
-    this.clock.textContent=time(a.currentTime)+' / '+time(a.duration);
+    this.elapsed.textContent=time(a.currentTime);this.duration.textContent=' / '+time(a.duration);
     this.seek.max=String(duration);this.seek.value=String(Math.max(0,Math.min(duration,a.currentTime)));
     this.seek.setAttribute('aria-valuetext',time(a.currentTime)+' of '+time(a.duration));
     this.seek.style.setProperty('--range-progress',duration?a.currentTime/duration*100+'%':'0%');

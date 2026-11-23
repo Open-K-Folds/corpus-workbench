@@ -137,6 +137,7 @@ export class Transcript {
     document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.drag.active&&!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
     window.addEventListener('keydown',e=>{
       if(e.key!=='Escape'||e.isComposing||this.composing||this.draft||document.querySelector('dialog[open]'))return;
+      if(e.target instanceof Element && e.target.closest('#recording-pane[data-short-open]'))return;
       if(this.rangeStart){this.cancelRange(true);e.preventDefault();e.stopImmediatePropagation();return}
       if(this.clearSelection()){e.preventDefault();e.stopImmediatePropagation()}
     },{capture:true});

@@ -287,6 +287,7 @@ test('analysis worker failure remains recoverable through the recording player',
 
 test('mode controls and player fit narrow panes, both themes and reduced motion without interrupting audio',async({page})=>{
   await page.emulateMedia({reducedMotion:'reduce'});await open(page);await mode(page,'Spectrum');
+  await page.locator('[data-token="low"]').click();
   const audio=page.locator('#audio'),source=await audio.getAttribute('src');await audio.evaluate((a:HTMLAudioElement)=>{a.loop=true});await page.getByRole('button',{name:'Play recording',exact:true}).click();
   const fits=(selector:string)=>page.locator(selector).evaluate(control=>{const r=control.getBoundingClientRect(),panel=control.closest('#recording-pane')!.getBoundingClientRect();return r.width>0&&r.height>0&&r.left>=panel.left&&r.right<=panel.right&&r.top>=panel.top&&r.bottom<=panel.bottom&&r.bottom<=innerHeight});
   const playerControls=['#audio-play','#audio-seek','#audio-mute','#audio-volume','#audio-speed'];
