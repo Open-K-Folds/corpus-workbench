@@ -30,7 +30,7 @@ test('complete authoring journey against native revisions',async({page,context})
   await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R1');
   await expect(page.locator('[data-token="w-outside"]')).toBeVisible();
   await expect(page).toHaveTitle('Corpus workbench');await expect(page.getByRole('heading',{name:'SYNTHETIC workbench authoring fixture'})).toBeVisible();
-  await page.locator('[data-token="w-1"]').click();await page.getByRole('button',{name:'Listen to selection',exact:true}).click();
+  await page.locator('[data-token="w-1"]').click();await page.getByRole('button',{name:'Play from selection',exact:true}).click();
   await expect.poll(()=>page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(.2);
   expect(await page.locator('audio').evaluate((a:HTMLAudioElement)=>a.error)).toBeNull();
   await page.locator('audio').evaluate((a:HTMLAudioElement)=>{a.pause();a.currentTime=5});await expect.poll(()=>page.locator('audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(4.9);

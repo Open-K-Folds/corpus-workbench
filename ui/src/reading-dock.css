@@ -215,6 +215,13 @@
   .canvas-console button { transition: background-color 120ms ease, color 120ms ease }
 }
 .canvas-console button:active:not(:disabled) { filter: brightness(.88) }
+/* In the desktop reading view, the dock owns play/pause. The recording strip
+   keeps its clock, seek and playback settings. The expanded timeline has its own transport. */
+@media (min-width:701px) {
+  .workspace.navigation-folded.properties-folded[data-focus=transcript]:has(#canvas-listening:not([hidden])) ~ #recording-pane[data-detail=compact] #audio-play {
+    display:none;
+  }
+}
 /* The pane can be narrow even in a maximized window with both inspectors open. */
 @container steering-dock (max-width: 640px) {
   .canvas-console {

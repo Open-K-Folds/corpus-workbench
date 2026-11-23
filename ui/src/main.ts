@@ -129,7 +129,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
     <div class="actions" role="group" aria-label="Selection playback" hidden>
-      <button type="button" id="listen-selected" class="secondary" aria-label="Listen to selection">${icon('headphones')}<span>Listen to selection</span></button>
+      <button type="button" id="listen-selected" class="secondary" aria-label="Play from selection">${icon('play_arrow')}<span>Play from selection</span></button>
       <label class="selection-loop" title="Loop selection"><input id="loop-selection" type="checkbox" role="switch" aria-label="Loop selection">${icon('repeat')}</label>
     </div>
   </section>

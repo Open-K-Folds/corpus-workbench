@@ -135,7 +135,7 @@ test('spectrogram has real nonuniform tone data and shares pointer, keyboard and
   await expect(chart).toHaveAttribute('aria-valuenow','1');
   await page.keyboard.press('Shift+ArrowRight');await expect.poll(()=>page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.currentTime)).toBeCloseTo(6,1);
   await mode(page,'Waveform');await expect(page.getByRole('slider',{name:'Seek recording on waveform',exact:true})).toHaveAttribute('aria-valuenow','6');
-  await mode(page,'Spectrogram');await page.locator('[data-token="high"]').click();await page.getByRole('button',{name:'Listen to selection',exact:true}).click();
+  await mode(page,'Spectrogram');await page.locator('[data-token="high"]').click();await page.getByRole('button',{name:'Play from selection',exact:true}).click();
   await expect.poll(()=>page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.currentTime)).toBeGreaterThan(5);
   await expect.poll(()=>page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.currentTime)).toBeLessThan(6);
   await expect(page.locator('[data-utterance="u2"] [data-token="high"][data-playback-word]')).toBeVisible();

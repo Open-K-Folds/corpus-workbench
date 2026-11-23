@@ -12,6 +12,9 @@ test('a dragged passage can be heard at its saved times and opened for co-analys
   const surface = dock.locator('.canvas-console');
   const context = dock.locator('#canvas-passage-context');
   await expect(surface).toBeVisible();
+  await expect(dock.locator('#canvas-play')).toBeVisible();
+  await expect(page.locator('#audio-play')).toBeHidden();
+  await expect(page.getByRole('slider', {name:'Seek recording', exact:true})).toBeVisible();
   await expect(context).toBeHidden();
   const finish = await surface.evaluate(node => {
     const style = getComputedStyle(node);
@@ -42,6 +45,11 @@ test('a dragged passage can be heard at its saved times and opened for co-analys
   ]);
   expect(startedAt).toBeCloseTo(.945, 1);
   await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.paused && Math.abs(element.currentTime - 2.135) < .025)).toBe(true);
+
+  await page.getByRole('button', {name:'Play from selection', exact:true}).click();
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => !element.paused && element.currentTime > 2.2)).toBe(true);
+  await dock.locator('#canvas-play').click();
+  await expect.poll(() => audio.evaluate((element: HTMLAudioElement) => element.paused)).toBe(true);
 
   const analyze = dock.locator('#dock-analyze-passage');
   await expect(analyze).toHaveAccessibleName(/analy[sz]/i);
