@@ -441,6 +441,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
     const key = JSON.stringify([view.snapshot.project, view.revision.id, view.revision.snapshot_hash, doc.path, selected]);
     if (!coanalysisDraft || (coanalysisDraft.key !== key && !coanalysisDraft.panel.querySelector('form[data-dirty="true"]'))) {
       coanalysisDraft = {key, revision: view.revision.id, document: doc.path, panel: coanalysisInspector(view, doc, selected, {
+        read: () => el('rail-reading').click(),
         reveal: async ids => {
           const navigationEpoch = inspectorEpoch;
           if (saving || pendingWrite || transcript.dirty() || transcript.busy()) return 'Finish the current edit before opening the passage.';

@@ -106,6 +106,7 @@ function savedMemos(view: View, doc: Document, expand: boolean, actions: Actions
 }
 
 interface Actions {
+  read: () => void;
   reveal: (ids: string[]) => Promise<string>;
   listening: Listening;
   dirty: () => void;
@@ -128,8 +129,10 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   let passage: ReturnType<typeof preparePassage>;
   try { passage = preparePassage(view, request); }
   catch (error) {
-    const reason = !ids.length ? 'Select words in the transcript and choose Co-analyse. You can also click a word and Shift-click the end of a passage.' : (error as Error).message;
-    panel.insertAdjacentHTML('beforeend', `<p class="ca-empty">${icon('notes')}<span>${esc(reason)}</span></p>${footer}`);
+    const reason = !ids.length ? 'Select words in the transcript and choose Co-analyse. Drag a passage or tap its first word and choose Select through…' : (error as Error).message;
+    panel.insertAdjacentHTML('beforeend', `<div class="ca-empty">${icon('notes')}<div><p>${esc(reason)}</p>
+      <button type="button" class="secondary" data-read>Choose a passage</button></div></div>${footer}`);
+    panel.querySelector<HTMLButtonElement>('[data-read]')!.onclick = actions.read;
     if (history) panel.querySelector('.ca-empty')!.before(history);
     return panel;
   }

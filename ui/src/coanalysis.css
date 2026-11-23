@@ -19,6 +19,7 @@
 .coanalysis #ca-heading .material-symbol { color: var(--ca-accent); font-size: 1.25rem; }
 .coanalysis .ca-empty { display: flex; align-items: flex-start; gap: .75rem; padding: 1rem; border: 1px dashed var(--control-edge); border-radius: .75rem; color: var(--muted); font-size: .92rem; line-height: 1.55; }
 .coanalysis .ca-empty .material-symbol { flex: none; color: var(--ca-accent); }
+.coanalysis .ca-empty button { margin-top:.65rem; min-height:44px; }
 
 .coanalysis .ca-source { min-width: 0; padding: .9rem 1rem; border: 1px solid var(--border); border-inline-start: 3px solid var(--ca-accent); border-radius: .7rem; background: var(--rail); }
 .ca-basis { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .35rem .6rem; }
