@@ -42,7 +42,9 @@ test.describe('touch passage tools',()=>{
       await page.route('**/api/reading?*',async route=>{await loading;await route.continue()},{times:1});
       await page.goto(practiceUrl);
       if(focus)await page.getByRole('button',{name:'Open reading canvas'}).tap();
-      const dock=page.locator('#canvas-tools');
+      // A selection may attach its passage above the player. The play and
+      // steering controls themselves stay under the same pointer coordinates.
+      const dock=page.locator('#canvas-tools .canvas-console');
       const before=await dock.boundingBox();
       showTranscript();
       await page.locator('[data-token="b3"] .reading-text').tap();

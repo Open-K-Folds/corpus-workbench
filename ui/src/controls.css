@@ -111,6 +111,14 @@ header .export-short{display:none}
   background:var(--accent); color:var(--paper);
 }
 .media-player .player-play:hover:not(:disabled) { background:var(--selection-ink); color:var(--paper) }
+#recording-pane:not([data-tool-transport]) .media-player .player-play {
+  background:transparent;
+  border:1px solid var(--control-edge);
+  color:var(--ink);
+}
+#recording-pane:not([data-tool-transport]) .media-player .player-play:hover:not(:disabled) {
+  background:var(--control-hover);
+}
 .player-play .material-symbol { font-size:23px }
 .player-time { flex:none; font:11px/1.25 var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; color:var(--muted) }
 .player-time b { font-size:13px; color:var(--ink); font-weight:650 }

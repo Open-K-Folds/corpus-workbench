@@ -61,6 +61,14 @@ On desktop, opening both drawers with the default widths preserved the reading
 measure. The screenshots use the spoken library-map fixture.
 [Desktop workspace](ui-audit/project-and-token-drawers.png) · [Phone inspector](ui-audit/token-drawer-phone.png)
 
+The floating player is the main playback control in both reading modes. A
+selected passage attaches above it with **Listen** and **Analyze** actions.
+On the spoken fixture, selecting “librarian opens” played the supplied
+0.945–2.135 s interval and opened co-analysis with token IDs w1-4 and w1-5.
+At 320px and 390px, the actions retained 44px touch targets and clearing the
+selection kept the transcript at its reading position.
+[Floating passage controls](ui-audit/floating-passage-controls.png)
+
 To repeat the browser exercises, build the UI and Rust binary, then run
 `npm run test:e2e --prefix ui`. The fresh-stage cases create a separate local
 authority per exercise. To repeat the Windows exercises, build and package the
