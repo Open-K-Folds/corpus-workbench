@@ -61,7 +61,7 @@ export class Transcript {
       if(!this.selection)this.selection=this.tokenBasis(ids);
       this.openWordTools(word);
     };
-    this.details.className='change-popover';this.details.hidden=true;document.body.append(this.menu,this.details);
+    this.details.className='change-popover';this.details.hidden=true;document.getElementById('passage-tools-layer')!.append(this.menu,this.details);
     this.pin=new PassagePin(this.surface,(words,showTools)=>this.selectPin(words,showTools),
       ()=>this.currentProjection()&&!this.dirty()&&!this.host.busy());
     if(this.host.training)this.training=new TrainingGesture(this.surface,token=>this.pinTraining(token));

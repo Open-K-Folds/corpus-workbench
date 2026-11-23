@@ -1,7 +1,7 @@
 import {api,ApiError,commit,loadView,login,makeCommand,resumeSession} from './api';
 import type {Command,Document,Operation,View} from './contracts';
 import {el,esc,field,formValues,seconds} from './dom';
-import {tokenInspector,annotationInspector} from './inspector';
+import {emptyTokenInspector,tokenInspector,annotationInspector} from './inspector';
 import {historyInspector} from './history';
 import {reviewInspector} from './review';
 import {researchInspector} from './research';
@@ -110,7 +110,7 @@ function loginScreen(expiredLink=false){
 }
 function shell(){shellEvents?.abort();shellEvents=new AbortController();overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
   ${windowBar(true)}${activityRail()}
-  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div role="region" aria-label="Transcript workspace" class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="drawer-bar"><div class="drawer-trail"><span>Workspace</span><span aria-hidden="true">/</span><strong>Projects</strong></div>${drawerClose('navigation')}</div>${projectDrawerBody()}</aside>
+  <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="drawer-bar"><div class="drawer-trail"><span>Workspace</span><span aria-hidden="true">/</span><strong>Projects</strong></div>${drawerClose('navigation')}</div>${projectDrawerBody()}</aside>
   <main class="transcript">
     <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
     ${readingToolbar()}
@@ -129,11 +129,12 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
     <div class="actions" role="group" aria-label="Selection playback" hidden>
-      <button type="button" id="listen-selected" class="secondary" aria-label="Listen to selection">${icon('headphones')}<span>From selection</span></button>
+      <button type="button" id="listen-selected" class="secondary" aria-label="Listen to selection">${icon('headphones')}<span>Listen to selection</span></button>
       <label class="selection-loop" title="Loop selection"><input id="loop-selection" type="checkbox" role="switch" aria-label="Loop selection">${icon('repeat')}</label>
     </div>
   </section>
   <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span><span id="token-count" role="status"></span></footer>
+  <div id="passage-tools-layer" role="region" aria-label="Passage actions"></div>
   ${workspaceSettings()}`;
   bindActivityRail(app,shellEvents.signal);
   if (remotePreview) {
@@ -357,9 +358,10 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   el('document-title').textContent=doc.title;
   const blocking=view.issues.filter(issue=>issue.blocking).length;
   const checks=el('native-problems');
-  checks.innerHTML=icon('fact_check')+'Package checks'+(view.issues.length?` <span>(${view.issues.length})</span>`:'');
+  const checksLabel='Package checks'+(view.issues.length?` (${view.issues.length})`:'');
+  checks.innerHTML=icon('fact_check')+checksLabel;
   checks.title=`Package validation · ${blocking} blocking / ${view.issues.length-blocking} advisory`;
-  checks.setAttribute('aria-label',checks.title);
+  checks.setAttribute('aria-label',checksLabel+'. '+checks.title);
   el('project-title').textContent=view.snapshot.project;
   el('drawer-project-title').textContent=view.snapshot.project;
   el('stage-file').textContent=doc.path;
@@ -545,7 +547,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   el('current-inspector').textContent=toolLabel;
   content.setAttribute('aria-label',toolLabel);
   content.replaceChildren();
-  if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.innerHTML='<h2>Listen and correct</h2><p>Select a token to inspect its original reading, corrections and annotations.</p><p class="muted">Find tokens: Ctrl / Command + K. Next match: F3. Inspector views: Alt + 1 through 9.</p>';}
+  if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.append(emptyTokenInspector());}
   training.stopAudio();
   if(tab==='training'||training.dirty)training.update(view,doc,selected);
   if(tab==='training')content.append(training.node);

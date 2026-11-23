@@ -57,7 +57,7 @@
 .reader-display {display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;align-content:start;gap:9px 14px}
 .reader-section-heading,.reader-source-actions,.reader-find-results {display:flex;align-items:center;gap:6px}
 .reader-section-heading {justify-content:space-between}
-.reader-sheet h3,#reading-guide h3 {margin:0;font:600 13px/1.4 system-ui,sans-serif;letter-spacing:-.015em;color:var(--ink)}
+.reader-sheet h2,#reading-guide h2 {margin:0;font:600 13px/1.4 system-ui,sans-serif;letter-spacing:-.015em;color:var(--ink)}
 .reader-display .reader-section-heading {grid-column:1 / -1}
 .reader-sheet .segmented-radio {width:max-content;padding:2px;justify-self:start;border-radius:6px}
 .reader-sheet .segmented-radio label>span {gap:4px;min-height:30px;padding:4px 8px}
@@ -68,7 +68,7 @@
 .reader-sheet .reader-layer {font:500 12px/1.4 system-ui,sans-serif;margin:0;color:var(--muted)}
 .reader-sheet #reading-layer,.stage-actions #token-filter {margin:0;width:100%;min-width:0;min-height:34px;background-color:var(--paper);font-size:12px}
 .reader-sheet .reader-source {min-width:0;display:grid;align-content:start;gap:9px;padding-inline-start:18px;border-inline-start:1px solid var(--border)}
-.reader-source h3 {min-height:24px;display:flex;align-items:center}
+.reader-source h2 {min-height:24px;display:flex;align-items:center}
 .reader-input-group {
   display:flex;align-items:center;min-width:0;box-sizing:border-box;min-height:34px;margin:0;gap:0;
   background:var(--paper);color:var(--muted);border:1px solid var(--control-edge);border-radius:5px;
@@ -121,7 +121,7 @@
   #reader-section-switch button[aria-pressed=true] {color:var(--ink);border-bottom-color:var(--accent)}
   .reader-sheet[data-reader-section=display] .reader-source,.reader-sheet[data-reader-section=source] .reader-display {display:none}
   .reader-sheet .reader-section-heading {position:absolute;inset:9px 12px auto auto}
-  .reader-sheet .reader-section-heading h3,.reader-source h3 {display:none}
+  .reader-sheet .reader-section-heading h2,.reader-source h2 {display:none}
   .reader-sheet #reading-guide-button {min-height:30px}
   .reader-sheet .reader-source {padding:0;border:0;gap:6px}
   .reader-sheet .interlinear-toggle {justify-self:end}

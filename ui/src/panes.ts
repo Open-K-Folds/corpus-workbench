@@ -35,7 +35,13 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
   const visible=(side:string)=>!workspace.classList.contains(side+'-folded') && workspace.dataset.parked!==side;
   const budget=()=>workspace.clientWidth-320;
   // Keep boundary hit targets outside the panes' scrolling content.
-  workspace.append(navigationHandle,propertiesHandle);navigationHandle.style.right='auto';
+  const resizeGroup=document.createElement('div');
+  resizeGroup.className='workspace-resizers';
+  resizeGroup.setAttribute('role','region');
+  resizeGroup.setAttribute('aria-label','Resize side panels');
+  resizeGroup.append(navigationHandle,propertiesHandle);
+  workspace.append(resizeGroup);
+  navigationHandle.style.right='auto';
   const positionHandles=()=>{const bounds=workspace.getBoundingClientRect(),narrow=matchMedia('(max-width:700px)').matches;navigationHandle.hidden=narrow||!visible('navigation');propertiesHandle.hidden=narrow||!visible('properties');navigationHandle.style.left=navigationPane.getBoundingClientRect().right-bounds.left+'px';propertiesHandle.style.left=propertiesPane.getBoundingClientRect().left-bounds.left+'px'};
   let fitting=true,constraints='',constraintWidth=-1,previousParked:string|undefined;
   const navigation=resizePane(navigationHandle,'wb-navigation-width',160,360,240,'x',1,size=>{root.style.setProperty('--navigation-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('navigation')?360:budget()-(visible('properties')?propertiesPane.getBoundingClientRect().width:0),measure:()=>visible('navigation')?navigationPane.getBoundingClientRect().width:0});

@@ -180,7 +180,7 @@
 
 #app[data-reading-canvas] > .workbench-header {display:none}
 #app[data-reading-canvas] > #recording-pane {position:absolute;inset:auto 0 0;width:auto;visibility:hidden;pointer-events:none}
-#app[data-reading-canvas] .workspace > :is(.documents,.inspector,.side-resizer) {visibility:hidden;pointer-events:none}
+#app[data-reading-canvas] .workspace :is(.documents,.inspector,.side-resizer) {visibility:hidden;pointer-events:none}
 #app[data-reading-canvas] .workspace > :is(.transcript,.canvas-tools) {grid-column:1 / -1}
 #app[data-reading-canvas] .workspace > .transcript {
   position:relative;z-index:1;

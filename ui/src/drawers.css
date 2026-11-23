@@ -1,5 +1,8 @@
 /* A drawer owns its scroll position. Its breadcrumb and dismiss control stay
    reachable while the researcher moves through a long file list or form. */
+.workspace-resizers,#passage-tools-layer {display:contents}
+.workspace-resizers:not(:has(>[role=separator]:not([hidden]))),
+#passage-tools-layer:not(:has(>:not([hidden]))) {display:none}
 .workspace > :is(.documents,.inspector) {
   --drawer-surface:#fff;
   --drawer-inset:clamp(14px,1.4vw,22px);

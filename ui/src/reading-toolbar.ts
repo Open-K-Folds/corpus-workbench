@@ -11,8 +11,8 @@ export function readingToolbar(){
           <button type="button" aria-controls="reader-source" aria-pressed="false">Source</button>
         </div>
         <section id="reader-display" aria-labelledby="reader-display-heading" class="reader-display">
-          <div class="reader-section-heading"><h3 id="reader-display-heading">Text display</h3>
-            <button type="button" id="reading-guide-button" class="reader-text-command" popovertarget="reading-guide" aria-label="Selection guide" title="Selection guide">${icon('keyboard')}<span>Gestures</span></button>
+          <div class="reader-section-heading"><h2 id="reader-display-heading">Text display</h2>
+            <button type="button" id="reading-guide-button" class="reader-text-command" popovertarget="reading-guide" aria-label="Selection guide" title="Selection guide">${icon('keyboard')}<span>Selection guide</span></button>
           </div>
           <fieldset id="transcript-layout" class="segmented-radio"><legend class="sr-only">Text layout</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon('notes')}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon('view_agenda')}Lines</span></label></fieldset>
           <label class="switch-field interlinear-toggle"><input id="show-interlinear" type="checkbox" role="switch"><span>Interlinear</span></label>
@@ -20,7 +20,7 @@ export function readingToolbar(){
           <select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></div>
         </section>
         <section id="reader-source" aria-labelledby="reader-source-heading" class="reader-source">
-          <h3 id="reader-source-heading">Source reference</h3>
+          <h2 id="reader-source-heading">Source reference</h2>
           <form id="source-jump-form" class="reader-input-group">
             <label for="source-location" class="sr-only">Go to source</label>
             <input id="source-location" placeholder="Utterance or token ID" autocomplete="off" required>
@@ -46,7 +46,7 @@ export function readingToolbar(){
       </div>
     </section>
     <aside id="reading-guide" popover aria-labelledby="reading-guide-title">
-      <div class="reader-section-heading"><h3 id="reading-guide-title">Selection guide</h3><button type="button" class="reader-text-command" popovertarget="reading-guide" popovertargetaction="hide" aria-label="Close selection guide">${icon('close')}</button></div>
+      <div class="reader-section-heading"><h2 id="reading-guide-title">Selection guide</h2><button type="button" class="reader-text-command" popovertarget="reading-guide" popovertargetaction="hide" aria-label="Close selection guide">${icon('close')}</button></div>
       <dl id="selection-help">
         <dt>Select a passage</dt><dd>Drag across words, or click the first word, choose <strong>Select through</strong> and click the last word.</dd>
         <dt>Open selection tools</dt><dd>Tap the selected count, right-click, or press <kbd>Shift</kbd> + <kbd>F10</kbd>.</dd>

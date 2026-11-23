@@ -98,8 +98,8 @@ body {background:var(--paper);color:var(--ink)}
 #app #recording-pane {box-shadow:0 -3px 14px rgb(0 0 0 / .09)}
 .workspace[data-parked=navigation] {grid-template-columns:0 minmax(0,1fr) var(--properties-width)}
 .workspace[data-parked=properties] {grid-template-columns:var(--navigation-width) minmax(0,1fr) 0}
-.workspace[data-parked=navigation] > :is(.documents,#navigation-resizer),
-.workspace[data-parked=properties] > :is(.inspector,#properties-resizer) {display:none}
+.workspace[data-parked=navigation] :is(.documents,#navigation-resizer),
+.workspace[data-parked=properties] :is(.inspector,#properties-resizer) {display:none}
 #app .workspace[data-parked=properties] > #training-comparison {display:none}
 .documents .navigation-heading {display:flex;justify-content:space-between;align-items:baseline;margin:9px 0 14px}
 .documents h2,.inspector h2 {font-size:16px}
