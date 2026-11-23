@@ -126,7 +126,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
       </div>
       <p id="selection-help" class="muted">Click a word to select it. Drag across words for a passage. Tap the selected count, right-click, or press Shift+F10 for tools. Hold a word for training lenses. Escape clears the selection.</p>
     </details>
-    <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Focus mode � Open reading canvas" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
+    <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Focus mode (Open reading canvas)" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
     </div>
     <div class="transcript-title"><h2 id="document-title"></h2></div>
     <p class="canvas-help">Drag across words to select a passage. Drag the margin to move through the transcript.</p>
@@ -217,14 +217,14 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'));
   playbackSync=new PlaybackSync(el<HTMLAudioElement>('audio'),el('tokens'),turn=>readingCanvas?.setPlaybackTurn(turn));
-  overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:target=>{tab=target;showProperties();void renderInspector()}});
+  overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:openInspectorActivity});
   el('open-overview').onclick=()=>overview?.open();
   el('transcript-layout').onchange=e=>transcript.setLayout((e.target as HTMLInputElement).value as 'lines'|'paragraphs');
   buttonGroup(document.querySelector('.navigation-modes')!);buttonGroup(el('document-tabs'));
   buttonGroup(document.querySelector('.inspector nav')!);scrollIndicators(app);
   el<HTMLInputElement>('show-interlinear').onchange=e=>transcript.setInterlinear((e.target as HTMLInputElement).checked);
-  el('native-problems').onclick=()=>{tab='review';showProperties();void renderInspector()};
-  el('open-research').onclick=()=>{tab='research';showProperties();void renderInspector()};
+  el('native-problems').onclick=()=>openInspectorActivity('review');
+  el('open-research').onclick=()=>openInspectorActivity('research');
   el('jump-source').onclick=()=>{if(!transcript.location(el<HTMLInputElement>('source-location').value.trim()))message('No such source ID in this document. Display wrapping does not create line IDs.',true)};
   el('copy-citation').onclick=async()=>{const citation=transcript.citation();const url=new URL(location.origin+location.pathname);url.hash=new URLSearchParams({loc:JSON.stringify(citation)}).toString();try{await navigator.clipboard.writeText(url.href);message(`Copied ${currentDoc().title} · ${citation.anchor??'document'} · R${citation.revision}. The link needs an authenticated local session.`)}catch{message('Clipboard access is unavailable. Select a source ID and use Go to inspect its location.',true)}};
   el('navigate-documents').onclick=()=>{navigationMode='documents';renderNavigation()};
@@ -259,7 +259,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='k'&&!transcript.activeDraft()){event.preventDefault();readingCanvas?.close(false);showTranscript();settings.open=true;el<HTMLInputElement>('token-query').focus();return}
     if((event.target as HTMLElement).closest('#tokens,[contenteditable]'))return;
     if(event.key==='F3'){event.preventDefault();nextMatch();return}
-    if(event.altKey&&/^[1-9]$/.test(event.key)){event.preventDefault();tab=inspectorViews[Number(event.key)-1].id;showProperties();void renderInspector();return}
+    if(event.altKey&&/^[1-9]$/.test(event.key)){event.preventDefault();openInspectorActivity(inspectorViews[Number(event.key)-1].id);return}
     if((event.target as HTMLElement).closest('input,textarea,select,button,a,summary'))return;
     if(event.code==='Space'&&audio.hasAttribute('src')&&!audio.error){
       event.preventDefault();
@@ -625,10 +625,8 @@ function desktopMenu(command:string){
     const submit=form?.querySelector<HTMLButtonElement>('button:not([type="button"]):not(:disabled),input[type="submit"]:not(:disabled)');
     if(form&&submit)form.requestSubmit(submit);else message('Choose a correction or a properties form to save. Every accepted edit creates a named revision.');
   }
-  if(command==='search'){tab='search';showProperties();void renderInspector()}
+  if(command==='search'||command==='history'||command==='research')openInspectorActivity(command);
   if(command==='export')el('export-package').click();
-  if(command==='history'){tab='history';showProperties();void renderInspector()}
-  if(command==='research'){tab='research';showProperties();void renderInspector()}
   if(command==='toggle-inspector'){if(readingCanvas?.active)showProperties();else el('toggle-properties').click()}
   if(command==='toggle-recording'){readingCanvas?.close(false);el('timeline-toggle').click()}
 }
