@@ -441,6 +441,29 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
     const key = JSON.stringify([view.snapshot.project, view.revision.id, view.revision.snapshot_hash, doc.path, selected]);
     if (!coanalysisDraft || (coanalysisDraft.key !== key && !coanalysisDraft.panel.querySelector('form[data-dirty="true"]'))) {
       coanalysisDraft = {key, revision: view.revision.id, document: doc.path, panel: coanalysisInspector(view, doc, selected, {
+        reveal: async ids => {
+          const navigationEpoch = inspectorEpoch;
+          if (saving || pendingWrite || transcript.dirty() || transcript.busy()) return 'Finish the current edit before opening the passage.';
+          if (doc !== currentDoc()) return 'Reopen co-analysis on the current document to see this passage.';
+          const tokens = doc.tokens.filter(token => ids.includes(token.id));
+          const switchLayer = tokens.some(token => reading(token,readingPreferences.layer) !== (token.corrected ?? token.original));
+          const clearFilter = tokens.some(token => !visibleToken(token,readingPreferences));
+          if (switchLayer || clearFilter) {
+            if (switchLayer) {
+              readingPreferences.layer = 'corrected';
+              el<HTMLSelectElement>('reading-layer').value = 'corrected';
+            }
+            if (clearFilter) {
+              readingPreferences.query = ''; readingPreferences.filter = 'all';
+              el<HTMLInputElement>('token-query').value = ''; el<HTMLSelectElement>('token-filter').value = 'all';
+            }
+            await transcript.render();
+            if (doc !== currentDoc() || navigationEpoch !== inspectorEpoch) return 'The open passage changed.';
+          }
+          showTranscript();
+          if (!transcript.revealPassage(ids)) message('The passage is unavailable in this view.',true);
+          return '';
+        },
         dirty: draftStatus, save, listening:{check:checkCue,play:listen}, discard: async stale => {
           if (saving || pendingWrite) return;
           if (stale) {

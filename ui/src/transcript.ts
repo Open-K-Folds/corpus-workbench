@@ -530,6 +530,21 @@ export class Transcript {
     catch(e){if(!confirmed&&e instanceof ApiError&&e.status===409){d.phase='conflict';d.command=null}else if(!confirmed&&e instanceof ApiError&&e.status>=400&&e.status<500){d.phase='editing';d.command=null}else d.phase='unknown';this.persist();if(d.phase!=='unknown'){d.unlock?.();d.unlock=undefined}this.host.message(confirmed?`Committed R${confirmed.id}; view refresh pending. Resolve the same command. ${String(e)}`:String(e),true);this.updateDraft()}
   }
   location(id:string){const block=this.projection?.blocks.find(b=>b.source_id===id||b.anchor_token===id||b.sections.some(s=>s.id===id)||b.runs.some(r=>r.token===id));if(!block)return false;const target=this.surface.querySelector<HTMLElement>(`[data-location="${CSS.escape(block.source_id??block.anchor_token??'')}"]`);target?.scrollIntoView({block:'center'});if(target){target.tabIndex=-1;target.focus();document.getElementById('source-location-status')!.textContent=`${this.host.doc().title} · ${block.sections.map(s=>`${s.kind} ${s.number??s.id}`).join(' / ')} ${block.source_id??block.anchor_token??id} · R${this.host.view().revision.id} · source reference`}return !!target}
+  revealPassage(ids:string[]) {
+    if (!this.currentProjection() || this.draft || this.host.busy() || !ids.length) return false;
+    const words = ids.map(id => this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(id)}"]`));
+    if (words.some(word => !word)) return false;
+    this.pin.clear();
+    window.getSelection()?.removeAllRanges();
+    this.selection = this.tokenBasis(ids);
+    this.menu.hidden = true;
+    this.details.hidden = true;
+    this.host.select([...ids]);
+    this.paintSelection();
+    words[0]!.focus({preventScroll:true});
+    words[0]!.scrollIntoView({block:'center'});
+    return true;
+  }
   private currentProjection(){const p=this.projection,v=this.host.view();return !!p&&!this.surface.inert&&p.document===this.host.doc().path&&p.project===v.snapshot.project&&p.revision===v.revision.id&&p.snapshot_hash===v.revision.snapshot_hash&&p.artifact_hash===v.snapshot.files[p.document]?.sha256}
   citation(){const s=this.selection,view=this.host.view();const ids=s?.ids??this.host.selected();return {project:view.snapshot.project,revision:view.revision.id,document:this.host.doc().path,anchor:ids[0]??this.projection?.blocks.find(b=>b.anchor_token)?.anchor_token,end:ids.at(-1)}}
 }

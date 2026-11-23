@@ -60,9 +60,15 @@ test('a model reply becomes a revision-bound annotation only after human assessm
   expect(JSON.parse(span.fields.note).prompt).toContain('"utterance":"turn-2"');
   await page.reload();
   await page.locator('#rail-coanalysis').click();
+  await expect(panel.locator('.ca-saved > summary')).toContainText('board.');
+  await expect(panel.locator('.ca-saved > summary')).toContainText('I only');
+  await expect(panel.locator('.ca-saved > summary')).not.toContainText('a7');
   await panel.locator('.ca-saved > summary').click();
   await expect(panel.locator('.ca-saved')).toContainText('The boundary splits two utterances.');
   expect(await panel.locator('.ca-saved p').allTextContents()).toContain(firstReading);
+  await panel.getByRole('button', {name:'Show in transcript'}).click();
+  await expect(page.locator('#tokens .selected')).toHaveCount(3);
+  await expect(page.locator('[data-token="a7"]')).toBeFocused();
   await page.getByRole('button', {name: 'Export complete package'}).click();
   const downloadEvent = page.waitForEvent('download');
   await page.getByRole('link', {name: 'Download complete package'}).click();
@@ -89,7 +95,10 @@ test('a model reply becomes a revision-bound annotation only after human assessm
     const view = await (await fetch('/api/view')).json();
     const response = await fetch('/api/command', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-WB-CSRF': sessionStorage.getItem('wb-csrf')!},
       body: JSON.stringify({schema: 1, project: view.snapshot.project, command_id: 'concurrent-update', base_revision: view.revision.id, preimage_hash: view.revision.snapshot_hash,
-        config_version: view.snapshot.config.version, label: 'Synthetic concurrent correction', operations: [{kind: 'set_token', document: view.documents[0].path, token: 'c1', fields: {nform: 'We'}}]})});
+        config_version: view.snapshot.config.version, label: 'Synthetic concurrent correction', operations: [
+          {kind: 'set_token', document: view.documents[0].path, token: 'c1', fields: {nform: 'We'}},
+          {kind: 'set_token', document: view.documents[0].path, token: 'b2', fields: {nform: 'also'}},
+        ]})});
     if (!response.ok) throw new Error(await response.text());
   });
   await page.getByRole('button', {name: 'Resolve original save'}).click();
@@ -100,6 +109,11 @@ test('a model reply becomes a revision-bound annotation only after human assessm
   await panel.getByRole('button', {name: 'Discard co-analysis draft'}).click();
   await expect(page.locator('#save-state')).toContainText('Saved R3');
   await expect(panel.locator('.ca-excerpt')).toContainText('We');
+  await panel.locator('.ca-history > summary').click();
+  await panel.locator('.ca-saved > summary').click();
+  await expect(panel.locator('.ca-saved-quote')).toContainText('I only');
+  await expect(panel.locator('.ca-saved-body')).toContainText('differs from the open transcript');
+  await expect(panel.getByRole('button',{name:'Show in transcript'})).toBeHidden();
   expect(errors).toEqual([]);
   expect(external).toEqual([]);
 });

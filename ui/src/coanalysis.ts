@@ -29,26 +29,84 @@ interface Memo {
   interpretation: string;
 }
 
-function savedMemos(doc: Document) {
-  const items: string[] = [];
+type PassageGroups = ReturnType<typeof preparePassage>['groups'];
+
+// Existing exported annotations carry their original source words in the saved prompt.
+function savedExcerpt(memo: Memo): PassageGroups | null {
+  const marker = '\n\nTranscript excerpt: ';
+  const start = typeof memo.prompt === 'string' ? memo.prompt.lastIndexOf(marker) : -1;
+  if (start < 0) return null;
+  try {
+    const groups = JSON.parse(memo.prompt.slice(start + marker.length)) as PassageGroups;
+    if (!Array.isArray(groups) || !groups.length || !groups.every(group =>
+      group && (group.utterance === null || typeof group.utterance === 'string') &&
+      typeof group.gap_before === 'boolean' && Array.isArray(group.tokens) && group.tokens.length &&
+      group.tokens.every(token => token && typeof token.id === 'string' && typeof token.text === 'string'))) return null;
+    return groups;
+  } catch { return null; }
+}
+
+function savedMemos(view: View, doc: Document, expand: boolean, actions: Actions) {
+  const library = document.createElement('details');
+  library.className = 'ca-history';
+  library.open = expand;
+  const heading = document.createElement('summary');
+  library.append(heading);
+  let count = 0;
   for (const span of doc.spans) {
     if (!span.id.startsWith('coanalysis-')) continue;
-    try {
-      const memo = JSON.parse(span.fields.note) as Memo;
-      if (memo?.format !== 'corpus-workbench/coanalysis-1') continue;
-      items.push(`<details class="ca-saved"><summary>${esc(memo.decision)} · ${esc(span.token_ids.join(', '))}</summary>
-        <p>${esc(memo.question)}</p>
-        ${memo.first_reading ? `<strong>Your first reading</strong><p>${esc(memo.first_reading)}</p><small>Recorded before opening the proposal here.</small>` : ''}
-        <strong>Model proposal · ${esc(memo.model)}</strong><p>${esc(memo.proposal)}</p>
+    let memo: Memo;
+    try { memo = JSON.parse(span.fields.note); } catch { continue; }
+    if (memo?.format !== 'corpus-workbench/coanalysis-1') continue;
+    const groups = savedExcerpt(memo);
+    const quote = groups?.map(group =>
+      (group.gap_before ? '[…] ' : '') + group.tokens.map(token => token.text).join(' ')).join('\n');
+    const row = document.createElement('details');
+    row.className = 'ca-saved';
+    row.innerHTML = `<summary><span class="ca-saved-quote">${esc(quote || memo.question || 'Saved interpretation')}</span>
+      <small>${esc(memo.decision)} · R${esc(memo.revision)}</small>${icon('chevron_right')}</summary>
+      <div class="ca-saved-body">
         <strong>Researcher interpretation</strong><p>${esc(memo.interpretation)}</p>
-        <small>Based on saved R${esc(memo.revision)} · ${memo.method === 'llama.cpp' ? 'Local llama.cpp' : 'Manually supplied reply'}</small>
-        <details><summary>Original prompt and source</summary><p>${esc(memo.project)} · ${esc(memo.document)} · R${esc(memo.revision)}</p><code>${esc(memo.snapshot_hash)}</code><p>${esc(memo.prompt)}</p></details></details>`);
-    } catch { /* Other imported span notes can contain plain text. */ }
+        <strong>Research question</strong><p>${esc(memo.question)}</p>
+        ${memo.first_reading ? `<strong>Your first reading</strong><p>${esc(memo.first_reading)}</p>` : ''}
+        <strong>Model proposal · ${esc(memo.model)}</strong><p>${esc(memo.proposal)}</p>
+        <details><summary>Original prompt and source</summary><p>${esc(memo.project)} · ${esc(memo.document)} · R${esc(memo.revision)}</p>
+          <p>${esc(span.token_ids.join(', '))}</p><code>${esc(memo.snapshot_hash)}</code><p>${esc(memo.prompt)}</p>
+          <small>${memo.method === 'llama.cpp' ? 'Local llama.cpp' : 'Manually supplied reply'}</small></details>
+      </div>`;
+    if (groups) {
+      const action = document.createElement('button');
+      action.className = 'secondary';
+      action.type = 'button';
+      action.hidden = true;
+      action.innerHTML = icon('menu_book') + 'Show in transcript';
+      const status = document.createElement('small');
+      status.setAttribute('role', 'status');
+      row.querySelector('.ca-saved-body')!.prepend(action, status);
+      action.onclick = async () => { status.textContent = await actions.reveal(span.token_ids); };
+      row.ontoggle = () => {
+        if (!row.open) return;
+        let matches = false;
+        if (memo.project === view.snapshot.project && memo.document === doc.path) {
+          try {
+            const current = preparePassage(view, {project: memo.project, document: doc.path, revision: view.revision.id,
+              snapshot_hash: view.revision.snapshot_hash, token_ids: span.token_ids, question: memo.question});
+            matches = JSON.stringify(current.groups) === JSON.stringify(groups);
+          } catch { /* The saved passage can outlive its anchors. */ }
+        }
+        action.hidden = !matches;
+        status.textContent = matches ? '' : `Showing the passage saved at R${memo.revision}. Its wording or source differs from the open transcript.`;
+      };
+    }
+    library.append(row);
+    count++;
   }
-  return items.length ? `<section class="ca-history"><h3>Saved interpretations (${items.length})</h3>${items.join('')}</section>` : '';
+  heading.textContent = `Saved interpretations (${count})`;
+  return count ? library : null;
 }
 
 interface Actions {
+  reveal: (ids: string[]) => Promise<string>;
   listening: Listening;
   dirty: () => void;
   discard: (stale: boolean) => Promise<void>;
@@ -66,11 +124,13 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   };
   panel.innerHTML = `<h2 id="ca-heading">${icon('tune')}Transcript co-analysis</h2>`;
   const footer = `<p class="ca-credit">Inspired by Chuanqi Sun’s Spaceship IDE.</p>`;
+  const history = savedMemos(view, doc, !ids.length, actions);
   let passage: ReturnType<typeof preparePassage>;
   try { passage = preparePassage(view, request); }
   catch (error) {
     const reason = !ids.length ? 'Select words in the transcript and choose Co-analyse. You can also click a word and Shift-click the end of a passage.' : (error as Error).message;
-    panel.insertAdjacentHTML('beforeend', `<p class="ca-empty">${icon('notes')}<span>${esc(reason)}</span></p>${savedMemos(doc)}${footer}`);
+    panel.insertAdjacentHTML('beforeend', `<p class="ca-empty">${icon('notes')}<span>${esc(reason)}</span></p>${footer}`);
+    if (history) panel.querySelector('.ca-empty')!.before(history);
     return panel;
   }
   const groups = passage.groups;
@@ -78,11 +138,11 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   panel.insertAdjacentHTML('beforeend', `
     <section class="ca-source" aria-label="Passage for co-analysis">
       <div class="ca-basis"><strong>${icon('link')}Saved passage</strong><span>R${view.revision.id} · ${ids.length} ${ids.length === 1 ? 'token' : 'tokens'}</span></div>
-      <div class="ca-document">${esc(doc.title)}<small>${esc(doc.path)}</small></div>
       ${groups.map(group => `<div class="ca-excerpt">${group.gap_before ? '<span aria-label="omitted tokens">[…]</span>' : ''}
         ${group.utterance ? `<small>${esc(group.utterance)}</small>` : ''}
         <blockquote>${group.tokens.map(token => esc(token.text)).join(' ')}</blockquote></div>`).join('')}
-      <details><summary>Source anchors</summary><p>${esc(request.token_ids.join(', '))}</p><small>Human-corrected reading with original text where a correction is absent.</small></details>
+      <div class="ca-document">${esc(doc.title)}</div>
+      <details><summary>Source anchors</summary><p>${esc(doc.path)}</p><p>${esc(request.token_ids.join(', '))}</p><small>Human-corrected reading with original text where a correction is absent.</small></details>
       <button type="button" class="secondary" data-listen-pinned aria-describedby="pinned-cue-basis">${icon('headphones')}Listen to pinned passage</button>
       <small id="pinned-cue-basis"></small>
     </section>
@@ -124,9 +184,10 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
       </section>
       <p data-status role="status"></p>
       <button type="button" class="secondary" data-discard hidden>Discard co-analysis draft</button>
-    </form>${savedMemos(doc)}${footer}`);
+    </form>${footer}`);
 
   const form = panel.querySelector('form')!;
+  if (history) form.before(history);
   const listenButton = panel.querySelector<HTMLButtonElement>('[data-listen-pinned]')!;
   const cueBasis = panel.querySelector<HTMLElement>('#pinned-cue-basis')!;
   function refreshCue(){

@@ -30,7 +30,7 @@
 .ca-document small { display: block; margin-top: .12rem; font-weight: 400; overflow-wrap: anywhere; }
 .ca-excerpt { margin-block: .7rem; }
 .ca-excerpt small { display: block; font: .72rem/1.5 ui-monospace, Consolas, monospace; }
-.ca-excerpt blockquote { font: 1.13rem/1.55 Georgia, serif; white-space: pre-wrap; }
+.ca-excerpt blockquote { font: 500 1.05rem/1.6 var(--stage-type,var(--font-mono)); white-space: pre-wrap; }
 .ca-excerpt > span { color: var(--muted); }
 .coanalysis details { min-width: 0; max-width: 100%; }
 .coanalysis summary { margin: 0; padding: .4rem 0; color: var(--ink); font-size: .85rem; font-weight: 550; cursor: pointer; }
@@ -80,8 +80,19 @@
 .coanalysis .ca-judgment { padding-top: 1rem; border-top: 1px solid var(--border); }
 #coanalysis-form :is([data-run], [data-use], [data-save]):not(:disabled) { background: var(--ca-accent); border-color: var(--ca-accent); color: var(--paper); }
 #coanalysis-form [data-status]:not(:empty) { padding: .65rem .8rem; border-left: 2px solid var(--ca-accent); background: var(--rail); color: var(--ink); }
-.coanalysis .ca-history { padding-top: .8rem; border-top: 1px solid var(--border); }
-.coanalysis .ca-saved p { white-space: pre-wrap; }
+.coanalysis .ca-history { display:block; padding-block:.25rem; border-block:1px solid var(--border); }
+.ca-history > summary { min-height:44px; align-content:center; }
+.coanalysis .ca-saved { padding:0; border:0; border-top:1px solid var(--border); border-radius:0; background:transparent; }
+.ca-saved > summary { position:relative; display:grid; gap:.25rem; min-height:44px; padding:.65rem 1.5rem .65rem 0; }
+.ca-saved > summary .material-symbol { position:absolute; inset:.7rem .1rem auto auto; font-size:1.05rem; color:var(--muted); }
+.ca-saved[open] > summary .material-symbol { transform:rotate(90deg); }
+.ca-saved-quote { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; color:var(--ink); font:500 .98rem/1.5 var(--stage-type,var(--font-mono)); white-space:pre-line; }
+.ca-saved[open] .ca-saved-quote { display:block; }
+.ca-saved-body { display:grid; gap:.3rem; padding-block:0 .8rem; }
+.ca-saved-body strong { margin-top:.45rem; font-size:.85rem; }
+.ca-saved-body > p { white-space:pre-wrap; line-height:1.55; }
+.ca-saved-body > [role=status]:empty { display:none; }
+.ca-saved-body > button { min-height:44px; }
 .coanalysis .ca-credit { padding-top: .8rem; border-top: 1px solid var(--border); }
 .coanalysis [hidden], #coanalysis-form [hidden], #coanalysis-form [data-status]:empty { display: none; }
 @media (max-width: 700px) {
