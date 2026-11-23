@@ -80,3 +80,15 @@ authority per exercise. To repeat the Windows exercises, build and package the
 desktop app, set `WB_ELECTRON_EXECUTABLE` to its full path, and run
 `npm run test:electron`. Follow the [noticeboard walkthrough](CO-ANALYSIS.md)
 for the real model exercise.
+
+## G11 annotation evidence check
+
+In Edge, all four saved training examples in an isolated copy of the real ASR
+review project opened from their margin pins. The quotations, labels, model
+and reviewer matched the saved records. Each drawer showed the original token
+IDs and returned to its own card. The project stayed at its original revision.
+Practice transcripts covered a pair of overlapping notes, omitted words, an
+emoji inside a word, a long scrollable note, keyboard navigation and a 320px
+touch viewport. The screenshot uses the fictional library recording.
+
+![A numbered pin connects the highlighted phrase about the map to the researcher’s note.](ui-audit/annotation-evidence.png)
