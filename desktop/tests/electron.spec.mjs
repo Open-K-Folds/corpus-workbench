@@ -621,7 +621,8 @@ test('packaged per-term language search preserves literal bindings, native downl
     ({application,page}=await launch(profile,store,'b28-search-preview'));await ready(page);expect(page.url()).toBe('workbench://app/');
     const errors=[];page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')errors.push(message.text())});
     const before=(await head(page)).revision;await b28ObserveSearch(page);await page.getByRole('button',{name:'Corpus search',exact:true}).click();
-    await page.getByLabel('Exact token sequence',{exact:true}).fill(b28Words.slice(0,2).join('\n'));await page.locator('.search-term-languages>summary').click();
+    await page.getByLabel('Exact token sequence',{exact:true}).fill(b28Words.slice(0,2).join('\n'));
+    await page.getByText('Search options',{exact:true}).click();await page.locator('.search-term-languages>summary').click();
     await expect(b28Language(page,1)).toHaveValue('default');await expect(b28Language(page,2)).toHaveValue('default');
     const unfiltered=await b28Search(page,41);expect(unfiltered.result.query.terms).toEqual(b28Words.slice(0,2).map(text=>({text,language:null})));
     await page.getByLabel('Language / variety filter',{exact:true}).fill('fr');const defaults=await b28Search(page,1);expect(defaults.result.query.terms.map(term=>term.language)).toEqual(['fr','fr']);
@@ -685,7 +686,8 @@ test('packaged eight-term languages keep scrolling and audio through resize and 
   let application,page;const geometry=[],errors=[];
   try{
     ({application,page}=await launch(profile,store,'b28-panes-preview'));await ready(page);page.on('pageerror',error=>errors.push(error.message));await b28ObserveSearch(page);
-    const before=(await head(page)).revision;await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill(b28Words.join('\n'));await page.locator('.search-term-languages>summary').click();
+    const before=(await head(page)).revision;await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill(b28Words.join('\n'));
+    await page.getByText('Search options',{exact:true}).click();await page.locator('.search-term-languages>summary').click();
     for(let position=1;position<=8;position++)await b28ChooseExact(page,position,position%2?'fr':'en');await page.getByRole('combobox',{name:'Page size',exact:true}).selectOption('25');const result=await b28Search(page,40);
     expect(result.result.query.terms).toEqual(b28Words.map((text,index)=>({text,language:index%2?'en':'fr'})));await expect(page.locator('.search-hit')).toHaveCount(25);
     await page.locator('#properties-resizer').focus();await page.keyboard.press('Home');await settleLayout(page);nearPixels((await paneGeometry(application,page)).properties.width,260);
@@ -722,7 +724,8 @@ test('packaged eight-term languages keep scrolling and audio through resize and 
     ({application,page}=await launch(profile,store,'b28-panes-preview'));await ready(page);await settleLayout(page);page.on('pageerror',error=>errors.push(error.message));
     await expect(page.locator('html')).toHaveAttribute('data-theme','dark');const restored=await paneGeometry(application,page);geometry.push({stage:'reopened persisted theme panes and journal',...restored});expect(restored.preferred).toEqual(persisted.preferred);for(const side of ['navigation','properties'])nearPixels(restored[side].width,persisted[side].width);nearPixels(restored.recording.height,persisted.recording.height);
     await expect(page.getByRole('button',{name:'Recover correction',exact:true})).toBeVisible();expect(await records(page)).toEqual(retained);expect((await head(page)).revision).toEqual(before);await page.getByRole('button',{name:'Recover correction',exact:true}).click();await expect(page.getByLabel('Proposed correction')).toHaveValue('SYNTHETIC e\u0301 retained language draft');
-    await page.getByRole('button',{name:'Corpus search',exact:true}).click();const reopenedSearch={tokens:await page.getByLabel('Exact token sequence',{exact:true}).inputValue(),language:await page.getByLabel('Language / variety filter',{exact:true}).inputValue(),term_rows:await page.locator('#search-term-languages .search-term-language').count()};
+    await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByText('Search options',{exact:true}).click();
+    const reopenedSearch={tokens:await page.getByLabel('Exact token sequence',{exact:true}).inputValue(),language:await page.getByLabel('Language / variety filter',{exact:true}).inputValue(),term_rows:await page.locator('#search-term-languages .search-term-language').count()};
     await captureNative(application,join(evidence,'electron-b28-draft-after-relaunch-native.png'));const recovered=await records(page);expect(recovered).toEqual([{...retained[0],id:expect.any(String),updated:expect.any(Number)}]);
     await expect.poll(()=>Object.values(JSON.parse(readFileSync(join(profile,'drafts/correction-journal.json'),'utf8')))).toEqual(recovered);expect((await head(page)).revision).toEqual(before);expect(errors).toEqual([]);
     await queue(application,'message',[1]);await quit(application,await sidecars(application));application=null;
