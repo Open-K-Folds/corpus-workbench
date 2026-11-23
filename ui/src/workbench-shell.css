@@ -217,6 +217,16 @@ body {background:var(--paper);color:var(--ink)}
 .studio-status #token-count {display:flex;flex:none;align-items:center;white-space:pre;color:var(--muted);font:inherit}
 .studio-status .selected-passage-tools {display:inline-flex;align-items:center;gap:3px;min-height:18px;padding:0 4px;background:var(--control-surface);border:1px solid var(--control-edge);border-radius:4px;color:var(--ink);font:inherit}
 .studio-status .selected-passage-tools .material-symbol {font-size:13px}
+.studio-status .passage-range-action,.studio-status .passage-range-prompt {font:500 12px/1.25 system-ui,sans-serif}
+.studio-status .passage-range-action {margin-inline-start:6px;min-height:24px;padding-inline:7px;border-color:var(--control-edge);color:var(--selection-ink)}
+.studio-status .passage-range-prompt {color:var(--ink)}
+.studio-status:has(.passage-range-action) {padding-block:0}
+.workspace:has(.transcript[inert]) ~ .studio-status .passage-range-action {display:none}
+@media(max-width:700px){
+  .studio-status #token-count:has(.passage-range-action) .token-count-prefix {display:none}
+  .studio-status:has(.preview-update:not(.sr-only)):has(.passage-range-action) {flex-wrap:wrap;justify-content:flex-end;gap:2px 8px}
+  .studio-status:has(.preview-update:not(.sr-only)):has(.passage-range-action) #stage-file {display:none}
+}
 @media(any-pointer:coarse) {
   .studio-status {min-height:45px;padding-block:0}
   .studio-status .selected-passage-tools {min-width:44px;min-height:44px;padding-inline:8px;border-block:0;border-radius:0}
