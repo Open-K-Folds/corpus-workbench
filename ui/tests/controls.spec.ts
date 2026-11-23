@@ -26,10 +26,11 @@ async function seek(page:Page,value:string){await range(page,'#audio-seek',Numbe
 
 test('view radios, switches and grouped navigation expose real keyboard state and persist preferences',async({page})=>{
   await open(page);
+  await page.locator('.reading-settings > summary').click();
   const flow=page.getByRole('radio',{name:'Flowing paragraphs',exact:true}),lines=page.getByRole('radio',{name:'Source lines',exact:true});
   await flow.focus();await page.keyboard.press('ArrowRight');await expect(lines).toBeChecked();await expect(lines).toBeFocused();await expect(page.locator('#tokens')).toHaveAttribute('data-layout','lines');
   const interlinear=page.getByRole('switch',{name:'Interlinear',exact:true});await interlinear.focus();await page.keyboard.press('Space');await expect(interlinear).toBeChecked();await expect(page.locator('#tokens')).toHaveAttribute('data-interlinear','true');
-  await page.reload();await expect(lines).toBeChecked();await expect(interlinear).toBeChecked();
+  await page.reload();await page.locator('.reading-settings > summary').click();await expect(lines).toBeChecked();await expect(interlinear).toBeChecked();
   await page.getByRole('button',{name:'Documents',exact:true}).focus();await page.keyboard.press('ArrowRight');await expect(page.getByRole('button',{name:'Sources',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('button',{name:'Sources',exact:true})).toBeFocused();
   await page.keyboard.press('Home');await expect(page.getByRole('button',{name:'Documents',exact:true})).toHaveAttribute('aria-pressed','true');
   await expect(page.getByRole('group',{name:'Selection playback'})).toBeHidden();
@@ -93,6 +94,7 @@ test('missing and failed media have honest unavailable states and never expose n
 
 test('forced colors restores system scrollbars and controls, and reduced motion disables switch animation',async({page})=>{
   await page.emulateMedia({forcedColors:'active',reducedMotion:'reduce'});await open(page);
+  await page.locator('.reading-settings > summary').click();
   expect(await page.locator('.transcript').evaluate(e=>getComputedStyle(e).scrollbarWidth)).toBe('auto');
   expect(await page.locator('#show-interlinear').evaluate(e=>getComputedStyle(e).appearance)).toBe('auto');
   expect(await page.locator('#show-interlinear').evaluate(e=>getComputedStyle(e,'::before').transitionDuration)).toBe('0s');
