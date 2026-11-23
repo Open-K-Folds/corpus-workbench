@@ -1,0 +1,44 @@
+.token-drawer {container-type:inline-size;color:var(--ink);min-width:0}
+.token-record-heading {display:flex;align-items:center;gap:13px;padding:.9rem 0 1.3rem}
+.token-record-icon {display:grid;place-items:center;flex:none;width:44px;height:44px;border:1px solid var(--border);border-radius:11px;background:var(--paper);color:var(--accent);box-shadow:0 1px 3px #0000000c}
+.token-record-icon .material-symbol {font-size:24px}
+.token-record-heading hgroup {min-width:0;margin:0}
+#inspector-content .token-record-heading h2 {margin:0;padding:0;border:0;color:var(--ink);font-size:clamp(1.5rem,7cqi,2rem);font-weight:610;line-height:1.18;letter-spacing:-.035em;overflow-wrap:anywhere}
+#inspector-content .token-record-heading p {color:var(--muted);margin:5px 0 0;font-size:.89rem;line-height:1.45;overflow-wrap:anywhere}
+.token-record-heading p span {padding-inline:2px}
+.token-record-switcher {display:flex;align-items:stretch;gap:1.15rem;border-bottom:1px solid var(--border)}
+#inspector-content .token-record-switcher button {display:inline-flex;align-items:center;gap:.4rem;min-height:39px;padding:0 .05rem;margin:0 0 -1px;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--muted);font-weight:530;font-size:.9rem;line-height:1.3}
+#inspector-content .token-record-switcher button[aria-selected=true] {border-bottom-color:var(--ink);color:var(--ink);font-weight:650}
+.token-record-switcher .material-symbol {font-size:17px}
+.token-drawer [hidden] {display:none!important}
+#token-form {display:grid;gap:0}
+#token-form fieldset {min-inline-size:0;margin:0;padding:1.15rem 0 1.3rem;border:0;border-bottom:1px solid var(--border);border-radius:0}
+#token-form legend {float:left;width:100%;margin:0 0 .8rem;padding:0;color:var(--ink);font-size:1rem;font-weight:650;line-height:1.35}
+#token-form legend+label {clear:both}
+#token-form label {display:grid;gap:.25rem;align-items:center;margin:0;min-width:0;font-size:.86rem;line-height:1.4;font-weight:500;color:var(--muted)}
+#token-form label+label,#token-form .token-confirmation+label {margin-top:.72rem}
+#token-form input {display:block;min-width:0;width:100%;min-height:36px;margin:0;padding:7px 9px;border:1px solid var(--control-edge);background:var(--paper);border-radius:5px;color:var(--ink);font-size:.95rem;font-weight:450}
+#token-form :is([name=nform],[name=wb_normalized]) {font-family:var(--font-mono)}
+.token-confirmation {margin:.65rem 0;padding:.7rem .8rem;color:var(--ink);background:var(--rail);border-inline-start:2px solid var(--accent)}
+.token-confirmation p {margin:0 0 .4rem}
+.token-revision {padding:1rem 0}
+.token-save-actions {display:flex;align-items:center;gap:.65rem;flex-wrap:wrap;margin-top:.9rem}
+#token-form .token-save-actions button {display:inline-flex;align-items:center;gap:.45rem;min-height:36px;padding:6px 11px;margin:0;border-radius:6px;font-size:.88rem;font-weight:600}
+#token-form .token-save-actions button.secondary {background:transparent;border-color:transparent;color:var(--muted)}
+.token-save-actions .material-symbol {font-size:16px}
+.token-drawer #token-source-panel h3 {margin:1.3rem 0 .55rem;font-size:1rem;color:var(--ink)}
+.token-source-rows {margin:0 0 1rem}
+.token-source-rows > div {display:grid;grid-template-columns:minmax(6rem, .78fr) minmax(0,1.2fr);align-items:baseline;gap:.8rem;padding:.65rem 0;border-bottom:1px solid var(--border);font-size:.9rem;line-height:1.45}
+.token-source-rows dt {color:var(--muted)}
+.token-source-rows dd {margin:0;color:var(--ink);overflow-wrap:anywhere}
+.token-drawer #token-source-panel summary {margin:0;min-height:40px;align-content:center;color:var(--muted)}
+.token-read-only,.token-drawer-empty p {color:var(--muted);margin:1rem 0;font-size:.96rem}
+.token-drawer-empty {padding:1.5rem 0;max-width:32ch}
+#inspector-content .token-drawer-empty h2 {margin:.95rem 0 .4rem;font-size:1.5rem;line-height:1.2;letter-spacing:-.024em;color:var(--ink)}
+#inspector-content .token-drawer-empty p {margin:0;line-height:1.6}
+@container (min-width:350px) {
+  #token-form label {grid-template-columns:minmax(7.25rem,.82fr) minmax(0,1.2fr);gap:1rem}
+}
+@media(pointer:coarse) {
+  #token-form input,#token-form .token-save-actions button,#inspector-content .token-record-switcher button,.token-drawer #token-source-panel summary {min-height:44px}
+}
