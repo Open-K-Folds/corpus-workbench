@@ -33,6 +33,7 @@ export function resizePane(handle:HTMLElement,key:string,min:number,max:number,i
 export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTMLElement,propertiesHandle:HTMLElement){
   const root=document.documentElement,navigationPane=navigationHandle.parentElement!,propertiesPane=propertiesHandle.parentElement!;
   const visible=(side:string)=>!workspace.classList.contains(side+'-folded') && workspace.dataset.parked!==side;
+  const defaultNavigation=240,defaultProperties=368;
   const budget=()=>workspace.clientWidth-320;
   // Keep boundary hit targets outside the panes' scrolling content.
   const resizeGroup=document.createElement('div');
@@ -44,8 +45,8 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
   navigationHandle.style.right='auto';
   const positionHandles=()=>{const bounds=workspace.getBoundingClientRect(),narrow=matchMedia('(max-width:700px)').matches;navigationHandle.hidden=narrow||!visible('navigation');propertiesHandle.hidden=narrow||!visible('properties');navigationHandle.style.left=navigationPane.getBoundingClientRect().right-bounds.left+'px';propertiesHandle.style.left=propertiesPane.getBoundingClientRect().left-bounds.left+'px'};
   let fitting=true,constraints='',constraintWidth=-1,previousParked:string|undefined;
-  const navigation=resizePane(navigationHandle,'wb-navigation-width',160,360,240,'x',1,size=>{root.style.setProperty('--navigation-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('navigation')?360:budget()-(visible('properties')?propertiesPane.getBoundingClientRect().width:0),measure:()=>visible('navigation')?navigationPane.getBoundingClientRect().width:0});
-  const properties=resizePane(propertiesHandle,'wb-properties-width',260,520,368,'x',-1,size=>{root.style.setProperty('--properties-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('properties')?520:budget()-(visible('navigation')?navigationPane.getBoundingClientRect().width:0),measure:()=>visible('properties')?propertiesPane.getBoundingClientRect().width:0});
+  const navigation=resizePane(navigationHandle,'wb-navigation-width',160,360,defaultNavigation,'x',1,size=>{root.style.setProperty('--navigation-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('navigation')?360:budget()-(visible('properties')?propertiesPane.getBoundingClientRect().width:0),measure:()=>visible('navigation')?navigationPane.getBoundingClientRect().width:0});
+  const properties=resizePane(propertiesHandle,'wb-properties-width',260,520,defaultProperties,'x',-1,size=>{root.style.setProperty('--properties-width',size+'px');positionHandles()},{maximum:()=>fitting||!visible('properties')?520:budget()-(visible('navigation')?navigationPane.getBoundingClientRect().width:0),measure:()=>visible('properties')?propertiesPane.getBoundingClientRect().width:0});
   const fit=()=>{
     if(navigation.isDragging()||properties.isDragging()){positionHandles();return}
     const showNavigation=visible('navigation'),showProperties=visible('properties');
@@ -57,8 +58,11 @@ export function resizeWorkbenchSides(workspace:HTMLElement,navigationHandle:HTML
     const spaceChanged=width!==constraintWidth || workspace.dataset.parked!==previousParked;
     constraints=next;constraintWidth=width;previousParked=workspace.dataset.parked;
     if(narrow){fitting=false;positionHandles();return}
-    let left=spaceChanged?navigation.getPreferred():navigation.getSize(),right=spaceChanged?properties.getPreferred():properties.getSize();
-    const available=Math.max((showNavigation?160:0)+(showProperties?260:0),budget());
+    const automatic=navigation.getPreferred()===defaultNavigation && properties.getPreferred()===defaultProperties;
+    let left=spaceChanged||automatic?navigation.getPreferred():navigation.getSize(),right=spaceChanged||automatic?properties.getPreferred():properties.getSize();
+    // Leave a full reading line, turn numbers and scrollbar between the default desktop drawers.
+    const fullMeasure=automatic && showNavigation && showProperties && matchMedia('(min-width:1121px)').matches;
+    const available=Math.max((showNavigation?160:0)+(showProperties?260:0),fullMeasure?width-680:budget());
     const total=(showNavigation?left:0)+(showProperties?right:0);
     if(total>available){
       if(showNavigation&&showProperties){left=Math.max(160,Math.min(available-260,Math.round(left*available/total)));right=available-left}

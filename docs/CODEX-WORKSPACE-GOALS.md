@@ -65,6 +65,8 @@ The floating player is the main playback control in both reading modes. A
 selected passage attaches above it with **Listen** and **Analyze** actions.
 On the spoken fixture, selecting “librarian opens” played the supplied
 0.945–2.135 s interval and opened co-analysis with token IDs w1-4 and w1-5.
+On a local copy of the 384-word aligned transcript, a three-word selection
+played from 1.7225 to 2.5825 s and opened the same three source IDs in co-analysis.
 At 320px and 390px, the actions retained 44px touch targets and clearing the
 selection kept the transcript at its reading position.
 [Floating passage controls](ui-audit/floating-passage-controls.png)
