@@ -11,6 +11,7 @@ import {passageAnchor,suppliedCue,type CueState,type PassageAnchor,type Recordin
 import {ResearchOverview} from './overview';
 import {ReadingCanvas,stageControls} from './reading-canvas';
 import {PlaybackSync} from './playback-sync';
+import {watchPreviewUpdates} from './preview-updates';
 import {windowBar,activityRail,bindActivityRail,workspaceSettings,initialLayout} from './studio-shell';
 import {referenceInspector} from './references';
 import {retokenizationInspector} from './retokenization';
@@ -40,6 +41,7 @@ let pinTimer:ReturnType<typeof setTimeout>|undefined;
 let pendingWrite:{command:Command;source?:HTMLFormElement;unlock:()=>void;before:number;restore:boolean}|null=null;let searchPanel:SearchPanel|null=null;let transcript:Transcript;let recording:RecordingPanel;let openDocuments:string[]=[];const documentStates=new Map<string,{selected:string[];time:number;scroll:number}>();
 const draftPanels=()=>[...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values(),...returnDrafts.values(),...(coanalysisDraft ? [coanalysisDraft.panel] : []),...(training ? [training.node] : [])];let annotationRevision=0;let inspectorEpoch=0;
 const app=el('app');
+const remotePreview=import.meta.env.VITE_WB_REMOTE_PREVIEW === '1' && !desktop;
 if(desktop)document.documentElement.classList.add('desktop-app');
 try{document.documentElement.dataset.theme=localStorage.getItem('wb-theme')??'dark'}catch{document.documentElement.dataset.theme='dark'}
 let shellEvents:AbortController|undefined;
@@ -74,7 +76,17 @@ async function start(){
       docPath=view.documents.find(doc=>doc.path==='xmlfiles/noticeboard.xml')?.path??'';
     shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen();return}throw e}
 }
-function loginScreen(){app.innerHTML=`${windowBar(false)}<main class="login"><h1>Corpus workbench</h1><p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p><form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;el<HTMLFormElement>('login-form').onsubmit=async e=>{e.preventDefault();try{await login(formValues(e.currentTarget as HTMLFormElement).code);await start()}catch(e){el('login-error').textContent=String(e)}}}
+function loginScreen(){
+  const access=remotePreview
+    ? '<p><a class="cloudflare-sign-in" href="/open">Sign in with Cloudflare</a></p>'
+    : '<p>Private local research copy</p><p>Open the protected workbench launcher, or enter your session code.</p>';
+  app.innerHTML=`${windowBar(false)}<main class="login"><h1>Corpus workbench</h1>${access}<form id="login-form"><label>Session code<input name="code" type="password" required autocomplete="off"></label><button>Open workbench</button></form><p id="login-error" role="alert"></p></main>`;
+  el<HTMLFormElement>('login-form').onsubmit=async event=>{
+    event.preventDefault();
+    try {await login(formValues(event.currentTarget as HTMLFormElement).code);await start()}
+    catch(error){el('login-error').textContent=String(error)}
+  };
+}
 function shell(){shellEvents?.abort();shellEvents=new AbortController();overview?.dispose();playbackSync?.destroy();readingCanvas?.dispose();app.innerHTML=`<a class="skip-link" href="#tokens">Skip to transcript</a>
   ${windowBar(true)}${activityRail()}
   <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><div class="navigation-heading"><h2>Corpus</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
@@ -112,6 +124,9 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   <footer class="studio-status"><span id="stage-file"></span><span id="stage-metadata"></span><span id="token-count" role="status"></span></footer>
   ${workspaceSettings()}`;
   bindActivityRail(app,shellEvents.signal);
+  if (remotePreview) {
+    watchPreviewUpdates(app.querySelector<HTMLElement>('.studio-status')!, shellEvents.signal);
+  }
   if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
   desktopNavigation(document.querySelector<HTMLElement>('.documents')!);
   readingCanvas=new ReadingCanvas(app);

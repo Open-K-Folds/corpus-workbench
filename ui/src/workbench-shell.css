@@ -17,6 +17,7 @@
   color-scheme:dark;
 }
 body {background:var(--paper);color:var(--ink)}
+.login .cloudflare-sign-in {display:inline-flex;align-items:center;min-height:44px;color:var(--accent);font-weight:600}
 @property --rail-span {
   syntax:"<length>";
   inherits:true;
@@ -128,6 +129,11 @@ body {background:var(--paper);color:var(--ink)}
 .prose .lexeme.selected {color:var(--selection-ink);background:var(--selection-surface)}
 .studio-status {display:flex;align-items:center;justify-content:space-between;gap:16px;flex:none;min-height:25px;padding:3px 18px;border-top:1px solid var(--border);background:var(--chrome);color:var(--muted);font:10px/1.4 var(--font-mono)}
 .studio-status span {overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.studio-status .preview-update {display:flex;align-items:center;flex:none;gap:6px;color:var(--ink)}
+.preview-update button {min-height:24px;padding:2px 6px;font:inherit}
+@media (pointer:coarse) {
+  .preview-update button {min-height:44px}
+}
 #app:has(.workspace)>.notice:not(:empty) {margin:0}
 #app[data-reading-canvas]>.window-bar {display:flex}
 .studio-settings {max-width:min(400px,calc(100vw - 24px));border:1px solid var(--control-edge);border-radius:12px;background:var(--rail);color:var(--ink);padding:22px;box-shadow:0 12px 64px #0005}
