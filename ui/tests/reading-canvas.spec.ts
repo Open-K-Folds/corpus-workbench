@@ -74,6 +74,37 @@ test.describe('dock position during timed listening', () => {
 test.describe('touch dock with a linked recording', () => {
   test.use({practicePackage:resolve('../fixtures/spoken-reading'), hasTouch:true, isMobile:true, viewport:{width:320,height:700}});
 
+  test('a short landscape screen keeps the transcript readable and discloses the full recording controls', async ({page,practiceUrl}) => {
+    await page.setViewportSize({width:640,height:360});
+    await page.goto(practiceUrl);
+    const pane = page.locator('.transcript');
+    const fitsReadingPane = (element:Locator) => element.evaluate(node => {
+      const box = node.getBoundingClientRect(), pane = node.closest('.transcript')!.getBoundingClientRect();
+      return box.top >= pane.top - 1 && box.bottom <= pane.bottom + 1;
+    });
+    await expect(page.locator('#canvas-play')).toBeEnabled();
+    await expect.poll(() => fitsReadingPane(token(page,'w1-2'))).toBe(true);
+    const toggle = page.getByRole('button',{name:'Show recording controls'});
+    await expect(toggle).toHaveAttribute('aria-expanded','false');
+    await expect(page.locator('#audio-speed')).toBeHidden();
+    await page.locator('#canvas-scrub').press('End');
+    await expect(page.locator('#canvas-position')).toHaveText('Turn 8 of 8');
+    await expect.poll(() => pane.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
+    await expect.poll(() => fitsReadingPane(token(page,'w8-1'))).toBe(true);
+
+    await toggle.tap();
+    await page.locator('#audio-speed').selectOption('1.5');
+    const timeline = page.getByRole('region',{name:'Recording timeline'});
+    await timeline.focus();
+    await expect(timeline).toBeFocused();
+    await timeline.press('Escape');
+    await expect(toggle).toBeFocused();
+    await expect(page.locator('#audio-speed')).toBeHidden();
+    await page.setViewportSize({width:390,height:844});
+    await expect(page.locator('#audio-speed')).toBeVisible();
+    await expect(page.locator('#audio-speed')).toHaveValue('1.5');
+  });
+
   for (const mode of ['workspace', 'focus']) {
     test(`each control has a separate touch target in a 320px ${mode}`, async ({page,practiceUrl}) => {
       await page.goto(practiceUrl);

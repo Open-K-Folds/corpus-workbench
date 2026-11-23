@@ -446,7 +446,17 @@ export class Transcript {
     const d=this.draft!;const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(d.basis.ids[0])}"]`)!;
     span.innerHTML=`<span class="draft-prefix reading-text">${esc(d.prefix)}</span><s class="draft-ghost" aria-hidden="true">${esc(d.basis.quote)}</s><input id="inline-replacement" aria-label="Proposed correction" autocomplete="off" spellcheck="false" value="${esc(d.replacement)}"><span class="draft-suffix reading-text">${esc(d.suffix)}</span><span class="draft-actions"><button id="undo-draft" type="button">Undo draft</button><button id="accept-draft" type="button">Accept ↵</button><button id="retry-draft" type="button" hidden>Resolve save outcome</button><button id="compare-draft" type="button" hidden>Compare current revision</button><button id="reapply-draft" type="button" hidden>Reapply after comparison</button><small id="draft-explanation" role="status"></small><pre id="draft-comparison" hidden></pre></span>`;
     const input=span.querySelector<HTMLInputElement>('input')!;
-    input.oninput=()=>{if(this.finalizing||d.phase!=='editing'&&d.phase!=='conflict')return;d.replacement=input.value;d.compared=false;d.epoch=(d.epoch??0)+1;this.persist();this.updateDraft()};
+    const revealEditor = () => {
+      const pane = this.surface.closest<HTMLElement>('.transcript');
+      if (!pane) return;
+      const box = span.getBoundingClientRect(), viewport = pane.getBoundingClientRect();
+      const target = box.height <= viewport.height ? span : input;
+      const bounds = target.getBoundingClientRect();
+      if (bounds.top >= viewport.top && bounds.bottom <= viewport.bottom) return;
+      const offset = bounds.top < viewport.top ? bounds.top - viewport.top : bounds.bottom - viewport.bottom;
+      pane.scrollBy({top:offset, behavior:matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth'});
+    };
+    input.oninput=()=>{if(this.finalizing||d.phase!=='editing'&&d.phase!=='conflict')return;d.replacement=input.value;d.compared=false;d.epoch=(d.epoch??0)+1;this.persist();this.updateDraft();revealEditor()};
     input.addEventListener('compositionstart',()=>{this.composing=true;this.updateDraft()});input.addEventListener('compositionend',()=>{this.composing=false;this.settling=true;this.updateDraft();setTimeout(()=>{this.settling=false;this.updateDraft()},0)});
     input.onkeydown=e=>{
       if(e.key!=='Enter'||e.isComposing||this.composing||e.keyCode===229)return;
@@ -460,7 +470,7 @@ export class Transcript {
     span.querySelector<HTMLButtonElement>('#accept-draft')!.onclick=()=>void this.accept();span.querySelector<HTMLButtonElement>('#retry-draft')!.onclick=()=>void this.accept(true);
     span.querySelector<HTMLButtonElement>('#compare-draft')!.onclick=async()=>{if(this.finalizing||d.phase!=='conflict')return;const proposed=d.replacement,epoch=d.epoch;try{const latest=await loadView(),diff=await api<Diff>(`/api/diff?from=${d.basis.view.revision.id}&to=${latest.revision.id}`);if(this.draft!==d||d.replacement!==proposed||epoch!==d.epoch||this.composing)return;d.latest=latest;d.compared=true;const pre=span.querySelector<HTMLElement>('#draft-comparison')!;pre.hidden=false;pre.textContent=JSON.stringify(diff,null,2);this.updateDraft()}catch(e){this.host.message(String(e),true)}};
     span.querySelector<HTMLButtonElement>('#reapply-draft')!.onclick=()=>{if(this.finalizing||!d.compared||!d.latest)return;const latestToken=d.latest.documents.find(doc=>doc.path===d.basis.document)?.tokens.find(t=>t.id===d.basis.ids[0]);if(!latestToken?.editable){this.host.message('Target no longer supports correction. Undo the draft and inspect the new structure.',true);return}const proposed=d.prefix+d.replacement+d.suffix;d.before=latestToken.corrected??latestToken.original;d.basis={...d.basis,view:d.latest,start:0,end:Array.from(d.before).length,quote:d.before,range:null};d.prefix='';d.suffix='';d.replacement=proposed;d.phase='editing';d.command=null;this.persist();void this.accept()};
-    this.updateDraft();input.focus();input.select();
+    this.updateDraft();input.focus({preventScroll:true});input.select();revealEditor();
   }
   private async dismissDraft(){
     const draft=this.draft;

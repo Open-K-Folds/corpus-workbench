@@ -32,8 +32,8 @@
 }
 
 .workspace > .transcript {
-  --reading-size:calc(11px * var(--canvas-scale,1));
-  --reading-line:calc(18px * var(--canvas-scale,1));
+  --reading-size:calc(14px * var(--canvas-scale,1));
+  --reading-line:calc(23px * var(--canvas-scale,1));
   --reading-gutter:clamp(40px,5cqi,52px);
   --reading-edge:clamp(2px,1.25cqi,12px);
   container:transcript-stage / size;
@@ -62,8 +62,8 @@
 #app .workspace .transcript > .transcript-title {display:flex;margin-block:32px 0}
 #app .workspace .transcript .transcript-title #document-title {
   margin:0;
-  color:var(--stage-soft);
-  font:500 1em/1.5 var(--stage-type);
+  color:var(--stage-ink);
+  font:600 1.18em/1.45 var(--stage-type);
   letter-spacing:0;
   overflow-wrap:anywhere;
 }
@@ -122,7 +122,7 @@
   color:var(--stage-soft);
   text-align:end;
   white-space:nowrap;
-  font:400 9px/var(--reading-line) var(--stage-type);
+  font:400 .78em/var(--reading-line) var(--stage-type);
   font-variant-numeric:tabular-nums;
   letter-spacing:0;
   cursor:grab;
@@ -188,16 +188,20 @@
 
 @media (pointer:coarse) {
   .workspace .transcript #tokens .canvas-turn-handle {inline-size:44px;block-size:44px;inset-block-start:calc(var(--reading-line)/2 - 22px)}
+  .canvas-turn-handle::before {justify-self:end;margin-inline-end:5px}
 }
 /* Let the outer gutter yield before a side pane starts wrapping the words. */
 #app .workspace > .transcript {padding-inline:clamp(6px,1.4vw,22px)}
+@media (max-height:500px) and (orientation:landscape) {
+  #app .workspace .transcript > .transcript-title { margin-block-start:12px }
+  #app .workspace .transcript #tokens { margin-block-start:10px }
+  .workspace .transcript #tokens .reading-block:not(.literal-block) { margin-block-end:12px }
+}
 @media (max-width:700px) {
   #app > .workspace {grid-template-columns:minmax(0,1fr)}
   #app .workspace > :is(.transcript,.canvas-tools) {grid-column:1}
   .workspace .transcript {
     height:auto;
-    --reading-size:calc(13px * var(--canvas-scale,1));
-    --reading-line:calc(21px * var(--canvas-scale,1));
   }
   .workspace .documents,.workspace .inspector {grid-area:1 / 1 / -1 / -1}
   .workspace:is([data-focus=navigation],[data-focus=properties]) > .canvas-tools {visibility:hidden}
