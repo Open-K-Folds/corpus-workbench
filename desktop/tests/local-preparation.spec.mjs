@@ -133,7 +133,10 @@ test('native recording and UTF-8 transcript preparation reaches reviewed actual 
     expect(imported.snapshot.files['Audio/recording.wav'].sha256).toBe(sourceHashes.audio);expect(imported.snapshot.files['Raw/transcript.raw.txt'].sha256).toBe(sourceHashes.raw);
     await unapprovedContractRejected(authority,1);
     await expect(page.locator('#audio-play')).toBeEnabled();await page.locator('#audio-play').click();await expect.poll(()=>page.locator('#audio').evaluate(value=>value.currentTime)).toBeGreaterThan(.1);await page.locator('#audio-play').click();
-    await page.locator('[data-token="draft-t000001"]').click();await page.locator('#listen-selected').click();await expect(page.locator('#message')).toContainText('No observed timing');
+    await page.locator('[data-token="draft-t000001"]').click();
+    await expect(page.locator('#listen-selected')).toBeDisabled();
+    await expect(page.locator('#listen-selected')).toHaveAttribute('title','No complete supplied timing for this passage.');
+    await page.getByRole('button',{name:'Tools',exact:true}).click();
     const note='SYNTHETIC uncertain hearing; supplied code-switching and slang need another listening pass; confidence unknown.';
     await page.getByLabel('Human-corrected reading',{exact:true}).fill('Molweni');await page.getByLabel('Reviewer note',{exact:true}).fill(note);await page.getByLabel('Revision name',{exact:true}).fill('SYNTHETIC human listening correction');
     await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Saved R2');
@@ -192,7 +195,13 @@ test('native Omnilingual chunk preparation keeps supplied chunk bounds separate 
     await expect(page.locator('#preparation-preview')).toContainText('2 chunks');await expect(page.locator('#preparation-preview')).toContainText('chunk bounds');expect(await page.locator('.preparation-excerpt').textContent()).toBe('Molo  sawubona café 🙂');await capture(application,page,'preparation-chunk-preview-light.png');await confirm(page);
     const view=await head(page),doc=view.documents[0];expect(view.approved).toBe(false);expect((await reviews(page,1)).reviews).toEqual([]);expect(doc.segments.map(value=>[value.start_us,value.end_us])).toEqual([[0,2000000],[2000000,4000000]]);
     expect(doc.tokens.map(value=>value.original)).toEqual(['Molo','sawubona','café','🙂']);for(const token of doc.tokens){expect(token.start_us).toBeNull();expect(token.end_us).toBeNull();expect(token.language_effective).toBeNull();expect(token.normalized).toBeNull()}
-    await page.locator('[data-token="draft-t000002"]').click();await expect(page.locator('#inspector-content')).toContainText('No complete word timing');await page.locator('#listen-selected').click();await expect.poll(()=>page.locator('#audio').evaluate(value=>value.currentTime)).toBeGreaterThanOrEqual(2);await expect(page.locator('#audio')).toHaveJSProperty('paused',false);await page.locator('#audio-play').click();
+    await page.locator('[data-token="draft-t000002"]').click();
+    await page.getByRole('button',{name:'Tools',exact:true}).click();
+    await page.getByRole('tab',{name:'Source details'}).click();
+    const sourceDetails=page.getByRole('tabpanel',{name:'Source details'});
+    await expect(sourceDetails.getByText('Word timing',{exact:true})).toBeVisible();
+    await expect(sourceDetails.getByText('No word timing',{exact:true})).toBeVisible();
+    await page.locator('#listen-selected').click();await expect.poll(()=>page.locator('#audio').evaluate(value=>value.currentTime)).toBeGreaterThanOrEqual(2);await expect(page.locator('#audio')).toHaveJSProperty('paused',false);await page.locator('#audio-play').click();
     const state=await desktopState(page);await unapprovedContractRejected(activeAuthority(profile,state),1);expect(view.snapshot.files['Audio/recording.wav'].sha256).toBe(source.source_sha256);expect(view.snapshot.files['Raw/transcript.raw.json'].sha256).toBe(sha(readFileSync(raw)));expect(errors).toEqual([]);expect(consoleErrors).toEqual([]);
     writeFileSync(join(evidence,'chunk-preparation-native-evidence.json'),JSON.stringify({synthetic_only:true,source_audio_sha256:source.source_sha256,source_raw_sha256:sha(readFileSync(raw)),revision:view.revision,supplied_chunk_bounds:doc.segments,word_times_absent:true,language_and_normalization_unknown:true,explicit_review_not_granted:true,listening_uses_supplied_chunk_not_word_timing:true,page_errors:errors,console_errors:consoleErrors},null,2));
   }catch(error){await failureEvidence(application,page,'chunk-preparation',errors,consoleErrors);throw error}
