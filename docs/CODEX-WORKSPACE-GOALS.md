@@ -17,6 +17,9 @@ integrate them on main. Record the build and observations used to close a goal.
 | G8 · Align real speech locally | Replay the original acoustic model to estimate word timing in an independent copy of a real transcript. | Verify the chunk recordings and source tokens, trace word times to model frames, and watch the packaged caret advance during playback and clear in an inter-word gap. |
 | G9 · Correct and steer while reading | Accept a phrase as the correction of one source token. Give selection, passage tools and training distinct gestures. Preserve reading space with labelled navigation and show which timed words are still ahead. | Accept and recover a phrase, check its original ID and timing, dismiss a selection, open both gesture tools, expand the rail at wide and narrow widths, then play, rewind and rejoin the real aligned transcript. |
 
+The [whole-app UI audit](ui-audit/README.md) records the issues found in these
+journeys and the acceptance exercises for repeating them.
+
 ## Design references
 
 Chuanqi Sun’s *Spaceship IDE* places the text between a small set of persistent
