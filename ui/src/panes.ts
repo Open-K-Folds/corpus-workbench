@@ -73,6 +73,21 @@ export class RecordingPanel {
   overview(){return this.visual.overview()}
   private visual:AudioView;private lanes:HTMLElement;private view:View|null=null;private doc:Document|null=null;
   private shortWindow = matchMedia('(max-height: 500px) and (orientation: landscape)');
+  private phone = matchMedia('(max-width:700px)');
+  private workspace:HTMLElement;
+  fitToWorkspace(){
+    const {panel}=this;
+    const tools=this.workspace.dataset.focus!=='transcript' && (this.phone.matches || this.shortWindow.matches);
+    const disclosure=this.shortWindow.matches || tools;
+    const changed=panel.hasAttribute('data-compact-controls')!==disclosure || panel.hasAttribute('data-tool-transport')!==tools;
+    panel.toggleAttribute('data-compact-controls',disclosure);
+    panel.toggleAttribute('data-tool-transport',tools);
+    if(changed){
+      panel.removeAttribute('data-short-open');
+      panel.scrollTop=0;
+      this.syncTimelineToggle();
+    }
+  }
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
     panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);
     const availability = panel.querySelector<HTMLElement>('#audio-availability')!;
@@ -89,7 +104,8 @@ export class RecordingPanel {
     let compactHeight=preference('wb-recording-compact-height',180,110,440),expandedHeight=preference('wb-recording-expanded-height',360,220,440);
     try{const saved=localStorage.getItem('wb-recording-detail');if(saved==='minimal'||saved==='compact'||saved==='expanded')preferredDetail=saved}catch{/* Optional preference. */}
     const minimum=(detail:Detail)=>parseFloat(getComputedStyle(panel).getPropertyValue('--recording-'+detail+'-min'))||({minimal:104,compact:130,expanded:220})[detail];
-    const workspace=document.querySelector<HTMLElement>('.workspace')!;
+    const workspace=this.workspace=document.querySelector<HTMLElement>('.workspace')!;
+    this.fitToWorkspace();
     const transcript = workspace.querySelector<HTMLElement>('.transcript')!;
     const maximum=()=>Math.max(70,panel.getBoundingClientRect().height+(transcript.getBoundingClientRect().height || workspace.clientHeight)-(matchMedia('(min-width:701px)').matches?240:180));
     const detailFor=(size:number):Detail=>size<minimum('compact')?'minimal':size<minimum('expanded')?'compact':'expanded';
@@ -106,7 +122,7 @@ export class RecordingPanel {
         this.syncTimelineToggle();
         return;
       }
-      if (this.shortWindow.matches) {
+      if (panel.hasAttribute('data-compact-controls')) {
         panel.toggleAttribute('data-short-open');
         panel.scrollTop = 0;
         this.syncTimelineToggle();
@@ -121,10 +137,7 @@ export class RecordingPanel {
       toggle.focus({preventScroll:true});
       event.stopPropagation();
     });
-    this.shortWindow.addEventListener('change', () => {
-      panel.removeAttribute('data-short-open');
-      this.syncTimelineToggle();
-    });
+    this.shortWindow.addEventListener('change',()=>this.fitToWorkspace());
     audio.addEventListener('loadedmetadata',()=>this.renderLanes());
     let floors='';const refit=()=>{const next=[minimum('minimal'),minimum('compact'),minimum('expanded'),Math.round(maximum())].join(':');if(!resize.isDragging()&&next!==floors){floors=next;resize.set(resize.getPreferred(),false)}resize.sync()};
     window.addEventListener('resize',()=>{floors='';refit()});
@@ -143,7 +156,9 @@ export class RecordingPanel {
       const bounds = panel.getBoundingClientRect();
       document.documentElement.style.setProperty('--recording-height', bounds.height+'px');
       this.lanes.style.maxHeight = Math.max(0,Math.floor(bounds.bottom-this.lanes.getBoundingClientRect().top-padding))+'px';
-      this.lanes.tabIndex = this.lanes.clientHeight > 0 ? 0 : -1;
+      const showLanes=this.lanes.clientHeight>0;
+      this.lanes.tabIndex = showLanes ? 0 : -1;
+      this.lanes.style.overflow=showLanes?'':'clip';
     };
     const layout=new ResizeObserver(fitLanes);
     for(const region of [panel,workspace,transcript,player.element,actions,panel.querySelector('.recording-analysis-info')!,panel.querySelector('canvas')!])layout.observe(region);
@@ -161,7 +176,7 @@ export class RecordingPanel {
   private syncTimelineToggle() {
     const panel = this.panel;
     const unavailable = panel.dataset.recordingSource === 'absent';
-    const short = !unavailable && this.shortWindow.matches;
+    const short = !unavailable && panel.hasAttribute('data-compact-controls');
     const expanded = unavailable ? panel.hasAttribute('data-timing-open')
       : short ? panel.hasAttribute('data-short-open') : panel.dataset.detail === 'expanded';
     const label = unavailable ? (expanded ? 'Hide supplied timing' : 'Show supplied timing')
@@ -172,7 +187,8 @@ export class RecordingPanel {
     toggle.setAttribute('aria-expanded', String(expanded));
     toggle.setAttribute('aria-label', label);
     toggle.title = label;
-    toggle.innerHTML = (short ? '<span class="short-recording-label">Controls</span>' : '') + icon(expanded ? 'expand_more' : 'expand_less');
+    const visibleLabel=panel.hasAttribute('data-tool-transport') && !expanded?'Recording controls':'Controls';
+    toggle.innerHTML = (short ? `<span class="short-recording-label">${visibleLabel}</span>` : '') + icon(expanded ? 'expand_more' : 'expand_less');
   }
   private renderLanes(){if(!this.lanes||!this.doc||!this.view)return;const duration=this.audio.duration;const timed=this.doc.segments.filter(s=>s.start_us!==null&&s.end_us!==null&&s.start_us>=0&&s.end_us>s.start_us);
     const lane=(label:string,items:{id:string;start:number;end:number;className?:string;title:string}[])=>`<div class="timeline-lane"><span class="lane-label">${label}</span><div class="lane-track">${items.map(i=>`<span class="interval ${i.className??''}" data-start="${i.start}" data-end="${i.end}" title="${esc(i.title)}">${esc(i.id)}</span>`).join('')}</div></div>`;
