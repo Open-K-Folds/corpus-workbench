@@ -3,7 +3,7 @@ import {icon, type SymbolName} from './icons';
 export function windowBar(projectOpen:boolean) {
   return `<header class="window-bar workbench-header">
     <div class="window-identity"><span class="window-mark">${icon('orbit')}</span>${projectOpen ? '<h1>Corpus Workbench</h1>' : '<span class="window-name">Corpus Workbench</span>'}</div>
-    ${projectOpen ? `<span class="window-divider" aria-hidden="true">/</span><button type="button" id="window-library" aria-label="Browse project library" title="Browse project library"><span id="project-title"></span>${icon('expand_more')}</button><span id="save-state" role="status"></span>` : ''}
+    ${projectOpen ? `<span class="window-divider" aria-hidden="true">/</span><button type="button" id="window-library" aria-controls="projects-pane" aria-expanded="false" title="Browse project files"><span id="project-title"></span><span class="sr-only"> — Browse project files</span>${icon('expand_more')}</button><span id="save-state" role="status"></span>` : ''}
   </header>`;
 }
 
@@ -90,7 +90,7 @@ export function bindActivityRail(app:HTMLElement, signal:AbortSignal) {
 export function workspaceSettings() {
   return `<dialog id="workspace-settings" class="studio-settings" aria-labelledby="workspace-settings-title">
     <div class="studio-dialog-heading"><h2 id="workspace-settings-title">Workspace settings</h2><form method="dialog"><button class="secondary" aria-label="Close workspace settings">Close</button></form></div>
-    <fieldset><legend>Opening layout</legend>
+    <fieldset><legend>Workspace layout</legend>
       <label><input type="radio" name="studio-layout" value="stage"> Transcript stage</label>
       <label><input type="radio" name="studio-layout" value="editing"> Transcript with library and tools</label>
     </fieldset>

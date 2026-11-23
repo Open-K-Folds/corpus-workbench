@@ -53,6 +53,31 @@ test('small studio keeps activity navigation and saved workspace choice usable',
   await expect(page.getByRole('button',{name:'Tools',exact:true})).toHaveAttribute('aria-expanded','true');
 });
 
+test('phone project files and direct activities keep the return route and keyboard focus',async({page,practiceUrl})=>{
+  await page.setViewportSize({width:390,height:844});
+  await page.goto(practiceUrl);
+  const project=page.locator('#window-library');
+  await expect(project).toBeVisible();
+  await expect(project).toHaveAccessibleName(/.+Browse project files/);
+  await project.click();
+  await expect(project).toHaveAttribute('aria-expanded','true');
+  const filter=page.getByLabel('Find documents or sources');
+  await filter.fill('missing-project-name');
+  await expect(page.getByText('No matching documents.')).toBeVisible();
+  await page.getByRole('button',{name:'Clear filter'}).click();
+  await expect(filter).toBeFocused();
+  await page.getByRole('button',{name:'Sources',exact:true}).click();
+  await page.locator('[data-source="Resources/settings.xml"]').click();
+  await expect(page.locator('.source-inspector')).toBeVisible();
+  await expect(page.getByRole('region',{name:'Source file'})).toBeFocused();
+  await page.getByRole('button',{name:'Back to transcript'}).click();
+  await expect(page.locator('#document-title')).toBeFocused();
+  await page.getByRole('button',{name:'Open corpus search'}).click();
+  await expect(page.locator('.inspector-tools')).not.toHaveAttribute('open');
+  await expect(page.getByRole('region',{name:'Corpus search'})).toBeFocused();
+  await expect(page.getByRole('button',{name:'Back to transcript'})).toBeVisible();
+});
+
 test('sidebar labels pin on desktop and overlay a compact workspace',async({page,practiceUrl},info)=>{
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.goto(practiceUrl);

@@ -110,6 +110,20 @@ body {background:var(--paper);color:var(--ink)}
 .documents .document.selected {background:var(--selection-surface);color:var(--selection-ink);box-shadow:inset 2px 0 var(--indicator)}
 .documents .document strong {font:550 13px/1.45 system-ui,sans-serif}
 .documents .document small,.documents .document-count {color:var(--muted)}
+.pane-return {display:none}
+.documents #clear-navigation {margin:-4px 0 12px;color:var(--ink)}
+.documents #source-list {max-height:none;overflow:visible}
+.documents .source-group {border-top:1px solid var(--border)}
+.documents .source-group summary {align-items:center;justify-content:flex-start;gap:6px;min-height:34px;margin:0;color:var(--ink);font:600 12px/1.4 system-ui,sans-serif}
+.documents .source-group summary::before {content:'›';width:1ch;transform:rotate(0deg);color:var(--muted)}
+.documents .source-group[open] summary::before {transform:rotate(90deg)}
+.documents .source-group summary span {margin-inline-start:auto;color:var(--muted);font-variant-numeric:tabular-nums}
+.documents .source-file {display:grid;justify-items:start;gap:1px;padding:6px 10px;margin:0 0 3px;background:transparent;border:0;font:inherit}
+.documents .source-file:hover {background:var(--control-surface)}
+.documents .source-file strong {font:500 13px/1.4 system-ui,sans-serif}
+.documents .source-file small {font:11px/1.4 var(--font-mono);color:var(--muted)}
+.documents #package-count {font-size:11px;color:var(--muted)}
+.documents .empty-state {padding-block:10px;color:var(--muted)}
 .inspector {border-inline-start:1px solid var(--border)}
 .inspector-tools {padding:10px 0;margin-bottom:14px;border-bottom:1px solid var(--border)}
 .inspector-tools > summary {margin:0;color:var(--ink);font-weight:600}
@@ -155,8 +169,8 @@ body {background:var(--paper);color:var(--ink)}
   :root {--studio-rail:44px}
   .studio-rail {padding-top:5px}
   .window-identity {gap:1px}
-  .window-identity h1 {font-size:12px}
-  .window-bar #project-title,.window-divider {display:none}
+  .window-identity h1 {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .window-divider {display:none}
   .window-bar #save-state {max-width:47%;font-size:9px}
   .studio-status {padding-inline:8px;font-size:9px}
   .workspace[data-focus=navigation] .documents,.workspace[data-focus=properties] .inspector {background:var(--rail)}
@@ -176,7 +190,15 @@ body {background:var(--paper);color:var(--ink)}
 .window-bar #window-library {display:flex;align-items:center;gap:5px;min-width:0;min-height:26px;max-width:40%;margin:0;padding:0 5px;border:0;background:transparent;color:var(--muted);border-radius:4px}
 .window-bar #window-library:hover {background:var(--control-surface)}
 .window-bar #window-library .material-symbol {font-size:14px}
-@media(max-width:700px){.window-bar #window-library {display:none}}
+@media(max-width:700px){
+  #app>.window-bar {gap:4px}
+  .window-bar #window-library {flex:0 1 auto;max-width:none;min-height:var(--studio-bar)}
+  .window-bar #project-title {display:block;color:var(--chrome-ink);font-weight:600}
+  .workspace .pane-return {display:inline-flex;align-items:center;gap:5px;min-height:44px;margin:0 0 6px;padding:0 5px;color:var(--muted);border:0;background:transparent}
+  .pane-return .material-symbol {font-size:17px}
+  .documents .source-file,.documents .source-group summary,.documents #clear-navigation {min-height:44px}
+  .documents .document {padding-block:12px}
+}
 
 /* Workspace commands stay at the edge. The source title and the words have
    the same measure, including when a drawer narrows the reading field. */

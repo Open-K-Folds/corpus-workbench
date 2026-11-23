@@ -34,7 +34,18 @@ export function documentNavigation(view:View,current:Document,query:string):stri
   return found.map(d=>`<button class="document ${d.path===current.path?'selected':''}" data-document="${esc(d.path)}" aria-current="${d.path===current.path}"><strong>${esc(d.title)}</strong><small>${esc(d.path)}</small><span class="document-count">${d.tokens.length} tokens <span aria-hidden="true">·</span> ${d.spans.length} spans</span></button>`).join('')||'<p class="empty-state">No matching documents.</p>';
 }
 export function sourceNavigation(view:View,query:string):string {
-  const found=Object.entries(view.snapshot.files).filter(([path,a])=>`${path} ${a.role}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const labels:Record<string,string>={
+    'source-media':'Recordings and media', 'project-settings':'Project settings',
+    'transcript':'Transcripts', 'immutable-machine-draft':'Machine drafts',
+    'annotation-sidecar-or-definition':'Annotations and definitions', 'derived-index':'Search indexes',
+    'inert-compatibility-dependency':'Compatibility files', 'opaque-project-artifact':'Other project files',
+  };
+  const groupName=(role:string)=>labels[role]??role.replaceAll('-',' ');
+  const needle=query.trim().toLocaleLowerCase();
+  const found=Object.entries(view.snapshot.files).filter(([path,a])=>`${path} ${a.role} ${groupName(a.role)}`.toLocaleLowerCase().includes(needle));
   const groups=new Map<string,typeof found>();for(const entry of found){const role=entry[1].role;const group=groups.get(role)??[];group.push(entry);groups.set(role,group)}
-  return [...groups].map(([role,files])=>`<details class="source-group" open><summary>${esc(role)} <span>${files.length}</span></summary>${files.map(([path])=>`<button class="source-file secondary" data-source="${esc(path)}">${esc(path)}</button>`).join('')}</details>`).join('')||'<p class="empty-state">No matching sources.</p>';
+  return [...groups].map(([role,files])=>`<details class="source-group" open><summary>${esc(groupName(role))}<span>${files.length}</span></summary>${files.map(([path])=>{
+    const start=path.lastIndexOf('/')+1;
+    return `<button class="source-file secondary" data-source="${esc(path)}" title="${esc(path)}"><strong>${esc(path.slice(start))}</strong>${start?`<small>${esc(path.slice(0,start))}</small>`:''}</button>`;
+  }).join('')}</details>`).join('')||'<p class="empty-state">No matching sources.</p>';
 }
