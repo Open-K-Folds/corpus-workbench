@@ -117,28 +117,57 @@
 .canvas-zoom .material-symbol { font-size: 17px }
 .canvas-console #canvas-exit { margin-inline-start: -8px }
 
-/* On the main stage the recording tray is the primary transport. Keep turn
-   navigation at the foot of the page; the floating player belongs to focus mode. */
-#app:not([data-reading-canvas]) .workspace .canvas-tools {
-  padding-block: 2px;
-  border-block-start: 1px solid var(--stage-rule);
+/* The console sets the width for both rows. A long selection never stretches the dock. */
+.canvas-tools:has(.canvas-passage-context:not([hidden])) {
+  grid-template-columns: minmax(0,max-content);
+  justify-content: center;
 }
-#app:not([data-reading-canvas]) .canvas-console {
-  padding-block: 2px;
-  background: transparent;
-  border-color: transparent;
-  border-radius: 0;
-  box-shadow: none;
+.canvas-passage-context {
+  display: flex;
+  align-items: center;
+  contain: inline-size;
+  gap: 5px;
+  min-inline-size: 0;
+  padding: 3px 8px 3px 13px;
+  border: 1px solid var(--dock-edge);
+  border-block-end: 0;
+  border-radius: 12px 12px 0 0;
+  background: color-mix(in srgb,var(--dock-surface) 93%,var(--dock-on));
+  color: var(--ink);
+  font: 500 12px/1.4 Inter, system-ui, sans-serif;
 }
-#app:not([data-reading-canvas]) .canvas-console #canvas-play {
+.canvas-passage-context[hidden], .canvas-passage-context [hidden] { display: none !important }
+.canvas-passage-context:not([hidden]) + .canvas-console {
+  border-start-start-radius: 0;
+  border-start-end-radius: 0;
+}
+.canvas-passage-context > .material-symbol { flex: none; inline-size: 18px; font-size: 17px; color: var(--dock-on) }
+.canvas-passage-excerpt {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.canvas-tools .canvas-passage-context button {
+  flex: none;
+  gap: 4px;
+  min-inline-size: 32px;
+  min-block-size: 30px;
+  margin: 0;
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 5px;
   color: var(--ink);
   background: transparent;
-  border: 1px solid var(--dock-edge);
+  font: inherit;
+  white-space: nowrap;
 }
-#app:not([data-reading-canvas]) .canvas-console #canvas-play:hover {
-  background: var(--control-hover);
-}
-
+.canvas-tools .canvas-passage-context button .material-symbol { font-size: 16px }
+.canvas-passage-context #dock-analyze-passage { color: var(--dock-on) }
+.canvas-tools .canvas-passage-context button:hover:not(:disabled) { color: var(--ink); background: var(--control-hover) }
+.canvas-tools .canvas-passage-context button:focus-visible { outline: 2px solid var(--dock-key); outline-offset: 1px }
 .canvas-tools #canvas-scrub {
   --track-size: 3px;
   --thumb-size: 10px;
@@ -191,7 +220,7 @@
   .canvas-console {
     display: grid;
     grid-template-columns: minmax(0,1fr) auto;
-    inline-size: min(100%, 385px);
+    inline-size: min(100cqi, 385px);
     gap: 4px 6px;
     padding: 6px 8px;
   }
@@ -206,13 +235,16 @@
   .canvas-console:has(#canvas-listening[hidden]) .canvas-zoom { grid-column: 1 / -1 }
 }
 @media (pointer: coarse) {
-  .canvas-tools .canvas-console button { min-inline-size: 44px; min-block-size: 44px }
+  .canvas-tools .canvas-console button,.canvas-tools .canvas-passage-context button { min-inline-size: 44px; min-block-size: 44px }
+  .canvas-passage-context { padding-block: 0 }
   .canvas-tools #canvas-scrub { min-block-size: 44px; margin-block: 0 }
   @container steering-dock (max-width: 640px) {
     .canvas-console:has(#canvas-exit:not([hidden])) .canvas-transport { padding-inline-end: 48px }
   }
 }
 @container steering-dock (max-width: 320px) {
+  .canvas-passage-context { gap: 3px; padding-inline: 7px 4px }
+  .canvas-tools .canvas-passage-context button { padding-inline: 4px }
   .canvas-console { gap: 1px 3px; padding: 5px 6px }
   .canvas-console #follow-audio { padding-inline: 2px; gap: 3px }
   .canvas-listening { gap: 3px }
@@ -222,13 +254,13 @@
 }
 @media (forced-colors: active) {
   .canvas-tools #canvas-scrub, #canvas-scrub::-webkit-slider-thumb, #canvas-scrub::-webkit-slider-runnable-track { appearance: auto }
-  .canvas-console button { border: 1px solid ButtonText }
+  .canvas-console button,.canvas-tools .canvas-passage-context button { border: 1px solid ButtonText }
   .canvas-console #follow-audio[aria-pressed=true] { outline: 1px solid Highlight; outline-offset:-3px }
 }
 @media (max-height:500px) and (orientation:landscape) {
   .workspace .canvas-tools { padding-block:3px }
   @container steering-dock (min-width:515px) and (max-width:640px) {
-    .canvas-console { display:flex; inline-size:min(100%, 580px); gap:5px; padding:3px 7px }
+    .canvas-console { display:flex; inline-size:min(100cqi, 580px); gap:5px; padding:3px 7px }
     .canvas-console:has(#canvas-exit:not([hidden])) .canvas-transport { padding-inline-end:0 }
     .canvas-position { display:grid; gap:0; margin-inline:3px }
     #canvas-position { grid-area:1 / 1; align-self:start; max-inline-size:100%; pointer-events:none }
