@@ -1,5 +1,6 @@
 import type {Document,Token,View} from './contracts';
 import {esc} from './dom';
+import {icon,type SymbolName} from './icons';
 
 // Trusted, compiled view registry. Corpus configuration supplies data, never code.
 export const inspectorViews = [
@@ -42,21 +43,32 @@ export function visibleToken(token:Token,preferences:ReadingPreferences):boolean
 }
 export function documentNavigation(view:View,current:Document,query:string):string {
   const found=view.documents.filter(d=>[d.path,d.title].some(v=>v.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())));
-  return found.map(d=>`<button class="document ${d.path===current.path?'selected':''}" data-document="${esc(d.path)}" aria-current="${d.path===current.path}"><strong>${esc(d.title)}</strong><small>${esc(d.path)}</small><span class="document-count">${d.tokens.length} tokens <span aria-hidden="true">·</span> ${d.spans.length} spans</span></button>`).join('')||'<p class="empty-state">No matching documents.</p>';
+  return found.map(doc=>{
+    const selected=doc.path===current.path;
+    return `<button type="button" class="document ${selected?'selected':''}" data-document="${esc(doc.path)}" aria-current="${selected}" title="${esc(doc.path)}">
+      ${icon('description')}<span class="project-file-copy"><strong>${esc(doc.title)}</strong><small>${esc(doc.path)}</small><span class="document-count">${doc.tokens.length} tokens · ${doc.spans.length} spans</span></span>
+    </button>`;
+  }).join('')||`<p class="project-empty" role="status">${icon('search')}No matching documents.</p>`;
 }
-export function sourceNavigation(view:View,query:string):string {
-  const labels:Record<string,string>={
-    'source-media':'Recordings and media', 'project-settings':'Project settings',
-    'transcript':'Transcripts', 'immutable-machine-draft':'Machine drafts',
-    'annotation-sidecar-or-definition':'Annotations and definitions', 'derived-index':'Search indexes',
-    'inert-compatibility-dependency':'Compatibility files', 'opaque-project-artifact':'Other project files',
+export function sourceNavigation(view:View,query:string,selectedPath=''):string {
+  const roles:Record<string,{label:string;symbol:SymbolName}>={
+    'source-media':{label:'Recordings and media',symbol:'headphones'},
+    'project-settings':{label:'Project settings',symbol:'settings'},
+    'transcript':{label:'Transcripts',symbol:'description'},
+    'immutable-machine-draft':{label:'Machine drafts',symbol:'auto_awesome'},
+    'annotation-sidecar-or-definition':{label:'Annotations and definitions',symbol:'edit_note'},
+    'derived-index':{label:'Search indexes',symbol:'search'},
+    'inert-compatibility-dependency':{label:'Compatibility files',symbol:'attach_file'},
+    'opaque-project-artifact':{label:'Other project files',symbol:'attach_file'},
   };
-  const groupName=(role:string)=>labels[role]??role.replaceAll('-',' ');
+  const groupName=(role:string)=>roles[role]?.label??role.replaceAll('-',' ');
   const needle=query.trim().toLocaleLowerCase();
   const found=Object.entries(view.snapshot.files).filter(([path,a])=>`${path} ${a.role} ${groupName(a.role)}`.toLocaleLowerCase().includes(needle));
   const groups=new Map<string,typeof found>();for(const entry of found){const role=entry[1].role;const group=groups.get(role)??[];group.push(entry);groups.set(role,group)}
-  return [...groups].map(([role,files])=>`<details class="source-group" open><summary>${esc(groupName(role))}<span>${files.length}</span></summary>${files.map(([path])=>{
+  return [...groups].map(([role,files])=>`<details class="source-group" open><summary>${icon('chevron_right')}<span class="source-group-title">${esc(groupName(role))}</span><span class="source-group-count">${files.length}</span></summary>${files.map(([path])=>{
     const start=path.lastIndexOf('/')+1;
-    return `<button class="source-file secondary" data-source="${esc(path)}" title="${esc(path)}"><strong>${esc(path.slice(start))}</strong>${start?`<small>${esc(path.slice(0,start))}</small>`:''}</button>`;
-  }).join('')}</details>`).join('')||'<p class="empty-state">No matching sources.</p>';
+    return `<button type="button" class="source-file" data-source="${esc(path)}" title="${esc(path)}" aria-current="${path===selectedPath}">
+      ${icon(roles[role]?.symbol??'attach_file')}<span class="project-file-copy"><strong>${esc(path.slice(start))}</strong>${start?`<small>${esc(path.slice(0,start))}</small>`:''}</span>
+    </button>`;
+  }).join('')}</details>`).join('')||`<p class="project-empty" role="status">${icon('search')}No matching sources.</p>`;
 }

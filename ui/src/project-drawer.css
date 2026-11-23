@@ -1,0 +1,92 @@
+/* One project header precedes either its documents or its preserved sources. */
+.project-drawer-body {
+  --drawer-inset:14px;
+  min-width:0;
+  padding:0 var(--drawer-inset) 20px;
+  color:var(--ink);
+  font:400 13px/1.45 system-ui,sans-serif;
+}
+.project-identity {display:grid;grid-template-columns:36px minmax(0,1fr);align-items:center;gap:11px;padding:20px 0 17px}
+.project-mark {
+  width:36px;height:36px;display:grid;place-items:center;border-radius:9px;
+  color:var(--selection-ink);background:linear-gradient(140deg,color-mix(in srgb,var(--accent) 20%,var(--paper)),var(--selection-surface));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent);
+}
+.project-mark .material-symbol {font-size:21px}
+.project-identity #drawer-project-title {margin:0;color:var(--ink);font:600 17px/1.25 system-ui,sans-serif;letter-spacing:-.025em;overflow-wrap:anywhere}
+.project-identity #package-count {display:block;margin-top:3px;color:var(--muted);font:400 12px/1.4 system-ui,sans-serif}
+.project-drawer-body #local-project-actions:empty {display:none}
+.documents .project-tabs.navigation-modes {
+  display:flex;align-items:stretch;gap:16px;margin:0;padding:0;border:0;border-radius:0;
+  box-shadow:inset 0 -1px var(--border);background:transparent;
+}
+.project-tabs.navigation-modes button {
+  flex:none;min-width:0;min-height:36px;align-items:center;gap:5px;padding:4px 0;
+  border:0;border-bottom:2px solid transparent;border-radius:0;
+  color:var(--muted);background:transparent;font:500 12px/1.4 system-ui,sans-serif;
+}
+.project-tabs.navigation-modes button[aria-pressed=true] {color:var(--ink);background:transparent;border-bottom-color:var(--ink);box-shadow:none}
+.project-tabs.navigation-modes button:hover {color:var(--ink);background:transparent}
+.project-tabs .material-symbol {font-size:16px}
+.project-filter {display:flex;align-items:center;gap:6px;margin:14px 0 12px;padding-inline:8px 3px;border:1px solid var(--border);border-radius:6px;background:var(--paper);color:var(--muted)}
+.project-filter .material-symbol {font-size:17px}
+.project-filter:focus-within {outline:2px solid var(--accent);outline-offset:1px}
+.project-filter #navigation-query {
+  flex:1;min-width:0;width:100%;min-height:32px;margin:0;padding:4px 0;
+  border:0;background:transparent;outline:0;
+}
+.project-filter #navigation-query::-webkit-search-cancel-button {appearance:none}
+.project-drawer-body .project-filter #clear-navigation {flex:none;width:27px;min-height:26px;padding:0;margin:0;border:0;border-radius:4px;background:transparent;color:var(--muted)}
+.project-filter #clear-navigation:hover {background:var(--control-hover)}
+.project-drawer-body :is(#document-list,#source-list) {min-width:0;margin:0;padding:0;scrollbar-gutter:auto}
+.project-drawer-body #document-list {display:grid;gap:2px}
+.project-drawer-body #document-list[hidden],.project-drawer-body #source-list[hidden] {display:none}
+.project-drawer-body :is(.document,.source-file) {
+  display:grid!important;grid-template-columns:18px minmax(0,1fr);align-items:start;justify-items:start;
+  gap:10px;width:100%;max-width:none;margin:0;padding:9px 8px!important;
+  border:0;border-radius:6px;box-shadow:none;text-align:left;color:var(--ink);background:transparent;
+}
+.project-drawer-body :is(.document,.source-file) > .material-symbol {margin-top:2px;color:var(--muted);font-size:18px}
+.project-drawer-body :is(.document,.source-file):hover {background:var(--control-hover)}
+.documents .project-drawer-body :is(.document,.source-file)[aria-current=true] {color:var(--selection-ink);background:var(--selection-surface);box-shadow:inset 2px 0 var(--indicator)}
+.project-drawer-body [aria-current=true] > .material-symbol {color:var(--accent)}
+.project-file-copy {display:grid;min-width:0;max-width:100%;gap:2px}
+.documents .project-file-copy strong {display:block;overflow-wrap:anywhere;font:550 13px/1.4 system-ui,sans-serif}
+.documents .project-file-copy :is(small,.document-count) {margin:0;color:var(--muted);overflow-wrap:anywhere;font:400 11px/1.4 system-ui,sans-serif}
+.project-file-copy small {display:block}
+.project-file-copy .document-count {margin-block-start:3px}
+.project-drawer-body .source-group {margin:0;padding:3px 0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:none}
+.project-drawer-body .source-group:last-child {border-bottom:0}
+.project-drawer-body .source-group summary {display:grid;grid-template-columns:16px minmax(0,1fr) auto;align-items:center;gap:5px;min-height:34px;margin:0;padding:4px 1px;cursor:pointer;list-style:none}
+.project-drawer-body .source-group summary::before,.project-drawer-body summary::-webkit-details-marker {display:none}
+.project-drawer-body .source-group summary span {margin:0}
+.project-drawer-body .source-group .source-group-title {font:550 12px/1.4 system-ui,sans-serif;color:var(--ink);overflow-wrap:anywhere}
+.project-drawer-body .source-group .source-group-count {color:var(--muted);font:500 11px/1.4 system-ui,sans-serif;font-variant-numeric:tabular-nums}
+.project-drawer-body .source-group summary .material-symbol {font-size:16px;transition:transform .12s}
+.project-drawer-body .source-group[open] summary .material-symbol {transform:rotate(90deg)}
+.project-drawer-body .source-file {padding-block:7px!important}
+.project-drawer-body .project-empty {display:flex;gap:8px;align-items:center;margin:18px 2px;color:var(--muted);font:400 12px/1.45 system-ui,sans-serif}
+.project-empty .material-symbol {font-size:18px}
+.project-preservation {margin-top:16px;padding-top:8px;border:0;border-top:1px solid var(--border);border-radius:0;background:none}
+.project-preservation summary {display:flex;gap:7px;align-items:center;min-height:34px;cursor:pointer;list-style:none;color:var(--muted);font:500 12px/1.35 system-ui,sans-serif}
+.project-preservation summary .material-symbol {font-size:16px}
+.project-preservation summary .material-symbol:last-child {margin-inline-start:auto}
+.project-preservation[open] summary .material-symbol:last-child {transform:rotate(180deg)}
+.project-preservation #package-report {color:var(--muted);overflow-wrap:anywhere;font-size:12px}
+@container corpus-nav (max-width:195px) {
+  .project-drawer-body {--drawer-inset:8px}
+  .project-identity {grid-template-columns:28px minmax(0,1fr);gap:8px;padding-block:14px}
+  .project-mark {width:28px;height:28px;border-radius:7px}
+  .project-mark .material-symbol {font-size:18px}
+  .project-identity #drawer-project-title {font-size:14px}
+  .documents .project-tabs.navigation-modes {gap:12px}
+  .project-tabs .material-symbol {display:none}
+  .project-drawer-body :is(.document,.source-file) {grid-template-columns:14px minmax(0,1fr);gap:6px;padding-inline:6px!important}
+  .project-drawer-body :is(.document,.source-file) > .material-symbol {font-size:15px}
+  .project-preservation summary {gap:4px}
+}
+@media(pointer:coarse) {
+  .project-tabs.navigation-modes button,.project-preservation summary,.project-drawer-body .source-group summary,.project-filter #navigation-query {min-height:44px}
+  .project-filter #navigation-query {font-size:16px}
+  .project-drawer-body .project-filter #clear-navigation {width:40px;min-height:40px}
+}
