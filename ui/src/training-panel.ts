@@ -27,6 +27,7 @@ export class TrainingPanel {
   private collection = '';
   private library = false;
   private libraryName = '';
+  private libraryLabel = '';
   private collections = new Map<string,TrainingRecord[]>();
   private selection = '';
   private pendingId = '';
@@ -193,7 +194,7 @@ export class TrainingPanel {
         const op=trainingOperation(this.view,{collection,lens:this.mode,seed:this.seed!,candidate,
           label:String(fields.get('label')).trim(),note:String(fields.get('note')??'').trim(),
           discovery:pair?(this.query?searchMethod:'local '+this.mode+' ranking'):'manual selection',assistance:this.assistance},draftContext()?.actor??'');
-        this.collection=collection;this.libraryName=collection;this.pendingId=op.id;
+        this.collection=collection;this.libraryName=collection;this.libraryLabel='';this.pendingId=op.id;
         await this.actions.save([op],`Collect example in ${collection}`,form,this.view);
       } catch(error) {this.status(error instanceof Error?error.message:String(error));}
     };
@@ -227,25 +228,50 @@ export class TrainingPanel {
     };
   }
   private drawLibrary(body:HTMLElement) {
-    if(!this.collections.size){body.innerHTML='<p class="training-empty">Saved collections appear here after your first reviewed example.</p>';return;}
+    if(!this.collections.size){
+      body.innerHTML=`<div class="training-library-empty"><h3>No reviewed examples yet</h3><p>Choose a passage, give it a label or compare it with another passage, then save it to a collection.</p><button type="button" class="secondary">${icon('menu_book')}Choose a passage</button></div>`;
+      body.querySelector('button')!.onclick=()=>{this.library=false;this.draw();this.actions.read();};
+      return;
+    }
     if(!this.collections.has(this.libraryName))this.libraryName=this.collections.keys().next().value!;
     const rows=this.collections.get(this.libraryName)!;
     const counts=trainingCounts(rows);
-    body.innerHTML=`<label>Saved collection<select name="saved-collection">${[...this.collections.keys()].map(n=>`<option ${n===this.libraryName?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
-      <p class="training-counts">${counts.examples} reviewed · ${counts.utterances} identified utterance${counts.utterances===1?'':'s'} · ${counts.speakers} document-scoped speaker ID${counts.speakers===1?'':'s'}</p>
-      ${counts.unknownSpeakers||counts.unknownUtterances?`<small>${counts.unknownSpeakers} without speaker attribution · ${counts.unknownUtterances} unsegmented passage${counts.unknownUtterances===1?'':'s'}</small>`:''}
-      ${this.view.snapshot.config.rights?`<p class="muted"><strong>Corpus use</strong><br>${esc(this.view.snapshot.config.rights)}</p>`:''}
-      <button type="button" class="secondary" data-export>${icon('download')}Export reviewed JSONL</button>`;
+    const labels=new Map<string,number>();
+    for(const record of rows)labels.set(record.label,(labels.get(record.label)??0)+1);
+    if(!labels.has(this.libraryLabel))this.libraryLabel='';
+    body.innerHTML=`<div class="training-library-filters"><label>Saved collection<select name="saved-collection">${[...this.collections.keys()].map(n=>`<option ${n===this.libraryName?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
+      <label>Filter by label<select name="saved-label"><option value="">All labels (${counts.examples})</option>
+        ${[...labels.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([name,n])=>`<option value="${esc(name)}">${esc(name)} (${n})</option>`).join('')}
+      </select></label></div>
+      <details class="training-collection-info"><summary>Collection details</summary>
+        <p class="training-counts">${counts.examples} reviewed · ${counts.utterances} identified utterance${counts.utterances===1?'':'s'} · ${counts.speakers} document-scoped speaker ID${counts.speakers===1?'':'s'}</p>
+        ${counts.unknownSpeakers||counts.unknownUtterances?`<small>${counts.unknownSpeakers} without speaker attribution · ${counts.unknownUtterances} unsegmented passage${counts.unknownUtterances===1?'':'s'}</small>`:''}
+        ${this.view.snapshot.config.rights?`<p class="muted"><strong>Corpus use</strong><br>${esc(this.view.snapshot.config.rights)}</p>`:''}
+      </details>
+      <div class="training-export"><button type="button" class="secondary" data-export aria-describedby="training-export-scope">${icon('download')}Export reviewed JSONL</button><small id="training-export-scope">Full collection · ${counts.examples} example${counts.examples===1?'':'s'}</small></div>
+      <section class="training-records" aria-labelledby="training-records-heading"><h3 id="training-records-heading">Reviewed examples</h3><p data-result-count role="status"></p><div data-records></div></section>`;
     const select=body.querySelector('select')!;
-    select.onchange=()=>{this.libraryName=select.value;this.draw();this.node.querySelector<HTMLSelectElement>('[name="saved-collection"]')?.focus();};
+    select.onchange=()=>{this.libraryName=select.value;this.libraryLabel='';this.draw();this.node.querySelector<HTMLSelectElement>('[name="saved-collection"]')?.focus();};
     body.querySelector<HTMLButtonElement>('[data-export]')!.onclick=()=>{
       try{exportTraining(this.view,this.libraryName);}catch(error){this.status(String(error));}
     };
-    for(const record of rows)this.appendRecord(body,record);
+    const filter=body.querySelector<HTMLSelectElement>('[name="saved-label"]')!;
+    filter.value=this.libraryLabel;
+    const list=body.querySelector<HTMLElement>('[data-records]')!;
+    const drawRecords=()=>{
+      const matching=this.libraryLabel?rows.filter(record=>record.label===this.libraryLabel):rows;
+      body.querySelector('[data-result-count]')!.textContent=this.libraryLabel?`${matching.length} of ${rows.length} · ${this.libraryLabel}`:`${rows.length} total`;
+      this.stopAudio();
+      list.replaceChildren();
+      for(const record of matching)this.appendRecord(list,record);
+    };
+    filter.onchange=()=>{this.libraryLabel=filter.value;drawRecords();};
+    drawRecords();
   }
   private appendRecord(body:HTMLElement,record:TrainingRecord) {
     const row=document.createElement('details');row.className='training-record';
-    row.innerHTML=`<summary><strong>${esc(record.label)}</strong><span>${esc(record.seed.quote)}</span></summary>`;
+    const preview=(passage:Passage)=>`<span class="training-record-excerpt"><small>${esc(passage.title||passage.document)}${passage.utterance?' · '+esc(passage.utterance):''}</small><span class="training-record-quote">${esc(passage.quote)}</span></span>`;
+    row.innerHTML=`<summary><span class="training-record-label"><strong>${esc(record.label)}</strong><small>${record.candidate?'Pair':'Passage'}</small>${icon('expand_more')}</span><span class="training-record-excerpts">${preview(record.seed)}${record.candidate?preview(record.candidate):''}</span></summary>`;
     body.append(row);
     row.ontoggle=()=>{
       if(!row.open){row.querySelectorAll('.training-source').forEach(n=>n.dispatchEvent(new Event('training-stop')));return;}
