@@ -1,0 +1,7 @@
+{
+  "name": "workbench-preview-login",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test handoff.test.mjs" },
+  "dependencies": { "jose": "6.2.18" }
+}
