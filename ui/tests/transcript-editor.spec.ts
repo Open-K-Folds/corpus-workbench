@@ -215,7 +215,7 @@ test('late next-match projection cannot create new authoring controls during a h
     await saveHeld;await route.fulfill({response});
   });
   try{
-    await page.getByRole('button',{name:'Next match',exact:true}).click();
+    await page.keyboard.press('F3');
     expect(await readingCaptured).toBe(originalRevision);
     await expect(page.locator('#tokens')).toContainText('Loading exact saved transcript');
     await page.getByRole('button',{name:'Save token',exact:true}).click();
