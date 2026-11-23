@@ -25,6 +25,7 @@ async function change(page:Page,token:string,value:string){return page.evaluate(
 test('faithful separators, actual source anchors, layouts and native backward selection',async({page})=>{
   await open(page);expect(await page.locator('#tokens .reading-text').allTextContents()).toEqual(['We',' ','their',',  ','yesterday','.','\n','😀é👩‍💻مرحبا','adjacent','!']);
   await select(page,'w2',0,5,true);await expect(page.locator('.selection-tools')).toContainText('1 token · corrected');
+  await page.locator('.reading-settings > summary').click();
   await page.getByRole('radio',{name:'Source lines',exact:true}).check();await expect(page.locator('#tokens')).toHaveAttribute('data-layout','lines');
   await page.getByLabel('Go to source').fill('u2');await page.getByRole('button',{name:'Go',exact:true}).click();await expect(page.locator('[data-location="u2"]')).toBeFocused();
   await page.getByRole('radio',{name:'Flowing paragraphs',exact:true}).check();await expect(page.locator('#tokens')).toHaveAttribute('data-layout','paragraphs');
@@ -140,7 +141,7 @@ test('correction history marker retains its actual revision after unrelated edit
   await marker.focus();await expect(page.locator('.change-popover')).toContainText('Recorded correction · R'+revision);
 });
 test('logical copy excludes interlinear metadata and deletion ghost and includes draft once',async({page})=>{
-  await open(page);await page.getByLabel('Interlinear',{exact:true}).check();await expect(page.locator('#tokens')).toHaveAttribute('data-interlinear','true');await select(page,'w2');await page.keyboard.press('Backspace');await page.getByLabel('Proposed correction').fill('copyonce');
+  await open(page);await page.locator('.reading-settings > summary').click();await page.getByLabel('Interlinear',{exact:true}).check();await expect(page.locator('#tokens')).toHaveAttribute('data-interlinear','true');await select(page,'w2');await page.keyboard.press('Backspace');await page.getByLabel('Proposed correction').fill('copyonce');
   const text=await page.evaluate(()=>{const span=document.querySelector('[data-token="w2"]')!,range=document.createRange();range.selectNode(span);window.getSelection()!.removeAllRanges();window.getSelection()!.addRange(range);const data=new DataTransfer();document.querySelector('#tokens')!.dispatchEvent(new ClipboardEvent('copy',{bubbles:true,cancelable:true,clipboardData:data}));return data.getData('text/plain')});expect(text).toBe('copyonce');await page.locator('#undo-draft').click();
 });
 test('lost restore stays recoverable after a late decoration error and blocks new review or draft',async({page})=>{

@@ -1,0 +1,143 @@
+/* The command row stays in place as either settings or find opens underneath. */
+.workspace .transcript .stage-actions {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  align-items:start;
+  gap:0;
+  width:100%;
+  max-width:52rem;
+  margin-inline:auto;
+  padding:6px 0;
+  border-bottom:1px solid var(--border);
+  font:400 13px/1.4 system-ui,sans-serif;
+}
+.stage-actions .reading-settings[open] {padding:0}
+.stage-actions .reading-settings {grid-area:1 / 1 / 2 / -1;min-width:0}
+.stage-actions .reading-settings > summary, .transcript .stage-actions .reading-status button {
+  box-sizing:border-box;
+  min-height:34px;
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 8px;
+  border:0;
+  border-radius:6px;
+  color:var(--muted);
+  background:transparent;
+  font:500 12px/1.3 system-ui,sans-serif;
+  cursor:pointer;
+}
+.stage-actions .reading-settings > summary {list-style:none}
+.stage-actions .reading-settings > summary::-webkit-details-marker {display:none}
+.stage-actions .reading-settings > summary > :last-child {font-size:16px;transition:transform .15s}
+.stage-actions .reading-settings[open] > summary > :last-child {transform:rotate(180deg)}
+.stage-actions .reading-settings > summary:hover,.stage-actions .reading-settings[open] > summary,
+.transcript .stage-actions .reading-status button:hover,.transcript .stage-actions .reading-status [aria-expanded=true] {background:var(--control-surface);color:var(--ink)}
+.transcript .stage-actions .reading-status {
+  grid-area:1 / 2;
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:2px;
+  margin:0;
+}
+.stage-actions .reading-status .material-symbol,.stage-actions summary .material-symbol {font-size:18px}
+.stage-actions .reading-status #find-in-transcript[data-filtered] {color:var(--accent);box-shadow:inset 0 -2px var(--accent)}
+.stage-actions .reader-sheet,.stage-actions #reader-find {
+  box-sizing:border-box;
+  margin:7px 0 3px;
+  padding:14px 16px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:color-mix(in srgb,var(--paper) 74%,var(--rail));
+  color:var(--ink);
+}
+.reader-sheet #reader-section-switch {display:none}
+.reader-sheet {display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px}
+.reader-display {display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;align-content:start;gap:9px 14px}
+.reader-section-heading,.reader-source-actions,.reader-find-results {display:flex;align-items:center;gap:6px}
+.reader-section-heading {justify-content:space-between}
+.reader-sheet h3,#reading-guide h3 {margin:0;font:600 13px/1.4 system-ui,sans-serif;letter-spacing:-.015em;color:var(--ink)}
+.reader-display .reader-section-heading {grid-column:1 / -1}
+.reader-sheet .segmented-radio {width:max-content;padding:2px;justify-self:start;border-radius:6px}
+.reader-sheet .segmented-radio label>span {gap:4px;min-height:30px;padding:4px 8px}
+.reader-sheet .segmented-radio legend.sr-only {padding:0}
+.reader-sheet .segmented-radio .material-symbol,.reader-text-command .material-symbol {font-size:17px}
+.reader-sheet .interlinear-toggle {justify-self:end;white-space:nowrap}
+.reader-layer-field {grid-column:1 / -1;display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:center;gap:16px}
+.reader-sheet .reader-layer {font:500 12px/1.4 system-ui,sans-serif;margin:0;color:var(--muted)}
+.reader-sheet #reading-layer,.stage-actions #token-filter {margin:0;width:100%;min-width:0;min-height:34px;background-color:var(--paper);font-size:12px}
+.reader-sheet .reader-source {min-width:0;display:grid;align-content:start;gap:9px;padding-inline-start:18px;border-inline-start:1px solid var(--border)}
+.reader-source h3 {min-height:24px;display:flex;align-items:center}
+.reader-input-group {
+  display:flex;align-items:center;min-width:0;box-sizing:border-box;min-height:34px;margin:0;gap:0;
+  background:var(--paper);color:var(--muted);border:1px solid var(--control-edge);border-radius:5px;
+}
+.reader-input-group:focus-within {outline:2px solid var(--accent);outline-offset:1px}
+.stage-actions .reader-input-group :is(#token-query,#source-location) {margin:0;min-width:0;min-height:32px;padding:5px 8px;flex:1;width:100%;border:0;background:transparent;color:var(--ink);font-size:12px}
+.stage-actions .reader-input-group input:focus-visible {outline:0}
+.stage-actions .reader-input-group button,.stage-actions button.reader-text-command {
+  min-width:30px;min-height:28px;padding:3px 6px;border:0;background:transparent;color:var(--muted);
+  border-radius:4px;font:500 12px/1.35 system-ui,sans-serif;white-space:nowrap;
+}
+.stage-actions .reader-input-group button {margin:1px 2px;color:var(--accent)}
+.stage-actions .reader-input-group button:hover,.stage-actions button.reader-text-command:hover {background:var(--control-hover);color:var(--ink)}
+.stage-actions #reading-guide-button {min-height:24px;font-size:11px}
+.reader-source-actions {flex-wrap:wrap;margin-inline-start:-6px;column-gap:4px}
+.stage-actions #source-location-status {margin:0;font:12px/1.5 system-ui,sans-serif;color:var(--muted);overflow-wrap:anywhere}
+.stage-actions #reader-find {
+  grid-column:1 / -1;display:grid;grid-template-columns:minmax(0,1fr) minmax(8.8rem,auto) auto;
+  align-items:center;gap:8px;padding:10px;
+}
+.stage-actions #reader-find[hidden] {display:none}
+.reader-query {padding-inline-start:9px}
+.reader-query > .material-symbol {font-size:18px}
+.reader-find-results {justify-content:flex-end;gap:2px}
+.stage-actions #reading-match-count {font:500 12px/1.3 system-ui,sans-serif;color:var(--muted);margin-inline:4px;white-space:nowrap}
+#reading-guide {
+  position:fixed;box-sizing:border-box;inset:0;margin:auto;width:min(21rem,calc(100% - 24px));height:max-content;
+  max-height:calc(100dvh - 24px);overflow:auto;padding:14px 16px;border:1px solid var(--control-edge);border-radius:10px;
+  background:var(--paper);color:var(--ink);box-shadow:0 10px 32px #0002;
+}
+#reading-guide-button {anchor-name:--reading-guide}
+@supports (position-area:bottom) and (position-anchor:--reading-guide) {
+  #reading-guide {inset:auto;margin:6px;position-anchor:--reading-guide;position-area:bottom span-right;position-try-fallbacks:flip-block,flip-inline}
+}
+#reading-guide #selection-help {margin:10px 0 0;line-height:1.5}
+#selection-help dt {color:var(--ink);font-weight:600}
+#selection-help dd {margin:2px 0 10px;color:var(--muted)}
+#selection-help dd:last-child {margin-bottom:0}
+#selection-help kbd {font:inherit;font-weight:600}
+@container transcript-stage (max-width:620px) {
+  .reader-sheet {gap:12px}
+  .reader-sheet .reader-source {padding-inline-start:12px}
+  .reader-display {column-gap:8px}
+  .reader-find-results {flex-wrap:wrap}
+}
+@container transcript-stage (max-width:520px) {
+  .stage-actions .reader-sheet {position:relative;grid-template-columns:1fr;gap:10px;padding:9px 12px 12px}
+  .reader-sheet #reader-section-switch {display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+  #reader-section-switch button {min-height:32px;padding:3px 2px;border:0;border-bottom:2px solid transparent;border-radius:0;background:none;font-size:12px;color:var(--muted)}
+  #reader-section-switch button[aria-pressed=true] {color:var(--ink);border-bottom-color:var(--accent)}
+  .reader-sheet[data-reader-section=display] .reader-source,.reader-sheet[data-reader-section=source] .reader-display {display:none}
+  .reader-sheet .reader-section-heading {position:absolute;inset:9px 12px auto auto}
+  .reader-sheet .reader-section-heading h3,.reader-source h3 {display:none}
+  .reader-sheet #reading-guide-button {min-height:30px}
+  .reader-sheet .reader-source {padding:0;border:0;gap:6px}
+  .reader-sheet .interlinear-toggle {justify-self:end}
+  .stage-actions #reader-find {grid-template-columns:minmax(0,1fr) auto}
+  .reader-query {grid-column:1 / -1}
+  .reader-find-results {flex-wrap:nowrap}
+}
+@container transcript-stage (max-width:340px) {
+  .transcript .stage-actions .reading-status button {padding-inline:5px}
+  .stage-actions #open-reading-canvas span:not(.material-symbol) {display:none}
+}
+@media (pointer:coarse) {
+  .stage-actions .reading-settings > summary,.transcript .stage-actions .reading-status button,
+  .stage-actions #reader-section-switch button,.stage-actions #reading-guide-button,
+  .stage-actions button.reader-text-command,.stage-actions .interlinear-toggle,.reader-sheet .segmented-radio label>span {min-height:44px}
+  .stage-actions .reader-input-group,.stage-actions #reading-layer,.stage-actions #token-filter {min-height:44px}
+  .stage-actions .reader-input-group button,.stage-actions .reader-find-results button {min-width:42px;min-height:40px}
+  .stage-actions .reader-input-group :is(#token-query,#source-location),.stage-actions #reading-layer,.stage-actions #token-filter {font-size:16px}
+}

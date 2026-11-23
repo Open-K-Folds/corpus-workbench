@@ -10,6 +10,33 @@ const fontSize = (element: Locator) => element.evaluate(node => parseFloat(getCo
 test.describe('dock position during timed listening', () => {
   test.use({practicePackage:resolve('../fixtures/spoken-reading')});
 
+  test('reading and finding retain a single command row in the saved editing workspace',async({page,practiceUrl})=>{
+    await page.addInitScript(()=>{localStorage.setItem('wb-studio-layout','editing');localStorage.setItem('wb-theme','light')});
+    await page.goto(practiceUrl);
+    const settings=page.locator('.reading-settings'),toggle=settings.locator('summary');
+    const find=page.getByRole('button',{name:'Find in transcript'});
+    await expect(settings).not.toHaveAttribute('open');
+    const commandTop=()=>find.evaluate(button=>button.getBoundingClientRect().top);
+    const top=await commandTop();
+    await toggle.click();
+    await expect(page.getByLabel('Reading layer')).toBeVisible();
+    await expect(page.getByLabel('Go to source')).toBeVisible();
+    expect(await commandTop()).toBe(top);
+    await page.getByRole('button',{name:'Selection guide',exact:true}).click();
+    await expect(page.getByRole('heading',{name:'Selection guide'})).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('heading',{name:'Selection guide'})).toBeHidden();
+    await expect(settings).toHaveAttribute('open');
+    await page.getByLabel('Go to source').fill('u3');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-location="u3"]')).toBeFocused();
+    await page.keyboard.press('Control+k');
+    await expect(page.getByLabel('Find tokens',{exact:true})).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(settings).toHaveAttribute('open');
+    await expect(page.locator('#tokens')).toBeFocused();
+  });
+
   test('transcript find reports matches, cycles with F3 and restores the reading position after an empty search',async({page,practiceUrl})=>{
     await page.setViewportSize({width:390,height:730});
     await page.goto(practiceUrl);
@@ -21,7 +48,10 @@ test.describe('dock position during timed listening', () => {
     const query=page.getByLabel('Find tokens',{exact:true});
     await expect(query).toBeFocused();
     await expect(page.getByLabel('Go to source')).toBeHidden();
-    await page.getByRole('button',{name:'All reading controls'}).click();
+    await expect(page.getByLabel('Token filter')).toBeVisible();
+    await page.locator('.reading-settings > summary').click();
+    await expect(query).toBeHidden();
+    await page.getByRole('button',{name:'Source',exact:true}).click();
     await expect(page.getByLabel('Go to source')).toBeVisible();
     await page.locator('.reading-settings > summary').click();
     const place=await pane.evaluate(el=>{el.scrollTop=150;return el.scrollTop});

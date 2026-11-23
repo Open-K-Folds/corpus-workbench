@@ -27,6 +27,7 @@ import './editor.css';
 import './controls.css';
 import './review.css';
 import './workbench-shell.css';
+import {readingToolbar} from './reading-toolbar';
 import {icon} from './icons';
 import {buttonGroup,scrollIndicators} from './controls';
 import {desktop,desktopNavigation,initializeDesktop,type Departure} from './desktop';
@@ -110,31 +111,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   <div id="message" role="alert"></div><div id="conflict"></div><div id="save-recovery" aria-live="polite"></div><div class="workspace navigation-folded properties-folded"><aside class="documents" aria-label="Corpus navigation"><button type="button" class="pane-return secondary">${icon('arrow_back')}Back to transcript</button><div class="navigation-heading"><h2>Project files</h2><span id="package-count"></span></div><nav class="navigation-modes segmented-buttons" aria-label="Corpus sections"><button id="navigate-documents" class="secondary" aria-pressed="true">${icon('folder_open')}Documents</button><button id="navigate-sources" class="secondary" aria-pressed="false">${icon('description')}Sources</button></nav><label class="search-label">Find documents or sources<input id="navigation-query" type="search" autocomplete="off" placeholder="Filter by name or path"></label><button type="button" id="clear-navigation" class="secondary" hidden>Clear filter</button><div id="document-list"></div><div id="source-list" hidden></div><details><summary>Package preservation</summary><div id="package-report"></div></details></aside>
   <main class="transcript">
     <div id="document-tabs" role="tablist" aria-label="Open documents"></div>
-    <div class="stage-actions">
-    <details class="reading-settings"><summary>Reading controls</summary>
-      <div class="location-bar">
-        <fieldset id="transcript-layout" class="segmented-radio"><legend>View</legend><label><input type="radio" name="layout" value="paragraphs" aria-label="Flowing paragraphs" checked><span>${icon('notes')}Flow</span></label><label><input type="radio" name="layout" value="lines" aria-label="Source lines"><span>${icon('view_agenda')}Lines</span></label></fieldset>
-        <label class="switch-field interlinear-toggle"><input id="show-interlinear" type="checkbox" role="switch"><span>Interlinear</span></label>
-        <div class="source-location-controls"><label>Go to source<input id="source-location" placeholder="Utterance or token ID" autocomplete="off"></label><button id="jump-source" class="secondary">Go</button></div>
-        <button id="copy-citation" class="secondary">${icon('link')}Copy link</button><button id="native-problems" class="secondary">Package validation</button>
-      </div>
-      <p id="source-location-status" class="muted" role="status"></p>
-      <div class="reading-toolbar">
-        <label>Find tokens<input id="token-query" type="search" autocomplete="off" placeholder="Reading, ID or variety"></label>
-        <label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label>
-        <label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label>
-      </div>
-      <p id="selection-help" class="muted">Click a word, choose Select through, then choose the last word. You can also drag across a passage. Tap the selected count, right-click, or press Shift+F10 for tools. Hold a word for training lenses. Escape cancels an endpoint or clears the selection.</p>
-      <button id="show-all-reading-controls" type="button" class="secondary" hidden>${icon('tune')}All reading controls</button>
-    </details>
-    <div class="reading-status">
-      <button id="find-in-transcript" class="secondary" aria-label="Find in transcript" title="Find in transcript (Ctrl / ⌘ K)">${icon('search')}<span>Find</span></button>
-      <span id="reading-match-count" role="status" aria-atomic="true"></span>
-      <button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)" hidden>${icon('skip_next')}<span>Next match</span></button>
-      <button id="clear-token-search" class="secondary" aria-label="Clear search and filters" title="Clear search and filters" hidden>${icon('close')}<span>Clear</span></button>
-      <button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Focus mode (Open reading canvas)" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button>
-    </div>
-    </div>
+    ${readingToolbar()}
     <div class="transcript-title"><h2 id="document-title"></h2></div>
     <p class="canvas-help">Drag across words to select a passage. Drag the margin to move through the transcript.</p>
     <div id="tokens" tabindex="-1"></div>
@@ -172,7 +149,6 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     el('audio-availability').hidden=false;
   }
   const settings=document.querySelector<HTMLDetailsElement>('.reading-settings')!;
-  settings.open=initialLayout()==='editing' && !matchMedia('(max-width: 1000px)').matches;
   document.querySelector('.documents')!.insertAdjacentHTML('beforeend','<div id="navigation-resizer" class="side-resizer" aria-label="Resize projects pane"></div>');
   document.querySelector('.inspector')!.insertAdjacentHTML('afterbegin','<div id="properties-resizer" class="side-resizer" aria-label="Resize properties pane"></div>');
   resizeWorkbenchSides(document.querySelector<HTMLElement>('.workspace')!,el('navigation-resizer'),el('properties-resizer'));
@@ -208,7 +184,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     readingCanvas?.close(false);
     const workspace=document.querySelector<HTMLElement>('.workspace')!;
     for(const side of ['navigation','properties'])workspace.classList.toggle(side+'-folded',choice==='stage');
-    workspace.dataset.focus='transcript';settings.open=choice==='editing'&&!matchMedia('(max-width:1000px)').matches;updatePaneAccessibility();
+    workspace.dataset.focus='transcript';settings.open=false;updatePaneAccessibility();
   });
   document.querySelector<HTMLAnchorElement>('.skip-link')!.onclick=()=>{showTranscript()};
   matchMedia('(max-width:700px)').addEventListener('change',updatePaneAccessibility,{signal:shellEvents.signal});
@@ -232,7 +208,11 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   el<HTMLInputElement>('show-interlinear').onchange=e=>transcript.setInterlinear((e.target as HTMLInputElement).checked);
   el('native-problems').onclick=()=>openInspectorActivity('review');
   el('open-research').onclick=()=>openInspectorActivity('research');
-  el('jump-source').onclick=()=>{if(!transcript.location(el<HTMLInputElement>('source-location').value.trim()))message('No such source ID in this document. Display wrapping does not create line IDs.',true)};
+  el<HTMLFormElement>('source-jump-form').onsubmit=event=>{
+    event.preventDefault();
+    if(!transcript.location(el<HTMLInputElement>('source-location').value.trim()))
+      message('No such source ID in this document. Display wrapping does not create line IDs.',true);
+  };
   el('copy-citation').onclick=async()=>{const citation=transcript.citation();const url=new URL(location.origin+location.pathname);url.hash=new URLSearchParams({loc:JSON.stringify(citation)}).toString();try{await navigator.clipboard.writeText(url.href);message(`Copied ${currentDoc().title} · ${citation.anchor??'document'} · R${citation.revision}. The link needs an authenticated local session.`)}catch{message('Clipboard access is unavailable. Select a source ID and use Go to inspect its location.',true)}};
   el('navigate-documents').onclick=()=>{navigationMode='documents';renderNavigation()};
   el('navigate-sources').onclick=()=>{navigationMode='sources';renderNavigation()};
@@ -244,12 +224,15 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   const query=el<HTMLInputElement>('token-query'),filter=el<HTMLSelectElement>('token-filter');
   const readingPane=app.querySelector<HTMLElement>('.transcript')!;
   findOrigin=null;
-  const allControls=el<HTMLButtonElement>('show-all-reading-controls');
-  const settingsSummary=settings.querySelector('summary')!;
-  function compactFind(on:boolean){
-    settings.toggleAttribute('data-find-only',on);
-    settingsSummary.textContent=on?'Find in transcript':'Reading controls';
-    allControls.hidden=!on;
+  const findPanel=el('reader-find'), findButton=el('find-in-transcript');
+  function showFindPanel(show:boolean){
+    findPanel.hidden=!show;
+    findButton.setAttribute('aria-expanded',String(show));
+    if(show){
+      const guide=el('reading-guide');
+      if(guide.matches(':popover-open'))guide.hidePopover();
+      settings.open=false;
+    }
   }
   function rememberReadingPlace(){
     if(findOrigin?.document!==docPath)findOrigin={document:docPath,scroll:readingPane.scrollTop,controlsOpen:settings.open};
@@ -257,8 +240,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   function openFind(){
     if(saving||pendingWrite||transcript.busy()||transcript.activeDraft())return;
     readingCanvas?.close(false);showTranscript();rememberReadingPlace();
-    if(!settings.open)compactFind(true);
-    settings.open=true;query.focus();
+    showFindPanel(true);query.focus();
   }
   function updateFilter(){
     if(saving||pendingWrite||transcript.busy()||transcript.dirty()){
@@ -269,13 +251,33 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     readingPreferences.query=query.value;readingPreferences.filter=filter.value as ReadingPreferences['filter'];
     renderTokens();
   }
-  settings.addEventListener('toggle',()=>{if(!settings.open){compactFind(false);if(!findingTokens())findOrigin=null;}});
-  allControls.onclick=()=>{compactFind(false);settingsSummary.focus({preventScroll:true});};
-  el('find-in-transcript').onclick=openFind;
+  const sectionSwitch=el('reader-section-switch');
+  buttonGroup(sectionSwitch);
+  for(const button of sectionSwitch.querySelectorAll<HTMLButtonElement>('button')){
+    button.onclick=()=>{
+      const isDisplay=button.getAttribute('aria-controls')==='reader-display';
+      settings.querySelector<HTMLElement>('.reader-sheet')!.dataset.readerSection=isDisplay?'display':'source';
+      for(const other of sectionSwitch.querySelectorAll('button'))other.setAttribute('aria-pressed',String(other===button));
+    };
+  }
+  settings.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&settings.open&&!el('reading-guide').matches(':popover-open')){
+      event.preventDefault();
+      settings.open=false;
+      settings.querySelector('summary')!.focus();
+    }
+  });
+  settings.addEventListener('toggle',()=>{
+    if(settings.open){
+      showFindPanel(false);
+      if(!findingTokens())findOrigin=null;
+    }
+  });
+  findButton.onclick=()=>{if(findPanel.hidden)openFind();else el('clear-token-search').click();};
   query.oninput=updateFilter;
-  query.onkeydown=event=>{
-    if(event.isComposing||!findingTokens())return;
-    if(event.key==='Enter'){event.preventDefault();void nextMatch();}
+  findPanel.onkeydown=event=>{
+    if(event.isComposing)return;
+    if(event.key==='Enter'&&event.target===query&&findingTokens()){event.preventDefault();void nextMatch();}
     if(event.key==='Escape'){event.preventDefault();event.stopPropagation();el('clear-token-search').click();}
   };
   el<HTMLSelectElement>('reading-layer').onchange=e=>{if(transcript.dirty()){(e.target as HTMLSelectElement).value=readingPreferences.layer;message('Finish or undo the correction draft before changing layers.',true);return}readingPreferences.layer=(e.target as HTMLSelectElement).value as ReadingPreferences['layer'];renderTokens()};
@@ -286,10 +288,10 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
     }
     const origin=findOrigin?.document===docPath?findOrigin:null;
     findOrigin=null;readingPreferences.query=query.value='';readingPreferences.filter='all';filter.value='all';
+    showFindPanel(false);
     if(origin)settings.open=origin.controlsOpen;
     refreshFindControls();
     const scope=docPath;
-    const findButton=el('find-in-transcript');
     findButton.focus({preventScroll:true});
     await transcript.render();
     if(scope!==docPath||findingTokens()||findOrigin||document.activeElement!==findButton)return;
@@ -331,7 +333,11 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   if(cueMedia?.document!==docPath || cueMedia.snapshot!==view.revision.snapshot_hash)playbackSync?.bind(null,'');
   el('save-state').textContent=`Saved R${view.revision.id} · ${view.approved?'Approved exact revision':'Unreviewed'}`;
   el('document-title').textContent=doc.title;
-  el('native-problems').innerHTML=icon('fact_check')+'Package validation · '+view.issues.filter(i=>i.blocking).length+' blocking / '+view.issues.filter(i=>!i.blocking).length+' advisory';
+  const blocking=view.issues.filter(issue=>issue.blocking).length;
+  const checks=el('native-problems');
+  checks.innerHTML=icon('fact_check')+'Package checks'+(view.issues.length?` <span>(${view.issues.length})</span>`:'');
+  checks.title=`Package validation · ${blocking} blocking / ${view.issues.length-blocking} advisory`;
+  checks.setAttribute('aria-label',checks.title);
   el('project-title').textContent=view.snapshot.project;
   el('stage-file').textContent=doc.path;
   el('stage-metadata').textContent=`${doc.spans.length} ${doc.spans.length===1?'annotation':'annotations'}`;
@@ -355,8 +361,7 @@ let findOrigin:{document:string;scroll:number;controlsOpen:boolean}|null=null;
 function refreshFindControls(){
   const active=findingTokens();
   el('tokens').toggleAttribute('data-filtered',active);
-  el('find-in-transcript').hidden=active;
-  el('clear-token-search').hidden=!active;
+  el('find-in-transcript').toggleAttribute('data-filtered',active);
   const next=el<HTMLButtonElement>('next-match');
   next.hidden=!active;
   const status=el('reading-match-count');
