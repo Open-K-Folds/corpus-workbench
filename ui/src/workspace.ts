@@ -3,17 +3,28 @@ import {esc} from './dom';
 
 // Trusted, compiled view registry. Corpus configuration supplies data, never code.
 export const inspectorViews = [
-  {id:'token',label:'Token'}, {id:'annotations',label:'Annotations'},
-  {id:'definitions',label:'Definitions'}, {id:'history',label:'History'},
-  {id:'review',label:'Review'}, {id:'references',label:'References'},
-  {id:'structure',label:'Split / merge'}, {id:'xml',label:'XML'},
-  {id:'return',label:'Return copy'},
-  {id:'search',label:'Corpus search'},
-  {id:'research',label:'Research handoff'},
-  {id:'coanalysis',label:'Co-analysis'},
-  {id:'training',label:'Training collections'},
+  {id:'token',label:'Token',group:'Transcript'}, {id:'annotations',label:'Annotations',group:'Transcript'},
+  {id:'definitions',label:'Definitions',group:'Transcript'}, {id:'history',label:'History',group:'Package'},
+  {id:'review',label:'Review',group:'Package'}, {id:'references',label:'References',group:'Package'},
+  {id:'structure',label:'Split / merge',group:'Transcript'}, {id:'xml',label:'XML',group:'Package'},
+  {id:'return',label:'Return copy',group:'Package'},
+  {id:'search',label:'Corpus search',group:'Research'},
+  {id:'research',label:'Research handoff',group:'Research'},
+  {id:'coanalysis',label:'Co-analysis',group:'Research'},
+  {id:'training',label:'Training collections',group:'Research'},
 ] as const;
 export type InspectorView = typeof inspectorViews[number]['id'];
+// The registry order also defines Alt+1 through Alt+9. Group the visible
+// chooser by task without changing those established shortcuts.
+export function inspectorNavigation() {
+  return ['Transcript','Research','Package'].map(group=>{
+    const tools=inspectorViews.filter(view=>view.group===group);
+    return `<div class="inspector-tool-group" role="group" aria-label="${group}">
+      <span aria-hidden="true">${group}</span><div>${tools.map(tool=>
+        `<button type="button" data-tab="${tool.id}" aria-pressed="false">${tool.label}</button>`
+      ).join('')}</div></div>`;
+  }).join('');
+}
 export type ReadingLayer = 'corrected'|'original'|'normalized';
 export type TokenFilter = 'all'|'corrected'|'untimed'|'attention';
 export interface ReadingPreferences {query:string;layer:ReadingLayer;filter:TokenFilter}

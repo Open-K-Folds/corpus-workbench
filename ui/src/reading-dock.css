@@ -13,9 +13,9 @@
   z-index: 2;
 }
 :root[data-theme=light] .workspace .canvas-tools {
-  --dock-surface: #fffffc;
-  --dock-edge: #cdd4ca;
-  --dock-track: #879289;
+  --dock-surface: #fff;
+  --dock-edge: var(--border);
+  --dock-track: #758279;
   --dock-key: #28563d;
   --dock-key-ink: #fff;
   --dock-on: #28563d;
@@ -116,6 +116,28 @@
 }
 .canvas-zoom .material-symbol { font-size: 17px }
 .canvas-console #canvas-exit { margin-inline-start: -8px }
+
+/* On the main stage the recording tray is the primary transport. Keep turn
+   navigation at the foot of the page; the floating player belongs to focus mode. */
+#app:not([data-reading-canvas]) .workspace .canvas-tools {
+  padding-block: 2px;
+  border-block-start: 1px solid var(--stage-rule);
+}
+#app:not([data-reading-canvas]) .canvas-console {
+  padding-block: 2px;
+  background: transparent;
+  border-color: transparent;
+  border-radius: 0;
+  box-shadow: none;
+}
+#app:not([data-reading-canvas]) .canvas-console #canvas-play {
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--dock-edge);
+}
+#app:not([data-reading-canvas]) .canvas-console #canvas-play:hover {
+  background: var(--control-hover);
+}
 
 .canvas-tools #canvas-scrub {
   --track-size: 3px;

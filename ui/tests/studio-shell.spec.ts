@@ -1,6 +1,22 @@
 import {expect} from '@playwright/test';
 import {test} from './practice-fixture';
 
+test('the stage tool chooser keeps the active tool visible after a keyboard selection',async({page,practiceUrl})=>{
+  await page.goto(practiceUrl);
+  await page.getByRole('button',{name:'Tools',exact:true}).click();
+  const chooser=page.getByRole('navigation',{name:'Inspector',exact:true});
+  const transcriptTools=chooser.getByRole('group',{name:'Transcript'});
+  const definitions=transcriptTools.getByRole('button',{name:'Definitions'});
+  await definitions.focus();
+  await definitions.press('ArrowRight');
+  const split=transcriptTools.getByRole('button',{name:'Split / merge'});
+  await expect(split).toBeFocused();
+  await split.press('Enter');
+  await expect(chooser).toBeHidden();
+  await expect(page.getByRole('region',{name:'Split / merge'})).toBeFocused();
+  await expect(page.locator('.inspector-tools > summary')).toContainText('Split / merge');
+});
+
 test('fresh studio opens on the passage and activities keep the same document',async({page,practiceUrl})=>{
   await page.goto(practiceUrl);
   const text=page.locator('[data-token="b4"]');

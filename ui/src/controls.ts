@@ -1,12 +1,13 @@
 /** Arrow keys complement Tab/Space on a small mutually exclusive button group. */
-export function buttonGroup(group:HTMLElement){
+export function buttonGroup(group:HTMLElement,activateOnArrow=()=>true){
   group.addEventListener('keydown',event=>{
     if(event.altKey||event.ctrlKey||event.metaKey||event.isComposing)return;
     const buttons=[...group.querySelectorAll<HTMLButtonElement>('button')].filter(b=>!b.disabled);
     const current=buttons.indexOf(event.target as HTMLButtonElement);
     if(current<0||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
     event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:(current+(event.key==='ArrowLeft'?-1:1)+buttons.length)%buttons.length;
-    buttons[next].focus();buttons[next].click();
+    buttons[next].focus();
+    if(activateOnArrow())buttons[next].click();
   });
 }
 

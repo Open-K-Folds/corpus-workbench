@@ -18,7 +18,7 @@ import {retokenizationInspector} from './retokenization';
 import {teitokReaderInspector} from './teitok-reader';
 import {reconciliationInspector} from './reconciliation';
 import {corpusSearch,type SearchPanel} from './search';
-import {documentNavigation,sourceNavigation,inspectorViews,isInspectorView,reading,visibleToken,type InspectorView,type ReadingPreferences} from './workspace';
+import {documentNavigation,sourceNavigation,inspectorNavigation,inspectorViews,isInspectorView,reading,visibleToken,type InspectorView,type ReadingPreferences} from './workspace';
 import {sourceInspector} from './source';
 import {Transcript} from './transcript';
 import {RecordingPanel,resizeWorkbenchSides} from './panes';
@@ -141,7 +141,12 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   </main>
   <section id="training-comparison" aria-label="Compare with selected transcript"></section>
   ${stageControls()}
-  <aside class="inspector" aria-label="Inspector"><button type="button" class="pane-return secondary">${icon('arrow_back')}Back to transcript</button><details class="inspector-tools" open><summary>Inspector tools</summary><nav aria-label="Inspector">${inspectorViews.map(item=>`<button data-tab="${item.id}" aria-pressed="false">${item.label}</button>`).join('')}</nav></details><div id="inspector-content" role="region" tabindex="-1"></div></aside></div>
+  <aside class="inspector" aria-label="Inspector"><button type="button" class="pane-return secondary">${icon('arrow_back')}Back to transcript</button>
+    <details class="inspector-tools" open>
+      <summary>${icon('tune')}<span>Inspector tools</span><strong id="current-inspector"></strong>${icon('expand_more')}</summary>
+      <nav aria-label="Inspector">${inspectorNavigation()}</nav>
+    </details>
+    <div id="inspector-content" role="region" tabindex="-1"></div></aside></div>
   <section id="recording-pane" class="audio" aria-label="Recording">
     <audio id="audio" preload="metadata"></audio><p id="audio-availability" class="muted" hidden>No playable media is included for this document.</p>
     <div class="actions"><button id="listen-selected" class="secondary">${icon('headphones')}Listen to selection</button><label class="switch-field"><input id="loop-selection" type="checkbox" role="switch"><span>Loop selection</span></label></div>
@@ -228,7 +233,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
   el('open-overview').onclick=()=>overview?.open();
   el('transcript-layout').onchange=e=>transcript.setLayout((e.target as HTMLInputElement).value as 'lines'|'paragraphs');
   buttonGroup(document.querySelector('.navigation-modes')!);buttonGroup(el('document-tabs'));
-  buttonGroup(document.querySelector('.inspector nav')!);scrollIndicators(app);
+  buttonGroup(document.querySelector('.inspector nav')!,()=>initialLayout()==='editing');scrollIndicators(app);
   el<HTMLInputElement>('show-interlinear').onchange=e=>transcript.setInterlinear((e.target as HTMLInputElement).checked);
   el('native-problems').onclick=()=>openInspectorActivity('review');
   el('open-research').onclick=()=>openInspectorActivity('research');
@@ -311,7 +316,12 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
       if(!('reason' in cue)&&audio.currentTime>=cue.end)void listen(anchor);
     }
   };
-  document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>b.onclick=()=>{if(isInspectorView(b.dataset.tab!)){tab=b.dataset.tab;showProperties();void renderInspector()}});
+  document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(button=>button.onclick=()=>{
+    const target=button.dataset.tab;
+    if(!target||!isInspectorView(target))return;
+    if(initialLayout()==='stage')openInspectorActivity(target);
+    else {tab=target;showProperties();void renderInspector()}
+  });
   el('export-package').onclick=async()=>{try{if(desktop){message('Preparing exact revision export…');const result=await desktop.exportRevision(view.revision.id);message(result.cancelled?'Export cancelled.':`Complete package saved for R${view.revision.id}.`);return}message('Preparing exact revision export…');const r=await api<{revision:number;download:string;job_id:string}>('/api/export',{revision:view.revision.id});message(`Complete export ready for R${r.revision}.`);const a=document.createElement('a');a.href=r.download;a.textContent='Download complete package';a.setAttribute('download','');el('message').append(' ',a)}catch(e){message(String(e),true)}};
   document.addEventListener('keydown',event=>{
     if(saving||pendingWrite||transcript.busy()||event.isComposing||document.querySelector('dialog[open]'))return;
@@ -511,7 +521,9 @@ async function save(operations: Operation[], label: string, source?: HTMLFormEle
   }
 }
 async function renderInspector(committedRender=false){updatePaneAccessibility();refreshListenControls();overview?.update();if((saving&&!committedRender)||pendingWrite||transcript.busy())return;const epoch=++inspectorEpoch;if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}document.querySelectorAll<HTMLButtonElement>('[data-tab]').forEach(b=>{b.classList.toggle('active',b.dataset.tab===tab);b.setAttribute('aria-pressed',String(b.dataset.tab===tab))});const content=el('inspector-content');const doc=currentDoc();
-  content.setAttribute('aria-label',inspectorViews.find(v=>v.id===tab)?.label??'Source file');
+  const toolLabel=inspectorViews.find(v=>v.id===tab)?.label??'Source file';
+  el('current-inspector').textContent=toolLabel;
+  content.setAttribute('aria-label',toolLabel);
   content.replaceChildren();
   if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.innerHTML='<h2>Listen and correct</h2><p>Select a token to inspect its original reading, corrections and annotations.</p><p class="muted">Find tokens: Ctrl / Command + K. Next match: F3. Inspector views: Alt + 1 through 9.</p>';}
   training.stopAudio();

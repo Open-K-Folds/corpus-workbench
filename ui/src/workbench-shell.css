@@ -2,10 +2,10 @@
    scrolling element when a library or inspector opens alongside it. */
 :root {
   --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
-  --ink:#23332b; --paper:#f4f5ee; --rail:#e9ece3; --muted:#536456; --border:#cbd2c6;
-  --accent:#305e43; --control-surface:#e6eae1; --control-edge:#b5c2b4; --control-hover:#dbe3d7;
-  --selection-ink:#1d4c31; --selection-surface:#d3e8d4;
-  --chrome:#f1f3ec; --chrome-ink:#20332a; --activity:#e7ece2; --indicator:#2d7449;
+  --ink:#202622; --paper:#fff; --rail:#f6f7f6; --muted:#515b56; --border:#d6dbd8;
+  --accent:#24573e; --control-surface:#fff; --control-edge:#a5afa9; --control-hover:#e9edea;
+  --selection-ink:#184c32; --selection-surface:#e0eee5;
+  --chrome:#f4f5f4; --chrome-ink:#202622; --activity:#ecefed; --indicator:#266845;
   --studio-bar:40px; --studio-rail:52px;
   color-scheme:light;
 }
@@ -129,9 +129,18 @@ body {background:var(--paper);color:var(--ink)}
 .documents .empty-state {padding-block:10px;color:var(--muted)}
 .inspector {border-inline-start:1px solid var(--border)}
 .inspector-tools {padding:10px 0;margin-bottom:14px;border-bottom:1px solid var(--border)}
-.inspector-tools > summary {margin:0;color:var(--ink);font-weight:600}
-.inspector-tools nav {display:grid;grid-template-columns:repeat(auto-fit,minmax(82px,1fr));gap:3px;margin:8px 0 0;padding:0;border:0;background:transparent}
-.inspector-tools nav button {width:100%;min-height:30px;font-size:11px}
+.inspector-tools > summary {display:flex;align-items:center;gap:6px;min-height:32px;margin:0;color:var(--muted);font-size:12px;list-style:none}
+.inspector-tools > summary::-webkit-details-marker {display:none}
+.inspector-tools > summary .material-symbol {font-size:16px}
+.inspector-tools > summary strong {margin-inline-start:auto;color:var(--ink);font-weight:600}
+.inspector-tools[open] > summary .material-symbol:last-child {rotate:180deg}
+.inspector-tools nav {display:grid;gap:8px;margin:6px 0 0;padding:0;border:0;background:transparent}
+.inspector-tool-group > span {color:var(--muted);font:600 11px/1.4 system-ui,sans-serif}
+.inspector-tool-group > div {display:flex;flex-wrap:wrap;gap:0 2px;margin-inline-start:-6px}
+.inspector-tools nav button {min-height:28px;padding:3px 6px;font-size:12px;white-space:nowrap}
+@media (pointer:coarse) {
+  .inspector-tools > summary,.inspector-tools nav button {min-width:44px;min-height:44px}
+}
 #inspector-content {overflow-wrap:anywhere}
 #document-tabs:has(> :only-child) {display:none}
 .transcript .reading-settings {border:0;background:transparent;padding:0;margin:0}
