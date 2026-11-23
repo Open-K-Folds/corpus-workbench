@@ -44,6 +44,20 @@ test('the canvas comparison can become a reviewed paraphrase without moving the 
   await expect(strip).toBeHidden();
 });
 
+test('an empty collection opens the selected passage or returns to the transcript to choose one',async({page,practiceUrl})=>{
+  await page.goto(practiceUrl);
+  const trainer=panel(page);
+  await page.locator('#rail-training').click();
+  await trainer.getByRole('button',{name:'Saved collections'}).click();
+  await trainer.getByRole('button',{name:'Choose a passage'}).click();
+  await expect(trainer).toBeHidden();
+  await chooseSeed(page,'b1','b6');
+  await trainer.getByRole('button',{name:'Saved collections'}).click();
+  await trainer.getByRole('button',{name:'Use selected passage'}).press('Enter');
+  await expect(trainer.getByRole('radio',{name:'Label a passage'})).toBeFocused();
+  await expect(trainer.locator('[data-training-seed] blockquote')).toHaveText(seedQuote);
+});
+
 test('a reviewed pair, negative pair and passage label survive reload and export with their original anchors', async ({page, practiceUrl}) => {
   test.setTimeout(60000);
   const errors: string[] = [];
@@ -144,11 +158,18 @@ test('a narrow trainer finds manually searched source words and keeps the review
   await chooseSeed(page, 'b1', 'b6');
   const trainer = panel(page);
   await trainer.getByRole('radio', {name: 'Similar wording'}).check();
+  await expect(trainer.locator('.training-discovery blockquote')).toBeInViewport({ratio:1});
+  const review = trainer.getByRole('button', {name: 'Review example'});
+  await expect(review).toBeInViewport({ratio:1});
+  await review.press('Enter');
+  await expect(trainer.getByLabel('Relationship', {exact:true})).toBeFocused();
+  await trainer.getByText('Refine search',{exact:true}).click();
   const search = trainer.getByRole('searchbox', {name: 'Find words in the corpus'});
   const find = trainer.getByRole('button', {name: 'Find passages'});
   await search.fill('definitely absent');
   await find.click();
   await expect(trainer).toContainText('No other passage matched.');
+  await expect(search).toBeFocused();
   await search.fill('ALREADY OVER');
   await trainer.getByLabel('Candidate limit').selectOption('6');
   await find.click();
@@ -168,6 +189,7 @@ test('matched-word collection lets the researcher save a particular occurrence a
   await chooseSeed(page, 'b1', 'b6');
   const trainer = panel(page);
   await trainer.getByRole('radio', {name: 'Similar wording'}).check();
+  await trainer.getByText('Refine search',{exact:true}).click();
   const scope = trainer.getByRole('combobox', {name: 'Search result span'});
   await expect(scope.locator('option:checked')).toHaveText('Surrounding passage');
   await scope.selectOption({label: 'Matched words only'});

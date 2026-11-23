@@ -37,6 +37,7 @@ test('packaged practice corpus retains reviewed pairs and passage labels after r
     await page.locator('#rail-training').click();
     let panel = page.locator('#training-panel');
     await panel.getByRole('radio', {name: 'Easy to confuse'}).check();
+    await panel.getByText('Refine search', {exact:true}).click();
     await panel.getByLabel('Find words in the corpus').fill('got there');
     await panel.getByRole('button', {name: 'Find passages'}).click();
     await expect(panel.locator('blockquote')).toHaveText([sourceWords, comparisonWords]);

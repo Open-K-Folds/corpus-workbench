@@ -30,6 +30,13 @@
 #training-review,.training-discovery {border-top:1px solid var(--border);padding-top:1rem;}
 .training-discovery search form {grid-template-columns:minmax(0,1fr) auto; align-items:end; column-gap:.6rem; row-gap:.45rem;}
 .training-discovery search label:first-child {grid-column:1/-1;}
+.training-discovery .training-byline small {margin-inline-start:auto;}
+.training-search {border-block-start:1px solid var(--border);padding-block-start:.45rem;}
+.training-search summary {cursor:pointer;color:var(--muted);}
+.training-search[open]>:not(summary) {margin-top:.65rem;}
+@media (min-width:1001px) and (min-height:620px) {
+  #app:not([data-reading-canvas]) .training-card-review {display:none;}
+}
 .training-assistant {border:1px solid var(--border);border-radius:.45rem;padding:.65rem .8rem;}
 .training-assistant>summary {display:flex; gap:.4rem;align-items:center;}
 .training-assistant[open]>:not(summary),.training-record[open]>:not(summary) {margin-top:.65rem;}
