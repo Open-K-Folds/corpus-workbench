@@ -136,7 +136,10 @@ test('real Electron imports, corrects, reviews, exports, reopens and protects me
 
     await page.keyboard.press('Control+k');await expect(page.getByLabel('Find tokens',{exact:true})).toBeFocused();
     await page.getByLabel('Find tokens',{exact:true}).fill('');
+    const readingControls=page.locator('.reading-settings > summary');
+    await readingControls.click();
     await page.getByRole('radio',{name:'Source lines',exact:true}).check();
+    await readingControls.click();
     await expect(page.locator('#tokens')).toHaveAttribute('data-layout','lines');
     await page.locator('[data-token="w2"]').click();await expect(page.getByLabel('Human-corrected reading')).toBeVisible();
     await expect(page.locator('#audio-play')).toBeEnabled();
@@ -154,7 +157,9 @@ test('real Electron imports, corrects, reviews, exports, reopens and protects me
     for(const selector of ['#navigate-documents','#navigate-sources'])expect(await page.locator(selector).evaluate(element=>{const r=element.getBoundingClientRect(),p=element.closest('.documents').getBoundingClientRect();return r.left>=p.left&&r.right<=p.right&&element.scrollWidth<=element.clientWidth}),`${selector} fits minimum sidebar width`).toBe(true);
     await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1440,1000));
 
+    await readingControls.click();
     await page.getByRole('radio',{name:'Flowing paragraphs',exact:true}).check();
+    await readingControls.click();
     await draft(page,'strolled');await page.screenshot({path:join(evidence,'electron-inline-preview-1440x1000.png')});await page.locator('#accept-draft').click();
     await expect(page.locator('#save-state')).toContainText('Saved R2');
     await expect(page.locator('[data-token="w2"] .reading-text')).toHaveText('strolled');
