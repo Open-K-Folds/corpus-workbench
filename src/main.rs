@@ -198,6 +198,72 @@ fn bind_address(port: u16, container_network: bool) -> Result<String> {
         Ok(format!("127.0.0.1:{port}"))
     }
 }
+
+fn browser_origin(configured: &str, container_network: bool, port: u16) -> Result<String> {
+    if configured.is_empty() {
+        return Ok(format!("http://127.0.0.1:{port}"));
+    }
+    ensure!(
+        container_network,
+        "WB_PUBLIC_ORIGIN requires container networking"
+    );
+    let invalid = "WB_PUBLIC_ORIGIN must be an HTTPS origin with only a hostname and optional port";
+    let authority = configured.strip_prefix("https://").context(invalid)?;
+    let (host, port_suffix) = if let Some(ipv6) = authority.strip_prefix('[') {
+        let (ip, suffix) = ipv6.split_once(']').context(invalid)?;
+        let ip: std::net::Ipv6Addr = ip.parse().context(invalid)?;
+        (format!("[{ip}]"), suffix)
+    } else {
+        let suffix_start = authority.find(':').unwrap_or(authority.len());
+        let (host, suffix) = authority.split_at(suffix_start);
+        ensure!(
+            host.len() <= 253
+                && host.split('.').all(|label| !label.is_empty()
+                    && label.len() <= 63
+                    && !label.starts_with('-')
+                    && !label.ends_with('-')
+                    && label
+                        .bytes()
+                        .all(|b| b.is_ascii_alphanumeric() || b == b'-')),
+            "{invalid}"
+        );
+        // Browsers parse a numeric last label as an IPv4 address.
+        let last = host
+            .rsplit('.')
+            .next()
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+        if last.bytes().all(|b| b.is_ascii_digit())
+            || last
+                .strip_prefix("0x")
+                .is_some_and(|digits| digits.bytes().all(|b| b.is_ascii_hexdigit()))
+        {
+            ensure!(host.parse::<std::net::Ipv4Addr>().is_ok(), "{invalid}");
+        }
+        (host.to_ascii_lowercase(), suffix)
+    };
+    if port_suffix.is_empty() {
+        return Ok(format!("https://{host}"));
+    }
+    let digits = port_suffix.strip_prefix(':').context(invalid)?;
+    ensure!(digits.bytes().all(|b| b.is_ascii_digit()), "{invalid}");
+    let port: u16 = digits.parse().context(invalid)?;
+    ensure!(port > 0, "{invalid}");
+    Ok(if port == 443 {
+        format!("https://{host}")
+    } else {
+        format!("https://{host}:{port}")
+    })
+}
+
+fn session_cookie(token: &str, origin: &str) -> String {
+    let secure = if origin.starts_with("https://") {
+        "; Secure"
+    } else {
+        ""
+    };
+    format!("wb_session={token}; HttpOnly; SameSite=Strict; Path=/{secure}")
+}
 fn h(name: &str, value: &str) -> Header {
     Header::from_bytes(name, value).unwrap()
 }
@@ -320,6 +386,14 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
         .to_ip()
         .context("HTTP listener address required")?
         .port();
+    let configured_origin = std::env::var_os("WB_PUBLIC_ORIGIN").unwrap_or_default();
+    let origin = browser_origin(
+        configured_origin
+            .to_str()
+            .context("invalid WB_PUBLIC_ORIGIN")?,
+        options.container_network,
+        port,
+    )?;
     fs::create_dir_all(&options.runtime).context("create writable runtime directory")?;
     let runtime_root = fs::canonicalize(&options.runtime)?;
     let session_directory = runtime_root
@@ -330,7 +404,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
         directory: session_directory,
         browser_files: vec![],
     };
-    let url = format!("http://127.0.0.1:{port}/");
+    let url = format!("{origin}/");
     if options.desktop {
         // stdout is a private pipe owned by Electron main; the capability is
         // never written to a launcher, browser cookie, or renderer response.
@@ -350,7 +424,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
             runtime.browser_files.push((path, bytes.to_vec()));
         }
         println!(
-            "Usable local workbench: {url} (open {} for its protected session)",
+            "Usable workbench: {url} (open {} for its protected session)",
             runtime_root.join("Open-Workbench.html").display()
         );
     }
@@ -402,7 +476,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
             let result = (|| -> Result<Value> {
                 ensure!(!options.desktop, "unauthorized desktop session route");
                 ensure!(
-                    header(&request, "Origin").as_deref() == Some(url.trim_end_matches('/')),
+                    header(&request, "Origin").as_deref() == Some(origin.as_str()),
                     "origin denied"
                 );
                 let data = body(&mut request)?;
@@ -420,10 +494,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
                     200,
                     serde_json::to_vec(&data)?,
                     "application/json",
-                    vec![h(
-                        "Set-Cookie",
-                        &format!("wb_session={token}; HttpOnly; SameSite=Strict; Path=/"),
-                    )],
+                    vec![h("Set-Cookie", &session_cookie(&token, &origin))],
                 ),
                 Err(e) => respond(
                     request,
@@ -449,7 +520,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
             && method == Method::Post
             && !desktop_session
             && (header(&request, "X-WB-CSRF").as_deref() != Some(&token)
-                || header(&request, "Origin").as_deref() != Some(url.trim_end_matches('/')))
+                || header(&request, "Origin").as_deref() != Some(origin.as_str()))
         {
             respond(
                 request,
@@ -954,6 +1025,70 @@ fn decode(s: &str) -> Option<String> {
         }
     }
     String::from_utf8(bytes).ok()
+}
+
+#[cfg(test)]
+mod browser_origin_tests {
+    use super::*;
+
+    #[test]
+    fn loopback_default_and_container_https_origins() {
+        for container in [false, true] {
+            let local = browser_origin("", container, 18920).unwrap();
+            assert_eq!(local, "http://127.0.0.1:18920");
+            assert_eq!(
+                session_cookie("fixture", &local),
+                "wb_session=fixture; HttpOnly; SameSite=Strict; Path=/"
+            );
+        }
+        for (value, expected) in [
+            ("https://WorkBench.Example:443", "https://workbench.example"),
+            (
+                "https://workbench.example:8443",
+                "https://workbench.example:8443",
+            ),
+            ("https://127.0.0.1:443", "https://127.0.0.1"),
+            ("https://[2001:db8::1]:8443", "https://[2001:db8::1]:8443"),
+        ] {
+            let origin = browser_origin(value, true, 18920).unwrap();
+            assert_eq!(origin, expected);
+            assert_eq!(
+                session_cookie("fixture", &origin),
+                "wb_session=fixture; HttpOnly; SameSite=Strict; Path=/; Secure"
+            );
+            assert!(browser_origin(value, false, 18920).is_err());
+        }
+    }
+
+    #[test]
+    fn public_origin_rejects_malformed_hosts_paths_and_credentials() {
+        for value in [
+            "http://workbench.example",
+            "https://",
+            "https://*.example",
+            "https://user:pass@example",
+            "https://example/",
+            "https://example/path",
+            "https://example?x",
+            "https://example#x",
+            " https://example",
+            "https://example\n",
+            "https://a..b",
+            "https://-bad.example",
+            "https://bad-.example",
+            "https://a%2eb.example",
+            "https://example:65536",
+            "https://example:0",
+            "https://example:",
+            "https://[::1]junk",
+            "https://127.000.0.1",
+            "https://256.0.0.1",
+            "https://example.0x123",
+            "https://one,https://two",
+        ] {
+            assert!(browser_origin(value, true, 18920).is_err(), "{value:?}");
+        }
+    }
 }
 
 #[cfg(test)]
