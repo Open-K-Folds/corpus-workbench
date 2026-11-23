@@ -32,6 +32,45 @@ const selected=(page:Page)=>page.locator('#tokens .lexeme.selected').evaluateAll
 const ids=(start:number,end:number)=>Array.from({length:end-start+1},(_,n)=>'w'+(start+n));
 const phrase=(start:number,end:number)=>Array.from({length:end-start+1},(_,n)=>words[(start+n)%10]).join(' ');
 
+test.describe('select through a passage',()=>{
+  test.use({hasTouch:true,viewport:{width:390,height:844}});
+  test('tap two endpoints across wrapped lines in either order, then use their exact saved words',async({page,practiceUrl},info)=>{
+    await page.goto(practiceUrl);
+    const action=page.getByRole('button',{name:'Select through…'});
+    for(const [start,end] of [[104,137],[137,104]]){
+      await word(page,start).tap();
+      await action.tap();
+      await expect(page.locator('#token-count')).toContainText('Choose the last word');
+      await expect(page.locator(`[data-token="w${start}"]`)).toHaveAttribute('data-range-start','');
+      if(start===104)await info.attach('Choose a passage endpoint on a phone',{body:await page.screenshot(),contentType:'image/png'});
+      await word(page,end).tap();
+      await expect.poll(()=>selected(page)).toEqual(ids(104,137));
+      await expect.poll(()=>activeText(page)).toBe(phrase(104,137));
+      await expect(page.getByRole('toolbar',{name:'Selection tools'})).toBeInViewport();
+      if(start===104)await page.keyboard.press('Escape');
+    }
+    await page.getByRole('button',{name:'Co-analyse selected tokens'}).tap();
+    await expect(page.locator('.ca-source blockquote')).toHaveText(phrase(104,137));
+    await expect(page.locator('.ca-source details')).toContainText(ids(104,137).join(', '));
+  });
+  test('Escape, Cancel and a click away keep the first word; the keyboard can pick an endpoint',async({page,practiceUrl})=>{
+    await page.goto(practiceUrl);
+    await word(page,1).tap();
+    const action=page.getByRole('button',{name:'Select through…'});
+    for(const cancel of ['escape','button','outside']){
+      await action.tap();
+      if(cancel==='button')await page.getByRole('button',{name:'Cancel passage selection'}).tap();
+      else if(cancel==='escape')await page.keyboard.press('Escape');
+      else await page.locator('#document-title').tap();
+      await expect(action).toBeVisible();
+      await expect.poll(()=>selected(page)).toEqual(['w1']);
+    }
+    await action.focus();await page.keyboard.press('Enter');
+    await page.keyboard.press('ArrowRight');await page.keyboard.press('Enter');
+    await expect.poll(()=>selected(page)).toEqual(['w1','w2']);
+  });
+});
+
 test('ordinary mouse drag previews a wrapped passage and releases exactly its source IDs, then starts a new range inside it',async({page,practiceUrl})=>{
   await page.goto(practiceUrl);
   await word(page,110).evaluate(el=>el.scrollIntoView({block:'center'}));

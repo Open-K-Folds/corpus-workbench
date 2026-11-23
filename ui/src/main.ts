@@ -124,7 +124,7 @@ function shell(){shellEvents?.abort();shellEvents=new AbortController();overview
         <label>Reading layer<select id="reading-layer"><option value="corrected">Human-corrected</option><option value="original">Original source</option><option value="normalized">Normalized fallback</option></select></label>
         <label>Token filter<select id="token-filter"><option value="all">All tokens</option><option value="corrected">With corrections</option><option value="untimed">Without word timing</option><option value="attention">Needs attention</option></select></label>
       </div>
-      <p id="selection-help" class="muted">Click a word to select it. Drag across words for a passage. Tap the selected count, right-click, or press Shift+F10 for tools. Hold a word for training lenses. Escape clears the selection.</p>
+      <p id="selection-help" class="muted">Click a word, choose Select through, then choose the last word. You can also drag across a passage. Tap the selected count, right-click, or press Shift+F10 for tools. Hold a word for training lenses. Escape cancels an endpoint or clears the selection.</p>
     </details>
     <div class="reading-status"><button id="next-match" class="secondary" aria-label="Next match" title="Next match (F3)">${icon('skip_next')}<span>Next match</span></button><button id="open-reading-canvas" class="secondary" aria-expanded="false" aria-controls="tokens" aria-label="Focus mode (Open reading canvas)" title="Focus mode">${icon('center_focus_strong')}<span>Focus mode</span></button></div>
     </div>

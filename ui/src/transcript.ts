@@ -23,6 +23,8 @@ export class Transcript {
   private writesPending=0;
   private menu=document.createElement('div');private details=document.createElement('div');
   private selectionButton=document.createElement('button');
+  private rangeButton=document.createElement('button');
+  private rangeStart:HTMLElement|null=null;
   private training?:TrainingGesture;
   private pin:PassagePin;
   private drag:TranscriptDrag;
@@ -37,6 +39,20 @@ export class Transcript {
     this.selectionButton.type='button';
     this.selectionButton.className='selected-passage-tools';
     this.selectionButton.addEventListener('mousedown',event=>event.preventDefault());
+    this.rangeButton.type='button';
+    this.rangeButton.className='selected-passage-tools passage-range-action';
+    this.rangeButton.addEventListener('mousedown',event=>event.preventDefault());
+    this.rangeButton.onclick=()=>{
+      if(this.rangeStart){this.cancelRange(true);return}
+      if(!this.currentProjection()||this.draft||this.host.busy())return;
+      const ids=this.host.selected();
+      if(ids.length!==1)return;
+      const word=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(ids[0])}"]`);
+      if(!word)return;
+      this.training?.cancel();this.drag.cancel();this.menu.hidden=true;this.details.hidden=true;
+      this.rangeStart=word;word.dataset.rangeStart='';
+      this.paintSelection();word.focus({preventScroll:true});
+    };
     this.selectionButton.onclick=()=>{
       if(!this.currentProjection()||this.draft||this.host.busy())return;
       const ids=this.host.selected();
@@ -53,7 +69,7 @@ export class Transcript {
     // Dismiss only popovers whose viewport or reading pane has since moved.
     const dismissPopovers=()=>{const geometry=this.readingGeometry();for(const popup of [this.menu,this.details])if(!popup.hidden&&this.popoverGeometry.get(popup)!==geometry)popup.hidden=true};
     const readingPane=this.surface.closest<HTMLElement>('.transcript');
-    this.drag=new TranscriptDrag(this.surface,readingPane!,()=>!this.draft&&!this.training?.blocksSelection&&!this.host.busy()&&this.currentProjection(),
+    this.drag=new TranscriptDrag(this.surface,readingPane!,()=>!this.rangeStart&&!this.draft&&!this.training?.blocksSelection&&!this.host.busy()&&this.currentProjection(),
       ()=>{this.menu.hidden=true;this.details.hidden=true},()=>this.capture());
     readingPane?.addEventListener('scroll',dismissPopovers,{passive:true});
     window.addEventListener('resize',dismissPopovers);
@@ -63,6 +79,13 @@ export class Transcript {
       const target=event.target;
       if(!(target instanceof Element))return;
       interactingWithSelection=this.surface.contains(target);
+      if(this.rangeStart&&target!==this.rangeButton){
+        const atEndpoint=interactingWithSelection&&target.closest('.lexeme[data-token]');
+        if(!atEndpoint&&(event.type==='pointerdown'||!interactingWithSelection)){
+          this.cancelRange(false);
+          return;
+        }
+      }
       if(this.menu.contains(target)||this.details.contains(target))return;
       if(!interactingWithSelection){this.menu.hidden=true;this.details.hidden=true}
       if(event.type!=='pointerdown'||target.closest('dialog[open]'))return;
@@ -82,6 +105,7 @@ export class Transcript {
       if(!token)return;
       // Modified clicks operate on complete saved tokens. Chromium otherwise
       // extends its text caret on Shift+click before our range command runs.
+      if(this.rangeStart)return;
       if(!this.draft&&(event.shiftKey||event.ctrlKey||event.metaKey)){
         event.preventDefault();
         window.getSelection()?.removeAllRanges();
@@ -89,7 +113,7 @@ export class Transcript {
       }
     });
     // A queued selectionchange can arrive after the inspector has received focus.
-    const captureSelection=()=>{if(interactingWithSelection)this.capture()};
+    const captureSelection=()=>{if(interactingWithSelection&&!this.rangeStart)this.capture()};
     this.menu.addEventListener('mousedown',e=>{if((e.target as HTMLElement).closest('button'))e.preventDefault()});
     this.surface.addEventListener('mouseup',()=>setTimeout(captureSelection,0));
     this.surface.addEventListener('keyup',e=>{if(!this.draft&&e.key.startsWith('Arrow'))this.capture()});
@@ -102,6 +126,7 @@ export class Transcript {
       if(!word||this.draft||!this.currentProjection()||this.host.busy()||(event.target as Element).closest('input,button'))return;
       event.preventDefault();
       if(this.training?.blocksSelection||('pointerType' in event&&event.pointerType==='touch'))return;
+      this.cancelRange(false);
       this.openWordTools(word);
     });
     this.surface.addEventListener('click',e=>this.click(e));
@@ -112,6 +137,7 @@ export class Transcript {
     document.addEventListener('selectionchange',()=>{const s=window.getSelection();if(!this.drag.active&&!this.draft&&s?.anchorNode&&this.surface.contains(s.anchorNode))setTimeout(captureSelection,0)});
     window.addEventListener('keydown',e=>{
       if(e.key!=='Escape'||e.isComposing||this.composing||this.draft||document.querySelector('dialog[open]'))return;
+      if(this.rangeStart){this.cancelRange(true);e.preventDefault();e.stopImmediatePropagation();return}
       if(this.clearSelection()){e.preventDefault();e.stopImmediatePropagation()}
     },{capture:true});
   }
@@ -177,6 +203,7 @@ export class Transcript {
   private storePreferences(){try{localStorage.setItem('wb-reading:'+this.host.view().snapshot.project,JSON.stringify({layout:this.layout,interlinear:this.interlinear}))}catch{/* Preferences are optional. */}}
   async render(){
     if(this.draft)return;
+    this.cancelRange(false);
     this.drag.cancel();this.pin.clear();this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
@@ -233,10 +260,37 @@ export class Transcript {
   }
   private click(event:MouseEvent){
     if(this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy()||(event.target as HTMLElement).closest('input,button'))return;
+    const span=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');
+    if(this.rangeStart&&span){this.finishRange(span);return}
     const s=window.getSelection();if(s&&!s.isCollapsed){this.capture();return}
-    const span=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');if(!span||span.classList.contains('filtered'))return;
+    if(!span||span.classList.contains('filtered'))return;
     if(event.detail&&document.activeElement!==span){if(!span.hasAttribute('tabindex'))span.tabIndex=-1;span.focus({preventScroll:true})}
     this.selectWord(span,event);
+  }
+  private cancelRange(restoreFocus:boolean){
+    const start=this.rangeStart;
+    if(!start)return;
+    delete start.dataset.rangeStart;this.rangeStart=null;
+    this.paintSelection();
+    if(restoreFocus)start.focus({preventScroll:true});
+  }
+  private finishRange(end:HTMLElement){
+    const start=this.rangeStart;
+    const first=start?.querySelector('.reading-text')?.firstChild;
+    const last=end.querySelector('.reading-text')?.firstChild;
+    if(!(first instanceof Text)||!(last instanceof Text)||!start)return;
+    const backwards=Boolean(start.compareDocumentPosition(end)&Node.DOCUMENT_POSITION_PRECEDING);
+    const range=document.createRange();
+    range.setStart(backwards?last:first,0);
+    range.setEnd(backwards?first:last,backwards?first.length:last.length);
+    if([...this.surface.querySelectorAll('.lexeme.filtered')].some(word=>range.intersectsNode(word))){
+      this.host.message('This passage includes filtered words. Choose a closer endpoint or clear the filter.',true);
+      return;
+    }
+    this.cancelRange(false);this.pin.clear();
+    end.focus({preventScroll:true});
+    window.getSelection()?.setBaseAndExtent(first,backwards?first.length:0,last,backwards?0:last.length);
+    this.capture();
   }
   private selectWord(span:HTMLElement,modifiers?:MouseEvent){
     const id=span.dataset.token!,doc=this.host.doc();let ids=[id];
@@ -267,7 +321,7 @@ export class Transcript {
     this.menu.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus({preventScroll:true});
   }
   private capture(){
-    if(this.drag.active||this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
+    if(this.rangeStart||this.drag.active||this.training?.blocksSelection||this.draft||!this.currentProjection()||this.host.busy())return;const s=window.getSelection();if(!s||s.isCollapsed||!s.rangeCount)return;
     const range=s.getRangeAt(0);const start=this.endpoint(range.startContainer,range.startOffset),end=this.endpoint(range.endContainer,range.endOffset);
     const saved=this.selection?.range,backward=s.anchorNode===range.endContainer&&s.anchorOffset===range.endOffset;
     if(saved && saved.startContainer===range.startContainer && saved.startOffset===range.startOffset && saved.endContainer===range.endContainer && saved.endOffset===range.endOffset && this.selection?.backward===backward && !this.menu.hidden)return;
@@ -277,7 +331,7 @@ export class Transcript {
     const rendered=new Set(Array.from(this.surface.querySelectorAll<HTMLElement>('[data-token]'),span=>span.dataset.token!));
     if(ids.some(id=>!rendered.has(id))){this.host.message('Clear token filters before editing this range.',true);this.selection=null;return}
     this.selection={view:this.host.view(),document:doc.path,ids,start:start.cp,end:end.cp,quote:this.primaryRangeText(range),layer:this.host.preferences.layer,range:range.cloneRange(),backward};
-    this.host.select(ids);this.paintSelection();const rects=[...range.getClientRects()];if(rects.length)this.showMenu(rects.at(-1)!);
+    this.host.select(ids);this.paintSelection();const rects=[...range.getClientRects()];if(rects.length)this.showMenu(backward?rects[0]:rects.at(-1)!);
   }
   private endpoint(node:Node,offset:number):{id:string;cp:number}|null{
     if(node.nodeType!==Node.TEXT_NODE||!this.surface.contains(node))return null;
@@ -312,7 +366,17 @@ export class Transcript {
     this.selectionButton.innerHTML=label+icon('expand_less');
     this.selectionButton.setAttribute('aria-label',`Open tools for ${ids.length} selected ${ids.length===1?'word':'words'}`);
     this.selectionButton.title='Open passage tools';
-    status.replaceChildren(prefix,this.selectionButton);
+    if(this.rangeStart){
+      this.rangeButton.textContent='Cancel';this.rangeButton.setAttribute('aria-label','Cancel passage selection');
+      const prompt=document.createElement('span');prompt.className='passage-range-prompt';prompt.textContent='Choose the last word';
+      status.replaceChildren(prompt,this.rangeButton);return;
+    }
+    const count=document.createElement('span');count.className='token-count-prefix';count.textContent=prefix;
+    status.replaceChildren(count,this.selectionButton);
+    if(ids.length===1){
+      this.rangeButton.textContent='Select through…';this.rangeButton.removeAttribute('aria-label');
+      status.append(this.rangeButton);
+    }
   }
   private selectPin(words:HTMLElement[],showTools:boolean){
     const first=words[0].querySelector('.reading-text')?.firstChild;
@@ -333,7 +397,7 @@ export class Transcript {
     }
   }
   private pinTraining(token:string):TrainingPassage|null {
-    if(this.dirty()||this.host.busy()||!this.currentProjection())return null;
+    if(this.rangeStart||this.dirty()||this.host.busy()||!this.currentProjection())return null;
     const doc=this.host.doc(),view=this.host.view(),layer=this.host.preferences.layer;
     const stored=this.selection;
     const source=doc.tokens.find(t=>t.id===token);
@@ -413,7 +477,7 @@ export class Transcript {
   private key(event:KeyboardEvent){
     if((event.target as HTMLElement).closest('input,button')||this.composing||event.isComposing||this.host.busy())return;
     const focused=(event.target as HTMLElement).closest<HTMLElement>('[data-token]');
-    if(!event.shiftKey&&window.getSelection()?.isCollapsed&&['ArrowLeft','ArrowRight'].includes(event.key)){
+    if(!event.shiftKey&&(this.rangeStart||window.getSelection()?.isCollapsed)&&['ArrowLeft','ArrowRight'].includes(event.key)){
       const words=[...this.surface.querySelectorAll<HTMLElement>('[data-token]')];
       if(!words.length)return;
       event.preventDefault();
@@ -421,6 +485,10 @@ export class Transcript {
       const step=event.key==='ArrowRight'?1:-1;
       const next=index<0 ? words[step===1?0:words.length-1] : words[(index+step+words.length)%words.length];
       next.focus();return;
+    }
+    if(this.rangeStart){
+      if(focused&&(event.code==='Space'||event.key==='Enter')){event.preventDefault();this.finishRange(focused)}
+      return;
     }
     if(focused&&event.code==='Space'&&window.getSelection()?.isCollapsed){event.preventDefault();focused.dispatchEvent(new MouseEvent('click',{bubbles:true}));return}
     if((event.shiftKey&&event.key==='F10')||event.key==='ContextMenu'){

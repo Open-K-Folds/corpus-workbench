@@ -92,6 +92,11 @@
 }
 .workspace .transcript #tokens ::selection {background:var(--stage-wash);color:var(--stage-ink)}
 .workspace .transcript #tokens .lexeme:focus-visible {outline:1px solid var(--stage-hot);outline-offset:2px}
+.workspace .transcript #tokens .lexeme[data-range-start] {
+  outline:1px dashed var(--stage-hot);
+  outline-offset:2px;
+}
+.transcript:has([data-range-start]) .lexeme[data-token] {cursor:pointer}
 @media (hover:hover) {
   .workspace .transcript #tokens .lexeme:not(.filtered):hover > .reading-text {
     text-decoration:underline 1px var(--stage-hot);
