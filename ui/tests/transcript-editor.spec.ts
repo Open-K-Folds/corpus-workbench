@@ -91,8 +91,9 @@ test('recording resize, pane focus, themes, tabs and citation guards preserve re
   const colors=await page.locator('#navigation-query').evaluate(input=>{
     const style=getComputedStyle(input),brush=document.createElement('canvas').getContext('2d')!;
     const hex=(color:string)=>{brush.fillStyle=color.trim();return brush.fillStyle;};
-    const actual=[style.color,style.backgroundColor,getComputedStyle(input.closest('label')!).color,getComputedStyle(input.closest('aside')!).backgroundColor].map(hex);
-    const expected=['--ink','--control-surface','--muted','--rail'].map(role=>hex(style.getPropertyValue(role)));
+    const filter=input.closest('.project-filter')!;
+    const actual=[style.color,getComputedStyle(filter).backgroundColor,getComputedStyle(filter.querySelector('.material-symbol')!).color].map(hex);
+    const expected=['--ink','--paper','--muted'].map(role=>hex(style.getPropertyValue(role)));
     return {actual,expected};
   });
   expect(colors.actual).toEqual(colors.expected);
@@ -101,9 +102,9 @@ test('recording resize, pane focus, themes, tabs and citation guards preserve re
       .map(channel=>channel<=0.04045?channel/12.92:((channel+0.055)/1.055)**2.4);
     return .2126*rgb[0]+.7152*rgb[1]+.0722*rgb[2];
   };
-  const [text,surface,label,rail]=colors.actual.map(luminance);
+  const [text,surface,searchIcon]=colors.actual.map(luminance);
   expect((text+.05)/(surface+.05)).toBeGreaterThanOrEqual(4.5);
-  expect((label+.05)/(rail+.05)).toBeGreaterThanOrEqual(4.5);
+  expect((searchIcon+.05)/(surface+.05)).toBeGreaterThanOrEqual(4.5);
   await page.getByRole('button',{name:'Token',exact:true}).click();await page.locator('[data-token="w2"]').click();await page.getByLabel('Human-corrected reading').fill('noticeLayout');await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#message')).toContainText('Saved R');
   expect(await page.locator('#recording-pane').evaluate(e=>e.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);expect(await page.locator("audio").evaluate(a=>a.getBoundingClientRect().bottom<=innerHeight+1)).toBe(true);
   await page.locator('[data-document="xmlfiles/second.xml"]').click();await expect(page.getByRole('tab')).toHaveCount(2);await page.getByRole('tab',{name:'SYNTHETIC correction workspace'}).click();await expect(page.locator('[data-token="w2"]')).toBeVisible();
@@ -151,7 +152,28 @@ test('lost restore stays recoverable after a late decoration error and blocks ne
   await page.getByRole('button',{name:'History',exact:true}).click();await page.getByRole('button',{name:'Undo last committed edit',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Save outcome unknown');release();await expect(page.locator('#message')).toContainText('history decoration');await expect(page.getByRole('button',{name:'Resolve original save'})).toBeVisible();await page.keyboard.press('Alt+5');await expect(page.locator('#review-form')).toHaveCount(0);await page.locator('#tokens').focus();await page.keyboard.press('Backspace');await expect(page.getByLabel('Proposed correction')).toHaveCount(0);await page.getByRole('button',{name:'Resolve original save'}).click();await expect(page.locator('#save-state')).toContainText('Saved R');expect((await head(page)).revision.id).toBe(before+1);expect(attempts).toBe(2);
 });
 test('partial selection prefills a real corrected-layer Unicode annotation anchor',async({page})=>{
-  await open(page);const before=(await head(page)).revision.id;await select(page,'w4',2,4);await page.getByRole('button',{name:'Annotate',exact:true}).click();await expect(page.locator('#span-form [name="start"]')).toHaveValue('1');await expect(page.locator('#span-form [name="end"]')).toHaveValue('3');await expect(page.locator('#span-form [name="quote"]')).toHaveValue('é');await page.getByLabel('Span label',{exact:true}).fill('Synthetic selected grapheme');await page.getByRole('button',{name:'Create span',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Saved R'+(before+1));const view=await head(page);const span=view.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').spans.find((s:any)=>s.fields.label==='Synthetic selected grapheme');expect(span.token_ids).toEqual(['w4']);expect(span.fields.wb_quote).toBe('é');
+  await open(page);
+  const before=(await head(page)).revision.id;
+  await select(page,'w4',2,4);
+  // The context strip can adjust the pane after the range menu opens.
+  const pane=page.locator('.transcript');
+  const moved=await pane.evaluate(el=>{
+    const before=el.scrollTop;
+    el.scrollTop+=before>=8?-8:8;
+    return el.scrollTop!==before;
+  });
+  expect(moved).toBe(true);
+  await page.getByRole('button',{name:'Annotate',exact:true}).click();
+  await expect(page.locator('#span-form [name="start"]')).toHaveValue('1');
+  await expect(page.locator('#span-form [name="end"]')).toHaveValue('3');
+  await expect(page.locator('#span-form [name="quote"]')).toHaveValue('é');
+  await page.getByLabel('Span label',{exact:true}).fill('Synthetic selected grapheme');
+  await page.getByRole('button',{name:'Create span',exact:true}).click();
+  await expect(page.locator('#save-state')).toContainText('Saved R'+(before+1));
+  const view=await head(page);
+  const span=view.documents.find((d:any)=>d.path==='xmlfiles/editor.xml').spans.find((s:any)=>s.fields.label==='Synthetic selected grapheme');
+  expect(span.token_ids).toEqual(['w4']);
+  expect(span.fields.wb_quote).toBe('é');
 });
 test('correction keeps the unchanged recording source and active playhead',async({page})=>{
   await open(page);const audio=page.locator('audio');await expect.poll(()=>audio.evaluate((a:HTMLAudioElement)=>a.readyState)).toBeGreaterThanOrEqual(1);await audio.evaluate(async(a:HTMLAudioElement)=>{a.currentTime=2;a.playbackRate=1.25;await a.play()});const source=await audio.getAttribute('src');await select(page,'w2');await page.keyboard.press('Backspace');await page.getByLabel('Proposed correction').fill('playbacksafe');await page.locator('#accept-draft').click();await expect(page.getByLabel('Proposed correction')).toHaveCount(0);expect(await audio.getAttribute('src')).toBe(source);expect(await audio.evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(2);expect(await audio.evaluate((a:HTMLAudioElement)=>a.paused)).toBe(false);expect(await audio.evaluate((a:HTMLAudioElement)=>a.playbackRate)).toBe(1.25);await audio.evaluate((a:HTMLAudioElement)=>a.pause());
