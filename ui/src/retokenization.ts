@@ -1,28 +1,206 @@
 import {api} from './api';
-import type {Document,InventoryEnvelope,Operation,Reading,RetokenizeRequest,StructuralPreview,View} from './contracts';
-import {esc,field,formValues} from './dom';
+import type {Document, InventoryEnvelope, Operation, Reading, RetokenizeRequest, StructuralPreview, View} from './contracts';
+import {esc, field, formValues} from './dom';
+import {icon} from './icons';
+import './retokenization.css';
 
-export async function retokenizationInspector(view:View,doc:Document,selected:string[],onSave:(ops:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void):Promise<HTMLElement>{
-  const panel=document.createElement('section');
-  const tokens=doc.tokens.filter(t=>selected.includes(t.id));
-  panel.innerHTML='<h2>Split or merge tokens</h2><p>Select one token to split, or two ordered tokens to merge. Only a proved whole-package transformation can commit.</p>';
-  if(tokens.length!==1&&tokens.length!==2)return panel;
-  const result=await api<InventoryEnvelope>(`/api/inventory?revision=${view.revision.id}`);const inv=result.inventory;
-  if(inv.revision!==view.revision.id||inv.snapshot_hash!==view.revision.snapshot_hash)throw new Error('Structural inventory revision mismatch');
-  const split=tokens.length===1;
-  const partition=(value:string|null):[string|null,string|null]=>{if(value===null)return [null,null];const chars=Array.from(value);const middle=Math.max(1,Math.floor(chars.length/2));return [chars.slice(0,middle).join(''),chars.slice(middle).join('')];};
-  const originals=partition(tokens[0].original);const corrected=partition(tokens[0].corrected);const normalized=partition(tokens[0].normalized);
-  const readingFields=(i:number)=>`<fieldset><legend>${split?'Successor '+(i+1):'Merged token'}</legend>${field('id_'+i,'New token ID '+(i+1),tokens[0].id+(split?'-part-'+(i+1):'-merged'))}${field('original_'+i,'Original layer '+(i+1),split?originals[i]??'':tokens.map(t=>t.original).join(''))}${tokens[0].corrected===null?'<p>Corrected layer absent; it stays absent.</p>':field('corrected_'+i,'Corrected layer '+(i+1),split?corrected[i]??'':tokens.map(t=>t.corrected??'').join(''))}${tokens[0].normalized===null?'<p>Normalized layer absent; it stays absent.</p>':field('normalized_'+i,'Normalized layer '+(i+1),split?normalized[i]??'':tokens.map(t=>t.normalized??'').join(''))}</fieldset>`;
-  panel.innerHTML=`<h2>${split?'Split':'Merge'} ${tokens.map(t=>esc(t.id)).join(' + ')}</h2><p>Original, corrected and normalized layers must be conserved independently. New IDs cannot reuse historical identities. No word timings are inferred.</p><p class="muted">Unknown settings, schemas, namespaces, mixed XML, media and machine-draft formats block this bounded text-only dialect. Crossing character anchors, partial merge spans and outgoing judgments require a later converter.</p><form id="structural-form">${Array.from({length:split?2:1},(_,i)=>readingFields(i)).join('')}${split?'<label>Incoming relation endpoint choice<select name="endpoint"><option value="">No choice made</option><option value="0">Successor 1</option><option value="1">Successor 2</option></select></label>':''}${field('revision_label','Structural revision name',(split?'Split ':'Merge ')+tokens.map(t=>t.id).join(' + '))}<button id="preview-structure">Preview exact transformation</button><button type="button" id="commit-structure" disabled>Commit proved ${split?'split':'merge'}</button></form><p id="structural-status" role="status">Preview checks every package artifact and reference.</p><div id="structural-result"></div><details><summary>Complete structural proof</summary><pre id="structural-proof"></pre></details>`;
-  const form=panel.querySelector<HTMLFormElement>('#structural-form')!;const commit=panel.querySelector<HTMLButtonElement>('#commit-structure')!;const status=panel.querySelector('#structural-status')!;
-  let pending:StructuralPreview|null=null;let epoch=0;
-  const dirty=()=>{form.dataset.dirty='true';epoch++;pending=null;commit.disabled=true;status.textContent='Draft changed; preview again before committing.';onDirty();};form.addEventListener('input',dirty);form.addEventListener('change',dirty);
-  form.onsubmit=async e=>{e.preventDefault();const turn=++epoch;pending=null;commit.disabled=true;const values=formValues(form);const readings:Reading[]=Array.from({length:split?2:1},(_,i)=>({id:values['id_'+i],original:values['original_'+i],corrected:tokens[0].corrected===null?null:values['corrected_'+i],normalized:tokens[0].normalized===null?null:values['normalized_'+i]}));
-    const targets=tokens.map(token=>inv.ids.find(t=>t.artifact===doc.path&&t.id===token.id));if(targets.some(t=>!t)){status.textContent='Qualified token identity missing.';return;}
-    const request:RetokenizeRequest={schema:1,project:inv.project,revision:inv.revision,snapshot_hash:inv.snapshot_hash,config_hash:inv.config_hash,inventory_hash:result.inventory_hash,document:doc.path,targets:targets as RetokenizeRequest['targets'],replacement:readings,relation_endpoint:split&&values.endpoint!==''?readings[Number(values.endpoint)].id:null};
-    status.textContent='Checking exact revision and full-package remapping.';
-    try{const r=await api<StructuralPreview>('/api/retokenize-preview',request);if(turn!==epoch)return;pending=r;commit.disabled=!r.preview.execution_enabled;status.textContent=r.preview.execution_enabled?`Proved on R${view.revision.id}. Inspect the mapping and changed XML before committing.`:'Blocked; no edits have been made.';panel.querySelector('#structural-proof')!.textContent=JSON.stringify(r,null,2);panel.querySelector('#structural-result')!.innerHTML=r.preview.execution_enabled?`<ul>${Object.entries(r.preview.mapping).map(([old,ids])=>`<li>${esc(old)} → ${ids.map(esc).join(', ')}</li>`).join('')}</ul>${Object.entries(r.preview.candidate_xml).map(([path,text])=>`<details><summary>Candidate ${esc(path)}</summary><pre>${esc(text)}</pre></details>`).join('')}<p>Immutable lineage: ${esc(r.preview.lineage_path)}</p>`:`<ul class="error">${r.preview.blockers.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`;}catch(e){if(turn===epoch)status.textContent=String(e);}
+type Layer = 'original' | 'corrected' | 'normalized';
+const layers: [Layer, string][] = [['original', 'Original'], ['corrected', 'Corrected'], ['normalized', 'Normalized']];
+
+function splitValue(value: string) {
+  const chars = Array.from(value);
+  const middle = Math.max(1, Math.floor(chars.length / 2));
+  return [chars.slice(0, middle).join(''), chars.slice(middle).join('')];
+}
+
+export async function retokenizationInspector(
+  view: View, doc: Document, selected: string[],
+  onSave: (ops: Operation[], label: string, source?: HTMLFormElement) => Promise<void>,
+  onDirty: () => void,
+): Promise<HTMLElement> {
+  const panel = document.createElement('section');
+  panel.className = 'structure-panel';
+  const tokens = doc.tokens.filter(token => selected.includes(token.id));
+  if (tokens.length !== 1 && tokens.length !== 2) {
+    panel.innerHTML = '<h2>Split or merge</h2><p>Select one word to split it, or two adjacent words to merge them.</p>';
+    return panel;
+  }
+
+  const result = await api<InventoryEnvelope>(`/api/inventory?revision=${view.revision.id}`);
+  const inv = result.inventory;
+  if (inv.revision !== view.revision.id || inv.snapshot_hash !== view.revision.snapshot_hash) {
+    throw new Error('Structural inventory revision mismatch');
+  }
+
+  const split = tokens.length === 1;
+  const verb = split ? 'split' : 'merge';
+  const title = split ? 'Split token' : 'Merge tokens';
+  const ids = tokens.map(token => token.id).join(' + ');
+  const targets = tokens.map(token => inv.ids.find(target => target.artifact === doc.path && target.id === token.id));
+  const positions = split ? [0, 1] : [0];
+  const editorRow = (key: string, label: string, accessibleLabel: string, values: string[]) =>
+    `<fieldset class="structure-row" data-field="${key}"><legend>${label}</legend><div class="structure-columns">
+      ${values.map((value, i) => `<input name="${key}_${i}" aria-label="${accessibleLabel} ${i + 1}" value="${esc(value)}" autocomplete="off"${key === 'id' ? ' spellcheck="false"' : ''}>`).join('')}
+    </div></fieldset>`;
+
+  const readings = layers.filter(([layer]) => tokens[0][layer] !== null).map(([layer, label]) => {
+    const values = split ? splitValue(tokens[0][layer]!) : [tokens.map(token => token[layer] ?? '').join('')];
+    return editorRow(layer, label, label + ' layer', values);
+  }).join('');
+  const hasIncoming = split && inv.carriers.some(carrier => carrier.qname === 'relation_target' &&
+    carrier.targets.some(target => target.artifact === doc.path && target.id === tokens[0].id));
+
+  panel.innerHTML = `
+    <div class="structure-heading"><h2>${title}</h2><span>R${inv.revision}</span></div>
+    <div class="structure-source"><small>Selected ${split ? 'token' : 'tokens'}</small>
+      <p>${tokens.map(token => esc(token.original)).join(' ')}</p><code>${esc(ids)}</code>
+    </div>
+    <form id="structural-form" class="${split ? 'split' : 'merge'}">
+      <div class="structure-columns structure-column-titles">${split ? '<span>First token</span><span>Second token</span>' : '<span>Merged token</span>'}</div>
+      ${readings}
+      ${editorRow('id', 'Token ID', 'New token ID', positions.map(i => tokens[0].id + (split ? '-part-' + (i + 1) : '-merged')))}
+      <details class="structure-settings"${hasIncoming ? ' open' : ''}><summary>Revision settings</summary>
+        ${split ? '<label>Assign incoming links to<select name="endpoint"><option value="">Choose a token if needed</option><option value="0">First token</option><option value="1">Second token</option></select></label>' : ''}
+        ${field('revision_label', 'Revision name', (split ? 'Split ' : 'Merge ') + ids)}
+      </details>
+      <div class="structure-decision">
+        <p id="structural-status" role="status" aria-live="polite"></p>
+        <div id="structural-result"></div>
+        <button id="preview-structure" type="submit">${icon('fact_check')}Preview ${verb}</button>
+        <button id="commit-structure" type="button" disabled hidden>${icon('check')}Apply ${verb}</button>
+      </div>
+    </form>
+    <details class="structure-evidence" hidden><summary>Inspect package changes</summary>
+      <div class="structure-files"></div><details><summary>Full proof</summary><pre id="structural-proof"></pre></details>
+    </details>`;
+
+  const form = panel.querySelector<HTMLFormElement>('#structural-form')!;
+  const preview = panel.querySelector<HTMLButtonElement>('#preview-structure')!;
+  const commit = panel.querySelector<HTMLButtonElement>('#commit-structure')!;
+  const status = panel.querySelector<HTMLElement>('#structural-status')!;
+  const summary = panel.querySelector<HTMLElement>('#structural-result')!;
+  const details = panel.querySelector<HTMLDetailsElement>('.structure-evidence')!;
+  const files = panel.querySelector<HTMLElement>('.structure-files')!;
+  const proof = panel.querySelector<HTMLElement>('#structural-proof')!;
+  let pending: StructuralPreview | null = null;
+  let epoch = 0;
+
+  function resetPreview() {
+    pending = null;
+    commit.hidden = true;
+    commit.disabled = true;
+    preview.hidden = false;
+    preview.removeAttribute('aria-disabled');
+    delete panel.dataset.stage;
+    details.hidden = true;
+    details.open = false;
+    form.querySelectorAll('[aria-invalid]').forEach(input => {
+      input.removeAttribute('aria-invalid');
+      input.removeAttribute('aria-describedby');
+    });
+    proof.textContent = '';
+    files.replaceChildren();
+    summary.replaceChildren();
+  }
+
+  const dirty = () => {
+    const hadPreview = !!panel.dataset.stage;
+    form.dataset.dirty = 'true';
+    ++epoch;
+    resetPreview();
+    if (hadPreview) status.textContent = 'Draft changed. Preview it again.';
+    onDirty();
   };
-  commit.onclick=async()=>{if(!pending?.preview.execution_enabled)return;commit.disabled=true;const proof=pending;await onSave([{kind:'retokenize',request:proof.preview.request,preview_hash:proof.preview_hash}],formValues(form).revision_label,form);};
+  form.addEventListener('input', dirty);
+  form.addEventListener('change', dirty);
+
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (panel.dataset.stage === 'checking' || pending?.preview.execution_enabled) return;
+    const turn = ++epoch;
+    resetPreview();
+    const values = formValues(form);
+    if (targets.some(target => !target)) {
+      status.textContent = 'A selected token is missing from the package inventory.';
+      return;
+    }
+    const replacement: Reading[] = positions.map(i => ({
+      id: values['id_' + i], original: values['original_' + i],
+      corrected: tokens[0].corrected === null ? null : values['corrected_' + i],
+      normalized: tokens[0].normalized === null ? null : values['normalized_' + i],
+    }));
+    const request: RetokenizeRequest = {
+      schema: 1, project: inv.project, revision: inv.revision, snapshot_hash: inv.snapshot_hash,
+      config_hash: inv.config_hash, inventory_hash: result.inventory_hash, document: doc.path,
+      targets: targets as RetokenizeRequest['targets'], replacement,
+      relation_endpoint: split && values.endpoint !== '' ? replacement[Number(values.endpoint)].id : null,
+    };
+    panel.dataset.stage = 'checking';
+    preview.setAttribute('aria-disabled', 'true');
+    status.textContent = 'Checking readings and package references…';
+    try {
+      const response = await api<StructuralPreview>('/api/retokenize-preview', request);
+      if (turn !== epoch) return;
+      const checked = response.preview;
+      pending = response;
+      details.hidden = false;
+      proof.textContent = JSON.stringify(response, null, 2);
+      preview.removeAttribute('aria-disabled');
+      if (!checked.execution_enabled) {
+        panel.dataset.stage = 'blocked';
+        status.textContent = 'Blocked. Resolve the following before applying.';
+        const messages: string[] = [];
+        for (const reason of checked.blockers) {
+          if (reason !== 'replacement would lose or alter a text layer') {
+            messages.push(esc(reason));
+          } else if (!split) {
+            messages.push('Preserve the original text and its spacing in every merged reading.');
+          } else {
+            for (const [layer, label] of layers) {
+              const original = tokens[0][layer];
+              if (original === null || replacement.map(part => part[layer]).join('') === original) continue;
+              messages.push(`<span id="structure-error-${layer}">${label} must join to <strong>${esc(original)}</strong>.</span>`);
+              form.querySelectorAll(`[data-field="${layer}"] input`).forEach(input => {
+                input.setAttribute('aria-invalid', 'true');
+                input.setAttribute('aria-describedby', 'structure-error-' + layer);
+              });
+            }
+          }
+        }
+        summary.innerHTML = `<ul class="structure-blockers">${messages.map(reason => `<li>${reason}</li>`).join('')}</ul>`;
+        return;
+      }
+
+      panel.dataset.stage = 'ready';
+      status.textContent = `Ready to apply · checked R${inv.revision}`;
+      summary.innerHTML = `<div class="structure-outcome">${replacement.map(token => `<span>${esc(token.original)}</span>`).join('')}</div>`;
+      files.innerHTML = `<ul>${Object.entries(checked.mapping).map(([old, mapped]) =>
+        `<li>${esc(old)} → ${mapped.map(esc).join(', ')}</li>`).join('')}</ul>
+        ${Object.entries(checked.candidate_xml).map(([path, text]) =>
+          `<details><summary>${esc(path)}</summary><pre>${esc(text)}</pre></details>`).join('')}
+        <p>Lineage file<br><code>${esc(checked.lineage_path)}</code></p>`;
+      const focused = document.activeElement === preview;
+      preview.hidden = true;
+      commit.hidden = false;
+      commit.disabled = false;
+      if (focused) commit.focus({preventScroll: true});
+    } catch (error) {
+      if (turn !== epoch) return;
+      resetPreview();
+      status.textContent = String(error);
+    }
+  };
+
+  commit.onclick = async () => {
+    if (commit.disabled || !pending?.preview.execution_enabled) return;
+    const approved = pending;
+    commit.disabled = true;
+    await onSave([{kind: 'retokenize', request: approved.preview.request, preview_hash: approved.preview_hash}],
+      formValues(form).revision_label, form);
+    if (form.isConnected) {
+      resetPreview();
+      status.textContent = 'See the save message before previewing again.';
+    }
+  };
   return panel;
 }
