@@ -132,6 +132,8 @@
 @container transcript-stage (max-width:340px) {
   .transcript .stage-actions .reading-status button {padding-inline:5px}
   .stage-actions #open-reading-canvas span:not(.material-symbol) {display:none}
+  .reader-layer-field {grid-template-columns:minmax(0,4em) minmax(0,1fr);gap:6px}
+  .reader-sheet #reading-layer {padding-inline-start:8px}
 }
 @media (pointer:coarse) {
   .stage-actions .reading-settings > summary,.transcript .stage-actions .reading-status button,
