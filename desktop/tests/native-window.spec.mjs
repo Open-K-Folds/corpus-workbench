@@ -53,7 +53,7 @@ test('Windows caption buttons, keyboard menus and appearance work on the desktop
     await expect.poll(() => application.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].isMinimized())).toBe(true);
     await application.evaluate(({BrowserWindow}) => { const w = BrowserWindow.getAllWindows()[0]; w.restore(); w.focus(); });
 
-    const menus = [['F10', ['File', 'Edit', 'View', 'Help']], ['F', ['Open corpus authority']],
+    const menus = [['F10', ['File', 'Edit', 'View', 'Help']], ['F', ['Open existing workbench', 'Import TEITOK package', 'Save verified backup']],
       ['E', ['Undo']], ['V', ['Revision history']], ['H', ['Corpus workflow and research handoff']]];
     for (const [keyCode, expected] of menus) {
       await application.evaluate(({BrowserWindow}, keyCode) => {

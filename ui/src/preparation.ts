@@ -102,7 +102,7 @@ export function openPreparation(bridge:PreparationBridge){
   let selected:PreparationPreview|null=null,busy=false,valid=false;
   const message=(text:string,error=false)=>{status.textContent=text;status.className=error?'notice error':'';status.setAttribute('role',error?'alert':'status')};
   const setBusy=(value:boolean,keepEditing=false)=>{busy=value;dialog.setAttribute('aria-busy',String(value));choose.disabled=cancel.disabled=value;format.disabled=title.disabled=value&&!keepEditing;confirm.disabled=value||!selected||!valid};
-  const forget=async()=>{if(selected)await bridge.cancelPreparation(selected.token);selected=null;valid=false;preview.hidden=true;preview.replaceChildren();confirm.disabled=true;confirm.textContent='Import for review'};
+  const forget=async()=>{if(selected)await bridge.cancelPreparation(selected.token);selected=null;valid=false;preview.hidden=true;preview.replaceChildren();choose.textContent='Choose recording and transcript';confirm.disabled=true;confirm.textContent='Import for review'};
   const close=async()=>{if(busy)return;setBusy(true);try{await forget();dialog.close();dialog.remove();previous?.focus()}catch(error){message(`Could not clear the preview. ${String(error)}`,true);setBusy(false)}};
   cancel.onclick=()=>void close();
   dialog.addEventListener('cancel',event=>{event.preventDefault();void close()});
@@ -161,7 +161,7 @@ export function openPreparation(bridge:PreparationBridge){
         ),
       );
       preview.querySelector('.preparation-excerpt')!.textContent=summary.text;
-      preview.hidden=false;confirm.textContent=selected.duplicate?'Open existing copy':'Import for review';
+      preview.hidden=false;choose.textContent='Change selected files';confirm.textContent=selected.duplicate?'Open existing copy':'Import for review';
       message('Preview ready. Review the files before importing.');
     }catch(error){message(String(error),true)}finally{
       setBusy(false);

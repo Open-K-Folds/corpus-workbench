@@ -21,9 +21,9 @@
   text-align: start; white-space: normal; font-size: .96rem; line-height: 1.4;
   background: var(--rail); color: var(--ink);
 }
-.desktop-welcome .welcome-actions button span:not(.material-symbol) { font-weight: 620; }
+.desktop-welcome .welcome-actions button span:not(.material-symbol) { font-size:1rem; font-weight:620; }
 .welcome-actions .material-symbol { grid-row: 1 / span 2; display:grid; place-items:center; inline-size:32px; block-size:32px; border-radius:8px; background:var(--control-surface); color:var(--ink); font-size:1.35rem; }
-.welcome-actions button small { grid-column: 2; color: var(--muted); font-size: .83rem; line-height: 1.5; }
+.welcome-actions button small { grid-column:2; color:var(--muted); font-size:.93rem; line-height:1.5; }
 .desktop-welcome .welcome-actions button:hover { border-color: var(--muted); background: var(--control-hover); }
 .desktop-welcome .welcome-actions #desktop-prepare { background: var(--welcome-fill); border-color: var(--welcome-accent); }
 .welcome-actions #desktop-prepare .material-symbol { color: var(--welcome-accent); }
@@ -49,10 +49,10 @@
 .desktop-project-switcher .material-symbol{font-size:18px;flex:none}
 .desktop-project-switcher details[open]>summary>.material-symbol:last-child{transform:rotate(180deg)}
 .desktop-project-actions{display:grid;gap:5px;padding:10px 0}
-.desktop-project-actions button{justify-content:flex-start!important;text-align:left;font-size:11px;min-height:32px}
+.desktop-project-actions button{justify-content:flex-start!important;gap:8px;text-align:left;font-size:13px;min-height:36px}
 .desktop-project-switcher .desktop-recent{padding:8px;gap:3px 6px}
 .desktop-project-switcher .desktop-recent strong{font-size:11px}
-.desktop-project-switcher .desktop-recent span:not(.material-symbol){font-size:10px}
+.desktop-project-switcher .desktop-recent span:not(.material-symbol){font-size:12px}
 @media(max-width:900px){.desktop-welcome{padding:36px 28px}.desktop-welcome .welcome-heading{font-size:32px}.welcome-intro{font-size:15px}}
 @media(max-width:510px){.welcome-actions{grid-template-columns:1fr}.desktop-welcome .welcome-actions button{padding:.8rem 1rem}}
 @media(max-height:660px){.desktop-welcome{padding-top:26px;padding-bottom:26px}.desktop-welcome footer{margin-top:24px}}
@@ -61,38 +61,43 @@
 .preparation-dialog::backdrop{background:#0006}
 .preparation-heading{padding:24px 26px 17px;border-bottom:1px solid var(--border)}
 .preparation-heading h2{font-size:23px;letter-spacing:-.5px;font-weight:600;margin:0 0 6px;line-height:1.2}
-.preparation-heading p,.preparation-help,.preparation-policy,.preparation-timing{font-size:12px;line-height:1.65;color:var(--muted);margin:0}
+.preparation-heading p,.preparation-help,.preparation-policy,.preparation-timing{font-size:13px;line-height:1.55;color:var(--muted);margin:0}
 .preparation-body{padding:20px 26px;overflow:auto;min-height:0;overscroll-behavior:contain;scroll-padding-block:16px}
 .preparation-fields{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.preparation-fields label{font-size:11px;display:block;min-width:0}
-.preparation-fields select,.preparation-fields input{display:block;width:100%;margin:6px 0 0}
+.preparation-fields label{font-size:13px;display:block;min-width:0;margin:0;color:var(--ink)}
+.preparation-fields select,.preparation-fields input{display:block;width:100%;margin:6px 0 0;min-height:36px;font-size:13px}
 .preparation-optional{color:var(--muted);font-weight:400}
 .preparation-help{margin:12px 0}
-.preparation-input-help{margin:0 0 15px;font-size:11px;line-height:1.6;color:var(--muted)}
-.preparation-input-help summary{cursor:pointer;width:fit-content}
+.preparation-input-help{margin:0 0 15px;font-size:13px;line-height:1.55;color:var(--muted)}
+.preparation-input-help summary{cursor:pointer;width:fit-content;min-height:32px;margin:0;align-content:center;color:var(--ink);font-size:13px}
 .preparation-input-help p{margin:9px 0;overflow-wrap:anywhere}
-.preparation-input-help code{font-size:10px}
-.preparation-dialog #preparation-choose{font-size:13px;min-height:38px}
+.preparation-input-help code{font-size:12px}
+.preparation-dialog button{min-height:38px}
+.preparation-dialog #preparation-choose{font-size:13px}
+.preparation-body:has(#preparation-preview[hidden]) #preparation-choose {background:var(--accent);border-color:var(--accent);color:var(--paper)}
 .preparation-summary{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:6px 12px;padding-top:22px;margin-top:20px;border-top:1px solid var(--border)}
 .preparation-summary h3{font-size:15px;font-weight:600;margin:0}
-.preparation-summary>span{font-size:10px;color:var(--muted)}
+.preparation-summary>span{font-size:12px;color:var(--muted)}
 .preparation-sources{margin:14px 0}
 .preparation-sources>div{display:grid;grid-template-columns:90px minmax(0,1fr);gap:12px;margin:9px 0}
-.preparation-sources dt{font-size:11px;color:var(--muted)}
+.preparation-sources dt{font-size:12px;color:var(--muted)}
 .preparation-sources dd{margin:0;min-width:0}
 .preparation-sources strong{display:block;font-size:12px;font-weight:500;overflow-wrap:anywhere}
-.preparation-sources dd>span{display:block;font-size:10px;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}
+.preparation-sources dd>span{display:block;font-size:12px;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}
 .preparation-excerpt{font:13px/1.75 var(--font,system-ui,sans-serif);white-space:pre-wrap;overflow-wrap:anywhere;max-height:150px;overflow:auto;background:var(--rail);border:1px solid var(--border);border-radius:4px;padding:11px 13px;margin:12px 0}
-.preparation-policy{font-size:11px}
+.preparation-policy{font-size:12px}
 #preparation-status{font-size:12px;line-height:1.6;margin:14px 0 0;overflow-wrap:anywhere;color:var(--muted)}
 #preparation-status:empty{display:none}
 #preparation-status.error{color:var(--ink);padding:9px 11px;border:1px solid var(--control-edge);border-radius:4px;background:var(--rail)}
 .preparation-footer{padding:15px 26px;border-top:1px solid var(--border);display:flex;align-items:center;gap:14px;justify-content:space-between;background:var(--paper)}
-.preparation-footer>p{font-size:10px;line-height:1.6;color:var(--muted);margin:0;max-width:230px}
+.preparation-footer>p{font-size:12px;line-height:1.5;color:var(--muted);margin:0;max-width:230px}
 .preparation-footer>div{display:flex;gap:7px;flex:none}
-.preparation-dialog .preparation-footer button{min-height:38px}
 .preparation-footer #preparation-confirm:not(:disabled){background:var(--accent);color:var(--paper);border-color:transparent}
 .preparation-footer #preparation-confirm:disabled{background:var(--control-surface);color:var(--muted);border-color:var(--control-edge);opacity:1}
+@media(pointer:coarse){
+  .preparation-dialog :is(button,summary,input,select),.desktop-project-actions button {min-height:44px}
+  .preparation-fields :is(input,select) {font-size:16px}
+}
 @media(max-width:520px){.preparation-heading{padding:20px 18px 15px}.preparation-body{padding:17px 18px}.preparation-fields{grid-template-columns:1fr;gap:12px}.preparation-footer{padding:14px 18px;flex-wrap:wrap}.preparation-footer>div{width:100%;justify-content:flex-end}.preparation-footer>p{max-width:100%}.preparation-sources>div{grid-template-columns:75px minmax(0,1fr);gap:8px}}
 
 #app > .login {
@@ -113,7 +118,7 @@
 .login .login-fallback summary{width:fit-content;cursor:pointer;min-height:44px;align-content:center;margin:0;color:var(--ink);font-size:14px}
 .login .login-fallback[open] summary{margin-bottom:8px}
 .login #login-form label{display:block;margin-bottom:6px;color:var(--ink);font-size:14px}
-.login #login-code{width:100%;min-height:44px;border:1px solid var(--control-edge);border-radius:6px;margin:0 0 12px;background:var(--paper);color:var(--ink)}
+.login #login-code{width:100%;min-height:44px;border:1px solid var(--control-edge);border-radius:6px;margin:0 0 12px;background:var(--paper);color:var(--ink);font-size:16px}
 #app .login .cloudflare-sign-in,.login #login-form button{display:flex;justify-content:center;align-items:center;gap:9px;width:100%;min-height:44px;padding:9px 15px;border:1px solid transparent;border-radius:7px;background:var(--accent);color:var(--paper);font-family:inherit;font-weight:600;font-size:14px;line-height:1.4;text-decoration:none}
 .login .cloudflare-sign-in .material-symbol{font-size:18px}
 .login .login-fallback #login-form button{background:var(--control-surface);border-color:var(--control-edge);color:var(--ink)}

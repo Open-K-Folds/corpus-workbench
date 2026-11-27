@@ -1,6 +1,6 @@
 import {h, renderInto} from './effect-view';
 import {icon} from './icons';
-import {mountLauncher, type LauncherAction} from './desktop-launcher';
+import {mountLauncher, projectActions, type LauncherAction} from './desktop-launcher';
 import {initializeNativeDrafts,nativeDraftsReady} from './draft-storage';
 import './desktop.css';
 import {openPreparation,type PreparationBridge} from './preparation';
@@ -103,16 +103,15 @@ export function desktopNavigation(host:HTMLElement){
       h.div
         .class('desktop-project-actions')
         .children(
-          h.button.id('desktop-import').class('secondary').children('Import package'),
-          h.button.id('desktop-open').class('secondary').children('Open workbench'),
-          h.button.id('desktop-backup').class('secondary').children('Save authority backup'),
+          (['prepare','import','open'] as const).map(id=>h.button.id('desktop-'+id).class('secondary')
+            .children(icon(projectActions[id].glyph), projectActions[id].label)),
+          h.button.id('desktop-backup').class('secondary').children(icon('download'), 'Save verified backup'),
         ),
       recentButtons(latest),
     ),
   );
   host.prepend(region);bindActions(region);
-  const prepare=document.createElement('button');prepare.id='desktop-prepare';prepare.className='secondary';prepare.textContent='Recording + transcript';prepare.onclick=()=>openPreparation(desktop!);region.querySelector('.desktop-project-actions')!.prepend(prepare);
-  region.querySelector<HTMLButtonElement>('#desktop-backup')!.onclick=async()=>{const status=document.getElementById('message')!;try{status.className='notice';status.textContent='Preparing a verified authority backup…';const result=await desktop.backup();status.textContent=result?.cancelled?'Backup cancelled.':'Verified authority backup saved.'}catch(error){status.className='notice error';status.textContent=String(error)}};
+  region.querySelector<HTMLButtonElement>('#desktop-backup')!.onclick=async()=>{const status=document.getElementById('message')!;try{status.className='notice';status.textContent='Preparing a verified backup…';const result=await desktop.backup();status.textContent=result?.cancelled?'Backup cancelled.':'Verified backup saved.'}catch(error){status.className='notice error';status.textContent=String(error)}};
 }
 export async function initializeDesktop(host:HTMLElement,start:()=>Promise<void>,departure:()=>Departure,menu:(command:string)=>void){
   if(!desktop){await start();return}

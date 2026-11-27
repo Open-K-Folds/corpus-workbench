@@ -82,7 +82,7 @@ async function switchProject(entry, options = {}) {
 }
 async function chooseOpen() {
   return operation(async () => {
-    const picked = await dialog.showOpenDialog(window, {title: 'Open a corpus authority', buttonLabel: 'Open authority', properties: ['openDirectory'], message: 'Choose the folder containing ledger.sqlite and objects.'});
+    const picked = await dialog.showOpenDialog(window, {title: 'Open existing workbench', buttonLabel: 'Open workbench', properties: ['openDirectory'], message: 'Choose the saved workbench folder containing ledger.sqlite and objects.'});
     if (picked.canceled || !picked.filePaths.length) return publicState();
     const store = await fs.realpath(picked.filePaths[0]);
     const inspected = JSON.parse(await runCLI(binary, ['projects', '--store', store]));
@@ -110,7 +110,7 @@ async function importDirectory(source, title) {
 }
 async function importPackage() {
   return operation(async () => {
-    const picked = await dialog.showOpenDialog(window, {title: 'Import a complete corpus package', buttonLabel: 'Import package', properties: ['openDirectory'], message: 'The source folder stays intact. A new local authority stores revisions and history.'});
+    const picked = await dialog.showOpenDialog(window, {title: 'Import TEITOK package', buttonLabel: 'Import package', properties: ['openDirectory'], message: 'Choose the complete corpus folder. Workbench creates a working copy for edits and revision history.'});
     if (picked.canceled || !picked.filePaths.length) return publicState();
     const source = await fs.realpath(picked.filePaths[0]);
     return importDirectory(source, path.basename(source));
@@ -160,7 +160,7 @@ async function commitPreparation(token) {
 async function backup() {
   return operation(async () => {
     if (!current || status !== 'ready') throw new Error('Open a corpus before creating a backup');
-    const picked = await dialog.showSaveDialog(window, {title: 'Save a verified authority backup', buttonLabel: 'Save backup folder', defaultPath: `${current.project}-backup-${new Date().toISOString().slice(0, 10)}`, properties: ['createDirectory']});
+    const picked = await dialog.showSaveDialog(window, {title: 'Save verified backup', buttonLabel: 'Save backup folder', defaultPath: `${current.project}-backup-${new Date().toISOString().slice(0, 10)}`, properties: ['createDirectory']});
     if (picked.canceled || !picked.filePath) return {cancelled: true};
     await runCLI(binary, ['backup', '--store', current.store, '--out', picked.filePath]);
     return {cancelled: false, filename: path.basename(picked.filePath)};
@@ -253,7 +253,7 @@ function installIPC() {
 function installMenu() {
   const native = action => void action().catch(failure => dialog.showMessageBox(window, {type: 'error', title: 'Corpus workbench', message: failure.message}));
   const template = [
-    {label: '&File', submenu: [{label: 'Open corpus authority…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Recording + transcript…', click: () => sendMenu('prepare-recording')}, {label: 'Import corpus package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Create verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
+    {label: '&File', submenu: [{label: 'Open existing workbench…', accelerator: 'CmdOrCtrl+O', click: () => native(chooseOpen)}, {label: 'Recording + transcript…', click: () => sendMenu('prepare-recording')}, {label: 'Import TEITOK package…', accelerator: 'CmdOrCtrl+Shift+O', click: () => native(importPackage)}, {type: 'separator'}, {label: 'Save correction', accelerator: 'CmdOrCtrl+S', click: () => sendMenu('save')}, {label: 'Export exact revision…', accelerator: 'CmdOrCtrl+Shift+S', click: () => sendMenu('export')}, {label: 'Save verified backup…', click: () => native(backup)}, {type: 'separator'}, {label: 'Close workbench', accelerator: 'Alt+F4', click: () => void requestQuit()}]},
     {label: '&Edit', submenu: [{role: 'undo'}, {role: 'redo'}, {type: 'separator'}, {role: 'cut'}, {role: 'copy'}, {role: 'paste'}, {role: 'selectAll'}, {type: 'separator'}, {label: 'Search corpus', accelerator: 'CmdOrCtrl+F', click: () => sendMenu('search')}]},
     {label: '&View', submenu: [{label: 'Revision history', accelerator: 'CmdOrCtrl+H', click: () => sendMenu('history')}, {label: 'Toggle inspector', accelerator: 'CmdOrCtrl+Shift+I', click: () => sendMenu('toggle-inspector')}, {label: 'Toggle recording', accelerator: 'CmdOrCtrl+Shift+A', click: () => sendMenu('toggle-recording')}, {type: 'separator'}, {label: 'Reload workbench', accelerator: 'CmdOrCtrl+R', click: () => native(async () => {if (await canLeave('reloading')) {permitUnload = true; window.reload();}})}, {role: 'resetZoom'}, {role: 'zoomIn'}, {role: 'zoomOut'}, {role: 'togglefullscreen'}]},
     {label: '&Help', submenu: [{label: 'Corpus workflow and research handoff', click: () => sendMenu('research')}, {label: 'About Open-K-Folds Workbench', click: () => native(() => dialog.showMessageBox(window, {type: 'info', title: 'Open-K-Folds Workbench', message: `Open-K-Folds Workbench ${app.getVersion()}`, detail: 'Local transcript authoring, immutable revisions and reviewed evidence. GPL-3.0-or-later.\nYour corpus stays on this computer.', buttons: ['Close']}))}]},
