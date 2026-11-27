@@ -32,13 +32,13 @@ jobs:
       - name: Build with the recorded x64 MSVC linker
         shell: pwsh
         run: |
-          $nodeDir = Split-Path (Get-Command node.exe).Source
+          $nodeDir = Split-Path (Get-Command node.exe -CommandType Application | Select-Object -First 1).Source
           $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
           $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           Import-Module "$vs/Common7/Tools/Microsoft.VisualStudio.DevShell.dll"
           Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64' | Out-Null
           $env:Path = "$nodeDir;$env:Path"
-          $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = (Get-Command link.exe -CommandType Application).Source
+          $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = Join-Path $env:VCToolsInstallDir 'bin/Hostx64/x64/link.exe'
           $version = (Get-Item -LiteralPath $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER).VersionInfo.ProductVersion
           Add-Content $env:GITHUB_ENV "WB_BUILD_LINKER_VERSION=$version"
           npm.cmd run build:desktop
