@@ -29,7 +29,19 @@ jobs:
       - run: node node_modules/electron/install.js
       - run: npm audit --audit-level=low
       - run: npm run test:desktop
-      - run: npm run build:desktop
+      - name: Build with the recorded x64 MSVC linker
+        shell: pwsh
+        run: |
+          $nodeDir = Split-Path (Get-Command node.exe).Source
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          Import-Module "$vs/Common7/Tools/Microsoft.VisualStudio.DevShell.dll"
+          Enter-VsDevShell -VsInstallPath $vs -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64' | Out-Null
+          $env:Path = "$nodeDir;$env:Path"
+          $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = (Get-Command link.exe -CommandType Application).Source
+          $version = (Get-Item -LiteralPath $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER).VersionInfo.ProductVersion
+          Add-Content $env:GITHUB_ENV "WB_BUILD_LINKER_VERSION=$version"
+          npm.cmd run build:desktop
       - run: npm run package:windows
       - name: Exercise the packaged Windows executable and its bundled sidecar
         run: npm run test:electron
@@ -50,12 +62,30 @@ jobs:
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           git archive --format=zip --prefix="corpus-workbench-$version/" --output="$out/corpus-workbench-$version-source.zip" HEAD
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
-          $linker = & $vswhere -latest -products '*' -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\link.exe' | Select-Object -First 1
+          $binary = [IO.File]::ReadAllBytes((Resolve-Path 'target/release/corpus-workbench.exe'))
+          $pe = [BitConverter]::ToInt32($binary, 0x3c)
+          $linkerHeader = '{0}.{1}' -f $binary[$pe + 26], $binary[$pe + 27]
+          if (!$env:WB_BUILD_LINKER_VERSION.StartsWith("$linkerHeader.")) { throw 'Sidecar PE header disagrees with the selected linker.' }
           $totals = (Get-Content "$env:WB_EVIDENCE_DIR/test-results.json" -Raw | ConvertFrom-Json).stats
           $locks = [ordered]@{}
           foreach ($name in @('Cargo.lock','package-lock.json','ui/package-lock.json')) { $locks[$name] = (Get-FileHash $name).Hash.ToLowerInvariant() }
-          [ordered]@{commit=$env:GITHUB_SHA; version=$version; target='x86_64-pc-windows-msvc'; rust=(rustc -V); linker=(Get-Item $linker).VersionInfo.ProductVersion; node=(node -v); npm=(npm -v); python=(python --version); electron=(Get-Content package.json -Raw | ConvertFrom-Json).devDependencies.electron; lockfiles=$locks; windows_tests=$totals; source_run="$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"; package=$archive.Name; sha256=(Get-FileHash $archive.FullName).Hash.ToLowerInvariant(); authenticode=(Get-AuthenticodeSignature $env:WB_ELECTRON_EXECUTABLE).Status.ToString()} | ConvertTo-Json -Depth 5 | Set-Content "$out/build-details.json"
+          [ordered]@{
+            commit=$env:GITHUB_SHA
+            version=$version
+            target='x86_64-pc-windows-msvc'
+            rust=(rustc -V)
+            linker=$env:WB_BUILD_LINKER_VERSION
+            node=(node -v)
+            npm=(npm -v)
+            python=(python --version)
+            electron=(Get-Content package.json -Raw | ConvertFrom-Json).devDependencies.electron
+            lockfiles=$locks
+            windows_tests=$totals
+            source_run="$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+            package=$archive.Name
+            sha256=(Get-FileHash $archive.FullName).Hash.ToLowerInvariant()
+            authenticode=(Get-AuthenticodeSignature $env:WB_ELECTRON_EXECUTABLE).Status.ToString()
+          } | ConvertTo-Json -Depth 5 | Set-Content "$out/build-details.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: windows-candidate
