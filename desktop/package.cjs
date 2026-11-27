@@ -34,7 +34,8 @@ async function packageWindows() {
   await fs.access(path.join(resources, 'ui', 'index.html'));
   await require('./icon.cjs').generateIcon(resources);
   const {packager} = await import('@electron/packager');
-  const output = await packager({dir: root, out: outputRoot, name: 'Open-K-Folds Workbench', executableName: 'Open-K-Folds Workbench', icon: path.join(resources, 'icon.ico'), platform: 'win32', arch: 'x64', overwrite: true, asar: true, prune: true, extraResource: ['backend', 'ui', 'demo', 'semantica', 'icon.png'].map(name => path.join(resources, name)), ignore: file => {
+  const {version, devDependencies: {electron: electronVersion}} = require('../package.json');
+  const output = await packager({dir: root, out: outputRoot, electronVersion, name: 'Open-K-Folds Workbench', executableName: 'Open-K-Folds Workbench', icon: path.join(resources, 'icon.ico'), platform: 'win32', arch: 'x64', overwrite: true, asar: true, prune: true, extraResource: ['backend', 'ui', 'demo', 'semantica', 'icon.png'].map(name => path.join(resources, name)), ignore: file => {
     const relative = file.replaceAll('\\', '/');
     if (!relative || relative === '/package.json') return false;
     if (relative === '/package-lock.json' || relative.startsWith('/node_modules')) return true;
@@ -47,7 +48,7 @@ async function packageWindows() {
     await fs.copyFile(path.join(root, 'NOTICE'), path.join(directory, 'NOTICE.workbench'));
     const sourceCommit = require('node:child_process').spawnSync('git', ['rev-parse', 'HEAD'], {cwd: root, encoding: 'utf8', windowsHide: true}).stdout.trim();
     const sourceDirty = !!require('node:child_process').spawnSync('git', ['status', '--porcelain'], {cwd: root, encoding: 'utf8', windowsHide: true}).stdout.trim();
-    const manifest = {application: 'Open-K-Folds Workbench', version: require('../package.json').version, platform: 'win32', architecture: 'x64', electron: require('../package.json').devDependencies.electron, sourceCommit, sourceDirty, signed: false, backend: crypto.createHash('sha256').update(await fs.readFile(path.join(directory, 'resources', 'backend', 'corpus-workbench.exe'))).digest('hex')};
+    const manifest = {application: 'Open-K-Folds Workbench', version, platform: 'win32', architecture: 'x64', electron: electronVersion, sourceCommit, sourceDirty, signed: false, backend: crypto.createHash('sha256').update(await fs.readFile(path.join(directory, 'resources', 'backend', 'corpus-workbench.exe'))).digest('hex')};
     await fs.writeFile(path.join(directory, 'local-build.json'), JSON.stringify(manifest, null, 2));
     console.log(`Runnable local Windows package: ${directory}`);
   }

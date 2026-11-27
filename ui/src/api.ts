@@ -17,7 +17,20 @@ export async function api<T>(path:string,body?:unknown,signal?:AbortSignal):Prom
   if(!response.ok) throw new ApiError(result.error??'Request failed',response.status); return result as T;
 }
 export async function uploadFile(upload:string,path:string,file:File):Promise<void>{
-  const response=await fetch(`/api/return/file?upload=${encodeURIComponent(upload)}&path=${encodeURIComponent(path)}`,{method:'POST',headers:{'Content-Type':'application/octet-stream','X-WB-CSRF':csrf},body:file});
+  const url = `/api/return/file?upload=${encodeURIComponent(upload)}&path=${encodeURIComponent(path)}`;
+  let response: Response;
+  try {
+    response = await fetch(url, {method:'POST', headers:{'Content-Type':'application/octet-stream','X-WB-CSRF':csrf}, body:file});
+  } catch {
+    try {
+      // A missing or inaccessible file can appear to be empty in the folder picker.
+      const sample = file.size ? file.slice(0, 1) : file;
+      await sample.arrayBuffer();
+    } catch {
+      throw new Error(`Your browser could not read “${path}”. Check that the file exists and choose the folder again. For a long Windows path, move the exported folder closer to the top of the drive.`);
+    }
+    throw new Error(`The upload stopped at “${path}”. Check your connection and try again.`);
+  }
   const result=await response.json();if(!response.ok)throw new ApiError(result.error??'Upload failed',response.status);
 }
 export async function login(code:string){const r=await api<{csrf:string}>('/api/session',{code});retainCsrf(r.csrf)}

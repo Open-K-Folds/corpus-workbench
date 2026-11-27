@@ -1,13 +1,14 @@
 import {test,expect} from '@playwright/test';
 import {spawn,execFileSync,type ChildProcess} from 'node:child_process';
-import {readFileSync,writeFileSync,mkdirSync,existsSync,readdirSync,cpSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,mkdtempSync,existsSync,readdirSync,cpSync,renameSync} from 'node:fs';
+import {tmpdir} from 'node:os';
 import {resolve} from 'node:path';
 const root=resolve('..');const binary=process.env.WB_BINARY??resolve(root,'target/debug/corpus-workbench'+(process.platform==='win32'?'.exe':''));
-let runtime:string;let returned:string;let service:ChildProcess;let code:string;let sequence=0;let sessionRuntime:string;
+let runtime:string;let returned:string;let service:ChildProcess;let code:string;let sessionRuntime:string;
 function nativeView(){return JSON.parse(execFileSync(binary,['view','--store',resolve(runtime,'authority'),'--project','return'],{encoding:'utf8'}))}
-function localEdit(token:string,fields:Record<string,string>){const v=nativeView();const command={schema:1,project:'return',command_id:'local-'+sequence+'-'+v.revision.id,base_revision:v.revision.id,preimage_hash:v.revision.snapshot_hash,config_version:v.snapshot.config.version,label:'Concurrent local work',operations:[{kind:'set_token',document:'xmlfiles/demo.xml',token,fields}]};const file=resolve(runtime,'local-command.json');writeFileSync(file,JSON.stringify(command));execFileSync(binary,['apply','--store',resolve(runtime,'authority'),'--command',file]);}
+function localEdit(token:string,fields:Record<string,string>){const v=nativeView();const command={schema:1,project:'return',command_id:'local-'+v.revision.id,base_revision:v.revision.id,preimage_hash:v.revision.snapshot_hash,config_version:v.snapshot.config.version,label:'Concurrent local work',operations:[{kind:'set_token',document:'xmlfiles/demo.xml',token,fields}]};const file=resolve(runtime,'local-command.json');writeFileSync(file,JSON.stringify(command));execFileSync(binary,['apply','--store',resolve(runtime,'authority'),'--command',file]);}
 test.beforeEach(async()=>{
-  runtime=resolve(root,'.private',`browser-return-${process.pid}-${++sequence}`);returned=resolve(runtime,'returned');if(existsSync(runtime))throw new Error('Fresh synthetic fixture required');
+  runtime=mkdtempSync(resolve(tmpdir(),'wb-return-'));returned=resolve(runtime,'returned');
   for(const directory of ['Resources','xmlfiles','Audio','Raw'])mkdirSync(resolve(runtime,'package',directory),{recursive:true});
   writeFileSync(resolve(runtime,'package/Resources/settings.xml'),'<ttsettings/>');
   writeFileSync(resolve(runtime,'package/xmlfiles/demo.xml'),"<TEI><teiHeader><title>SYNTHETIC return copy</title><media url='sample.wav'/></teiHeader><text><tok id='w1' form='raw é😀' nform='base'>raw é😀</tok> <tok id='w2' form='two'>two</tok></text></TEI>");
@@ -24,6 +25,30 @@ test.beforeEach(async()=>{
 test.afterEach(async()=>{if(service&&service.exitCode===null){service.kill();await new Promise<void>(done=>service.once('exit',()=>done()))}});
 async function choose(page:import('@playwright/test').Page,path=returned){await page.getByRole('button',{name:'Return copy',exact:true}).click();await page.locator('#return-directory').setInputFiles(path);await page.locator('#preview-return').click();await expect(page.locator('#return-status')).not.toContainText('Uploading');await expect(page.locator('#return-result')).toContainText('Exported R1');}
 async function resolveExternal(page:import('@playwright/test').Page){await page.locator('[data-return-choice]').selectOption('external');await page.locator('#refresh-return').click();await expect(page.locator('#commit-return')).toBeEnabled();}
+
+test('explains an unreadable file or a lost connection and lets the reader retry', async ({page}) => {
+  await page.goto('/#session='+code);
+  await page.getByRole('button', {name:'Return copy', exact:true}).click();
+  const chooser = page.getByLabel('Edited package folder');
+  const preview = page.getByRole('button', {name:'Upload and preview'});
+  const status = page.locator('#return-status');
+  await chooser.setInputFiles(returned);
+  const file = resolve(returned,'Raw/draft.json'), moved = resolve(runtime,'moved-draft.json');
+  renameSync(file,moved);
+  try {
+    await preview.click();
+    await expect(status).toContainText('Your browser could not read “Raw/draft.json”');
+    await expect(page.locator('#commit-return')).toBeDisabled();
+  } finally { renameSync(moved,file); }
+
+  await chooser.setInputFiles(returned);
+  await page.route(/\/api\/return\/file\?.*path=Raw%2Fdraft\.json/, route => route.abort('connectionreset'), {times:1});
+  await preview.click();
+  await expect(status).toContainText('The upload stopped at “Raw/draft.json”. Check your connection');
+  await preview.click();
+  await expect(page.locator('#return-result')).toContainText('Exported R1');
+  expect(nativeView().revision.id).toBe(2);
+});
 
 test('complete folder upload, conflict review, audio, commit, diff, undo and exported reopen',async({page})=>{
   const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('/#session='+code);await expect(page.locator('#save-state')).toContainText('Saved R2');await expect.poll(()=>page.locator('#audio').evaluate((audio:HTMLAudioElement)=>audio.duration)).toBeGreaterThan(1);
