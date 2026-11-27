@@ -19,6 +19,7 @@ parser.add_argument('--binary', required=True, type=Path)
 parser.add_argument('--cargo-metadata', required=True, type=Path)
 parser.add_argument('--rust-notices', required=True, type=Path)
 parser.add_argument('--out', required=True, type=Path)
+parser.add_argument('--desktop', type=Path, help='Stage the tested Electron directory as the Windows download')
 args = parser.parse_args()
 if platform.system() != 'Windows' or args.binary.suffix != '.exe':
     raise SystemExit('This first package recipe targets tested Windows x86-64 only.')
@@ -33,18 +34,24 @@ version = tomllib.loads((root / 'Cargo.toml').read_text())['package']['version']
 commit = git('rev-parse', 'HEAD')
 stage = args.out / f'corpus-workbench-{version}'
 stage.mkdir(parents=True)
-(stage / 'bin').mkdir()
-shutil.copy2(args.binary, stage / 'bin' / args.binary.name)
+if args.desktop:
+    subprocess.run(['node', str(root / 'desktop/audit-package.mjs'), str(args.desktop.resolve()), str(args.binary.resolve())], check=True)
+    shutil.copytree(args.desktop, stage, dirs_exist_ok=True)
+else:
+    (stage / 'bin').mkdir()
+    shutil.copy2(args.binary, stage / 'bin' / args.binary.name)
 tracked = subprocess.check_output(['git', '-C', str(root), 'ls-files', '-z']).decode().split('\0')
 allowed = {'scripts/prepare-synthetic.py', 'scripts/prepare-structural-synthetic.py', 'scripts/start-workbench.ps1', 'LICENSE', 'NOTICE',
            'README.md', 'CHANGELOG.md', 'MILESTONES.md', 'Open-Workbench.cmd',
            'evidence/dependency-inventory.json', 'evidence/coanalysis/noticeboard.json'}
 for name in tracked:
+    if args.desktop and name not in {'LICENSE', 'NOTICE', 'scripts/prepare-synthetic.py'} and not name.startswith('fixtures/synthetic/'):
+        continue
     if name in allowed or name.startswith(('docs/', 'fixtures/synthetic/', 'fixtures/coanalysis/', 'assets/teitok-reader/')):
         source = root / name
         if source.is_symlink():
             raise SystemExit('Symlinks are not accepted in this preview recipe.')
-        destination = stage / name
+        destination = stage / ('LICENSE.workbench' if args.desktop and name == 'LICENSE' else name)
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 ui = root / 'ui/dist'
@@ -68,9 +75,10 @@ for file in ui_files:
     name = file.relative_to(ui).as_posix()
     if file.is_symlink():
         raise SystemExit('Unexpected compiled UI output; perform a fresh reviewed build.')
-    destination = stage / 'ui/dist' / name
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(file, destination)
+    if not args.desktop:
+        destination = stage / 'ui/dist' / name
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(file, destination)
 (stage / 'PACKAGE.md').write_text(f'''# Engineering preview {version}
 
 Corresponding source: https://github.com/Open-K-Folds/corpus-workbench/tree/{commit}
@@ -84,6 +92,19 @@ The native binary targets Windows x86-64 and requires its supported system C run
 For an authorized corpus, protect a new authority, import a complete package copy,
 and serve with the CLI options described in README.md. Never use the demo authority
 as the research authority. Production and Raspberry Pi validation remain gates.
+''', encoding='utf-8')
+if args.desktop:
+    (stage / 'PACKAGE.md').write_text(f'''# Open-K-Folds Workbench {version} for Windows x64
+
+Extract the entire ZIP and open `Open-K-Folds Workbench.exe`. Open the bundled
+practice corpus from the launcher to edit, review and export synthetic transcripts.
+The application and its native sidecar run locally. Windows displays an unknown
+publisher for this engineering preview. See the release manifest for its build
+identity, verification evidence and SHA-256 checksum.
+
+The source for this build is https://github.com/Open-K-Folds/corpus-workbench/tree/{commit}.
+Electron and Chromium notices are in LICENSE and LICENSES.chromium.html.
+The Workbench license is in LICENSE.workbench and dependency notices are in third-party-licenses.
 ''', encoding='utf-8')
 licenses = stage / 'third-party-licenses'
 licenses.mkdir()
@@ -166,6 +187,8 @@ for name in ['COPYRIGHT.html', 'COPYRIGHT-library.html']:
     shutil.copy2(args.rust_notices / name, licenses / 'rust-standard-library' / name)
 (licenses / 'INDEX.json').write_text(json.dumps(index, indent=2), encoding='utf-8')
 archive = args.out / f'corpus-workbench-{version}-windows-x86_64.zip'
+if args.desktop:
+    archive = args.out / f'open-k-folds-workbench-{version}-windows-x64.zip'
 with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, strict_timestamps=False) as z:
     for file in sorted(stage.rglob('*')):
         if file.is_file():

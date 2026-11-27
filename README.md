@@ -57,7 +57,7 @@ npm run build --prefix ui
 python scripts/prepare-synthetic.py --out .private/demo-package
 ```
 
-The browser and Electron desktop app share an Effect UI frontend. It renders the launcher, transcript, playback controls and inspector tools. The Projects drawer and revision history load when opened. Native browser controls handle text selection, draft forms and media playback. The UI lockfile pins the framework preview, and the app serves it from its own assets. [Workbench component](ui/src/workbench-view.ts)
+The browser and Electron desktop app share an Effect UI frontend. It renders the launcher, transcript, playback controls and inspector tools. Corpus search, revision review, training collections and co-analysis use typed messages to track edits and pending results. The Projects drawer and revision history load when opened. You can retry a failed Projects download while keeping an editing draft open. Native browser controls handle text selection, draft forms and media playback. The UI lockfile pins the framework preview, and the app serves it from its own assets. [Workbench component](ui/src/workbench-view.ts)
 
 On Linux/macOS, first restrict local storage, then import and serve:
 

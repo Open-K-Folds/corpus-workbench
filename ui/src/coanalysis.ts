@@ -1,3 +1,6 @@
+import {BrowserHost} from '@effect/ui/html';
+import {runComponent} from './app-runtime';
+import {PassageReading, ReadingMessage} from './coanalysis-workflow';
 import {displayText, group, h, renderInto, viewFragment} from './effect-view';
 import {preparePassage, type PassageRequest} from '../../desktop/coanalysis-prompt.mjs';
 import type {Document, Operation, View} from './contracts';
@@ -102,7 +105,7 @@ interface Actions {
   save: (ops: Operation[], label: string, source: HTMLFormElement, basis: View) => Promise<void>;
 }
 
-export function coanalysisInspector(view: View, doc: Document, ids: string[], actions: Actions) {
+export function coanalysisInspector(view: View, doc: Document, ids: string[], actions: Actions, signal: AbortSignal) {
   const panel = document.createElement('section');
   panel.className = 'coanalysis';
   const spanId = 'coanalysis-' + crypto.randomUUID();
@@ -321,7 +324,7 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
                     .children(icon('fact_check'), 'Save reviewed annotation'),
                 ),
             ),
-            h.p.attrs({'data-status': '', role: 'status'}),
+            h.div.attrs({'data-reading-status': ''}),
             h.button
               .class('secondary')
               .attrs({type: 'button', 'data-discard': '', hidden: ''})
@@ -352,9 +355,9 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   const model = find<HTMLInputElement>('model'), reply = find<HTMLTextAreaElement>('reply');
   const decision = find<HTMLSelectElement>('decision'), interpretation = find<HTMLTextAreaElement>('interpretation');
   const discard = find<HTMLButtonElement>('discard'), save = find<HTMLButtonElement>('save');
-  const setup = find<HTMLFieldSetElement>('setup'), status = find('status');
-  let result: Pick<Memo, 'model' | 'proposal' | 'method' | 'first_reading'> | null = null;
-  let waiting = false;
+  const setup = find<HTMLFieldSetElement>('setup');
+  const reading = runComponent(BrowserHost.mountEffect(PassageReading, {}, find('reading-status'), {head:false}), signal);
+  const notice = (text: string) => reading.send(ReadingMessage.Notice({text}));
   question.value = request.question;
   preview.value = passage.prompt;
   const markDirty = () => {
@@ -375,18 +378,21 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   function refreshControls() {
     find<HTMLButtonElement>('copy').disabled = !preview.value;
     const run = form.querySelector<HTMLButtonElement>('[data-run]');
-    if (run) run.disabled = !preview.value;
+    if (run) run.disabled = !preview.value || reading.model()!.stale;
     find<HTMLButtonElement>('use').disabled = !preview.value || !model.value.trim() || !reply.value.trim();
-    save.disabled = form.dataset.stale === 'true' || !result || !decision.value || !interpretation.value.trim();
+    save.disabled = reading.model()!.stale || !reading.model()!.proposal || !decision.value || !interpretation.value.trim();
   }
   form.addEventListener('wb-stale', () => {
     form.dataset.stale = 'true';
     refreshCue();
-    status.textContent = 'This passage was analysed against an older revision. Discard this draft and reload the saved passage before analysing again.';
+    reading.send(ReadingMessage.Stale());
+    discard.disabled = false;
     refreshControls();
   });
   function review(name: string, proposal: string, method: Memo['method']) {
-    result = {model: name, proposal, method, ...(firstReading.value && {first_reading: firstReading.value})};
+    if (signal.aborted || reading.model()!.stale || reading.model()!.proposal) return;
+    const result = {model: name, proposal, method, ...(firstReading.value && {first_reading: firstReading.value})};
+    reading.send(ReadingMessage.Reviewed({proposal: result}));
     markDirty();
     setup.hidden = true;
     setup.disabled = true;
@@ -396,7 +402,6 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
     find('used-question').textContent = request.question;
     find('by').textContent = name + (method === 'llama.cpp' ? ' · Local llama.cpp' : ' · Manually supplied');
     find('proposal').textContent = proposal;
-    status.textContent = '';
     refreshControls();
     find('review-heading').focus();
   }
@@ -409,32 +414,33 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   };
   find<HTMLButtonElement>('copy').onclick = async () => {
     pinPrompt();
-    try { await navigator.clipboard.writeText(preview.value); status.textContent = 'Prompt copied for your local model.'; }
-    catch { preview.focus(); preview.select(); status.textContent = 'Use Copy on the selected prompt.'; }
+    try { await navigator.clipboard.writeText(preview.value); notice('Prompt copied for your local model.'); }
+    catch { preview.focus(); preview.select(); notice('Use Copy on the selected prompt.'); }
   };
   preview.addEventListener('copy', pinPrompt);
   find<HTMLButtonElement>('use').onclick = () => review(model.value.trim(), reply.value, 'manual');
   const run = form.querySelector<HTMLButtonElement>('[data-run]');
   if (run) run.onclick = async () => {
-    if (waiting || !preview.value) return;
+    if (reading.model()!.waiting || reading.model()!.stale || !preview.value) return;
     markDirty();
-    waiting = true; setup.disabled = true; discard.disabled = true;
-    status.textContent = 'Waiting for the local model…';
+    reading.send(ReadingMessage.Requested()); setup.disabled = true; discard.disabled = true;
     try {
       const answer = await desktop!.askLocalModel(request);
       review(answer.model, answer.reply, 'llama.cpp');
-    } catch (error) { status.textContent = String(error); setup.disabled = false; }
-    finally { waiting = false; discard.disabled = false; }
+    } catch (error) {
+      if (!signal.aborted) { reading.send(ReadingMessage.Failed({reason:String(error)})); setup.disabled = reading.model()!.stale; }
+    } finally { discard.disabled = false; }
   };
   form.onsubmit = async event => {
     event.preventDefault();
+    const {proposal:result, waiting} = reading.model()!;
     if (!result || save.disabled || waiting) return;
     const memo: Memo = {format: 'corpus-workbench/coanalysis-1', revision: request.revision, snapshot_hash: request.snapshot_hash,
       project: request.project, document: request.document, prompt: preview.value,
       question: request.question, ...result, decision: decision.value, interpretation: interpretation.value.trim()};
     const note = JSON.stringify(memo);
     if (new TextEncoder().encode(note).length > 65536) {
-      status.textContent = 'The reviewed record exceeds the 64 KiB annotation limit. Shorten your interpretation or begin with a shorter passage or model reply.';
+      notice('The reviewed record exceeds the 64 KiB annotation limit. Shorten your interpretation or begin with a shorter passage or model reply.');
       return;
     }
     await actions.save([{kind: 'add_span', document: doc.path, id: spanId, token_ids: request.token_ids,
@@ -443,7 +449,7 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
   };
   discard.onclick = async () => {
     try { await actions.discard(form.dataset.stale === 'true'); }
-    catch (error) { status.textContent = String(error); }
+    catch (error) { notice(String(error)); }
   };
   refreshControls();
   return panel;

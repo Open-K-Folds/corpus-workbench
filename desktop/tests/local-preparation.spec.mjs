@@ -27,7 +27,7 @@ function workspace(name){mkdirSync(evidence,{recursive:true});const directory=jo
 function directories(path){return existsSync(path)?readdirSync(path):[]}
 function productHashes(){
   const directory=join(executable,'..');
-  const files=['resources/app/desktop/main.cjs','resources/app/desktop/preload.cjs','resources/app/desktop/preparation.cjs','resources/app/desktop/preparation-format.cjs','resources/app/desktop/semantica.cjs','resources/backend/corpus-workbench.exe','resources/semantica/semantica-handoff.py','resources/ui/index.html'];
+  const files=['resources/app.asar','resources/backend/corpus-workbench.exe','resources/semantica/semantica-handoff.py','resources/ui/index.html'];
   for(const name of readdirSync(join(directory,'resources/ui/assets')))if(/\.(css|js)$/.test(name))files.push('resources/ui/assets/'+name);
   return Object.fromEntries(files.map(file=>[file,sha(readFileSync(join(directory,file)))]));
 }

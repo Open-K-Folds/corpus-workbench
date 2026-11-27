@@ -1,0 +1,82 @@
+name: Windows desktop
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+
+jobs:
+  packaged:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.18.0'
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            ui/package-lock.json
+      - name: Prepare the pinned Windows build
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.90.0 --profile minimal --component rust-docs
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $flags = '--remap-path-prefix=' + $env:GITHUB_WORKSPACE + '=/source' + [char]31 + '--remap-path-prefix=' + $env:USERPROFILE + '=/build-user'
+          Add-Content $env:GITHUB_ENV "CARGO_ENCODED_RUSTFLAGS=$flags"
+          Add-Content $env:GITHUB_ENV "WB_ELECTRON_EXECUTABLE=$env:GITHUB_WORKSPACE/release/desktop/Open-K-Folds Workbench-win32-x64/Open-K-Folds Workbench.exe"
+          Add-Content $env:GITHUB_ENV "WB_EVIDENCE_DIR=$env:RUNNER_TEMP/windows-qualification"
+      - run: npm ci --prefix ui
+      - run: npm ci
+      - run: node node_modules/electron/install.js
+      - run: npm audit --audit-level=low
+      - run: npm run test:desktop
+      - run: npm run build:desktop
+      - run: npm run package:windows
+      - name: Exercise the packaged Windows executable and its bundled sidecar
+        run: npm run test:electron
+      - name: Audit files and stage the exact tested download
+        shell: pwsh
+        run: |
+          $pkg = Split-Path $env:WB_ELECTRON_EXECUTABLE
+          $metadata = Join-Path $env:RUNNER_TEMP 'cargo-metadata.json'
+          cargo metadata --locked --format-version=1 --filter-platform x86_64-pc-windows-msvc | Set-Content -Encoding utf8 $metadata
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $docs = Join-Path (rustc --print sysroot) 'share/doc/rust/html'
+          $stage = Join-Path $env:RUNNER_TEMP 'package'
+          python scripts/package-preview.py --binary target/release/corpus-workbench.exe --cargo-metadata $metadata --rust-notices $docs --desktop $pkg --out $stage
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $out = New-Item -ItemType Directory -Path "$env:RUNNER_TEMP/release-candidate"
+          $archive = Get-ChildItem $stage -Filter '*.zip' -File
+          Copy-Item -LiteralPath $archive.FullName -Destination $out.FullName
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          git archive --format=zip --prefix="corpus-workbench-$version/" --output="$out/corpus-workbench-$version-source.zip" HEAD
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $vswhere = "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe"
+          $linker = & $vswhere -latest -products '*' -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\link.exe' | Select-Object -First 1
+          $totals = (Get-Content "$env:WB_EVIDENCE_DIR/test-results.json" -Raw | ConvertFrom-Json).stats
+          $locks = [ordered]@{}
+          foreach ($name in @('Cargo.lock','package-lock.json','ui/package-lock.json')) { $locks[$name] = (Get-FileHash $name).Hash.ToLowerInvariant() }
+          [ordered]@{commit=$env:GITHUB_SHA; version=$version; target='x86_64-pc-windows-msvc'; rust=(rustc -V); linker=(Get-Item $linker).VersionInfo.ProductVersion; node=(node -v); npm=(npm -v); python=(python --version); electron=(Get-Content package.json -Raw | ConvertFrom-Json).devDependencies.electron; lockfiles=$locks; windows_tests=$totals; source_run="$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"; package=$archive.Name; sha256=(Get-FileHash $archive.FullName).Hash.ToLowerInvariant(); authenticode=(Get-AuthenticodeSignature $env:WB_ELECTRON_EXECUTABLE).Status.ToString()} | ConvertTo-Json -Depth 5 | Set-Content "$out/build-details.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-candidate
+          path: ${{ runner.temp }}/release-candidate/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+  provenance:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: packaged
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: windows-candidate
+          path: candidate
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: candidate/*.zip

@@ -2,6 +2,7 @@ import type {WorkspaceSummary} from './workbench-view';
 import {h} from './effect-view';
 import {icon} from './icons';
 import {buttonGroup} from './controls';
+import projectFilesUrl from 'virtual:workbench-project-files-url';
 import type {FileNavigation, ProjectFileSnapshot, mountProjectFiles} from './project-files';
 import './project-drawer.css';
 
@@ -29,24 +30,40 @@ export function projectDrawerBody(summary: WorkspaceSummary) {
 export function bindProjectFiles(container: HTMLElement, signal: AbortSignal,
   snapshot: () => ProjectFileSnapshot, onNavigate: (event: FileNavigation) => void) {
   let update: ReturnType<typeof mountProjectFiles> | undefined;
-  let started = false;
+  let loading = false;
+  let attempts = 0;
   const refresh = () => update?.(snapshot());
 
   async function open() {
-    if (started) return;
-    started = true;
+    if (update || loading || signal.aborted) return;
+    loading = true;
+    const retry = container.querySelector<HTMLButtonElement>('button');
+    const url = new URL(projectFilesUrl, document.baseURI);
+    if (attempts > 0) url.searchParams.set('retry', String(attempts));
+    attempts++;
     container.setAttribute('aria-busy', 'true');
     try {
-      const {mountProjectFiles} = await import('./project-files');
+      const {mountProjectFiles}: typeof import('./project-files') = await import(/* @vite-ignore */ url.href);
       if (signal.aborted) return;
+      const returnFocus = !!retry && document.activeElement === retry;
+      container.replaceChildren();
       update = mountProjectFiles(container, signal, snapshot(), onNavigate);
       buttonGroup(container.querySelector('nav')!);
+      if (returnFocus) container.querySelector<HTMLInputElement>('#navigation-query')?.focus();
     } catch {
-      if (!signal.aborted) {
-        container.setAttribute('role', 'alert');
-        container.textContent = 'Project files could not load. Refresh the workbench to try again.';
+      if (!signal.aborted && !retry) {
+        const error = document.createElement('p');
+        error.setAttribute('role', 'alert');
+        error.textContent = 'Project files could not load.';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'secondary';
+        button.textContent = 'Retry project files';
+        button.addEventListener('click', open, {signal});
+        container.replaceChildren(error, button);
       }
     } finally {
+      loading = false;
       container.removeAttribute('aria-busy');
     }
   }

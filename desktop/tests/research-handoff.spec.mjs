@@ -17,7 +17,7 @@ const execute=promisify(execFile);
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 function productHashes(){
   const directory=join(executable,'..');
-  const files=['resources/app/desktop/main.cjs','resources/app/desktop/preload.cjs','resources/app/desktop/semantica.cjs','resources/backend/corpus-workbench.exe','resources/semantica/semantica-handoff.py','resources/ui/index.html'];
+  const files=['resources/app.asar','resources/backend/corpus-workbench.exe','resources/semantica/semantica-handoff.py','resources/ui/index.html'];
   for(const asset of readdirSync(join(directory,'resources/ui/assets')))if(/\.(css|js)$/.test(asset))files.push('resources/ui/assets/'+asset);
   return Object.fromEntries(files.map(file=>[file,sha(readFileSync(join(directory,file)))]));
 }

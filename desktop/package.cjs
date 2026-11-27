@@ -2,6 +2,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const desktopSources = ['backend.cjs', 'main.cjs', 'preload.cjs', 'registry.cjs', 'security.cjs', 'journal.cjs', 'semantica.cjs', 'preparation.cjs', 'preparation-format.cjs', 'local-model.cjs', 'coanalysis-prompt.mjs'];
 async function physicalLocation(target) {
   const remaining = [];
   let ancestor = target;
@@ -38,7 +39,7 @@ async function packageWindows() {
     if (!relative || relative === '/package.json') return false;
     if (relative === '/package-lock.json' || relative.startsWith('/node_modules')) return true;
     if (relative === '/desktop') return false;
-    if (relative.startsWith('/desktop/')) return !['backend.cjs', 'main.cjs', 'preload.cjs', 'registry.cjs', 'security.cjs', 'journal.cjs', 'semantica.cjs', 'preparation.cjs', 'preparation-format.cjs', 'local-model.cjs', 'coanalysis-prompt.mjs'].includes(relative.slice('/desktop/'.length));
+    if (relative.startsWith('/desktop/')) return !desktopSources.includes(relative.slice('/desktop/'.length));
     return true;
   }, win32metadata: {CompanyName: 'Open-K-Folds', FileDescription: 'Transcript-first corpus workbench', ProductName: 'Open-K-Folds Workbench', InternalName: 'Open-K-Folds Workbench'}, appCopyright: 'Open-K-Folds contributors; GPL-3.0-or-later'});
   for (const directory of output) {
@@ -51,5 +52,5 @@ async function packageWindows() {
     console.log(`Runnable local Windows package: ${directory}`);
   }
 }
-module.exports = {resolvePackagingOutput};
+module.exports = {resolvePackagingOutput, desktopSources};
 if (require.main === module) packageWindows().catch(error => {console.error(error.stack); process.exitCode = 1;});

@@ -90,16 +90,23 @@ if ($Action -eq 'Supervise') {
         }
         & $docker @compose config --quiet
         if ($LASTEXITCODE -ne 0) { throw 'Invalid preview Compose configuration.' }
-        $env:VITE_WB_REMOTE_PREVIEW = '1'
         $output = Join-Path $runtime 'ui'
         [IO.Directory]::CreateDirectory($output) | Out-Null
         $state = @{supervisor=(Identity (Get-Process -Id $PID) $shellExe); config=$config; frontend=$null; backend=$null}
         $changed = $true
+        $viteConfig = Join-Path $ui 'vite.config.ts'
+        $configHash = (Get-FileHash -LiteralPath $viteConfig).Hash
         while (!(Test-Path -LiteralPath $stopFile)) {
+            $nextHash = (Get-FileHash -LiteralPath $viteConfig).Hash
+            if ($nextHash -ne $configHash) {
+                Stop-Tree $state.frontend
+                $state.frontend = $null
+                $configHash = $nextHash
+            }
             foreach ($label in @('frontend','backend')) {
                 if (Find-Process $state[$label]) { continue }
                 try {
-                    if ($label -eq 'frontend') { $exe = $node; $child = Start-Hidden $label $exe @($vite,'build','--watch','--outDir',$output,'--emptyOutDir') $ui }
+                    if ($label -eq 'frontend') { $exe = $node; $child = Start-Hidden $label $exe @($vite,'build','--config',$viteConfig,'--watch','--outDir',$output,'--emptyOutDir') $ui }
                     else { $exe = $docker; $child = Start-Hidden $label $exe ($compose + @('watch','--no-up','--prune=false','authoring','login')) $repo }
                     if (!$child.HasExited) { $state[$label] = Identity $child $exe; $changed = $true }
                 } catch { Write-Warning "$label could not start. Retrying in three seconds." }

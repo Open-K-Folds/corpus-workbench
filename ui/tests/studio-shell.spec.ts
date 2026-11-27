@@ -1,6 +1,27 @@
 import {expect} from '@playwright/test';
 import {test} from './practice-fixture';
 
+test('project files retry in place while a transcript draft stays open', async ({page, practiceUrl}) => {
+  let attempts = 0;
+  await page.route(/\/assets\/project-files-[\w-]+\.js(?:\?.*)?$/, route => {
+    attempts++;
+    return attempts === 1 ? route.fulfill({status:503, body:'Temporary outage'}) : route.continue();
+  });
+  await page.goto(practiceUrl);
+  await page.locator('[data-token="a1"] .reading-text').click({button:'right'});
+  await page.getByRole('button',{name:'Correct',exact:true}).click();
+  const draft = page.getByLabel('Proposed correction');
+  await draft.fill('unsaved passage');
+  await page.getByRole('button',{name:'Projects',exact:true}).click();
+  const retry = page.getByRole('button',{name:'Retry project files'});
+  await expect(retry).toBeVisible();
+  await retry.focus();
+  await retry.press('Enter');
+  await expect(page.getByLabel('Find documents or sources')).toBeFocused();
+  await expect(draft).toHaveValue('unsaved passage');
+  expect(attempts).toBe(2);
+});
+
 test('project files load on first open and keep the filter across document and source navigation', async ({page, practiceUrl}) => {
   let requests = 0;
   let release!: () => void;
@@ -167,6 +188,8 @@ test('sidebar labels pin on desktop and overlay a compact workspace',async({page
   const transcript=page.locator('.transcript');
   const measure=()=>page.locator('#tokens').evaluate(node=>node.getBoundingClientRect().width);
   await expect(page.locator('[data-token="a1"]')).toBeVisible();
+  // The reading measure uses ch units. Compare the two layouts with the same font.
+  await page.evaluate(() => document.fonts.ready);
   const wideMeasure=await measure();
   const readingSize=await page.locator('#tokens').evaluate(node=>getComputedStyle(node).fontSize);
   await toggle.focus();
@@ -176,6 +199,8 @@ test('sidebar labels pin on desktop and overlay a compact workspace',async({page
   expect((await transcript.boundingBox())!.x).toBeGreaterThan(170);
   await page.reload();
   await expect(toggle).toHaveAttribute('aria-expanded','true');
+  await expect(page.locator('[data-token="a1"]')).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
   await sidebar.getByRole('button',{name:'Projects',exact:true}).click();
   await sidebar.getByRole('button',{name:'Tools',exact:true}).click();
   expect(await measure()).toBeCloseTo(wideMeasure,0);

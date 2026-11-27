@@ -1,3 +1,6 @@
+import {BrowserHost} from '@effect/ui/html';
+import {runComponent} from './app-runtime';
+import {TrainingWorkflow, TrainingMessage as Msg} from './training-workflow';
 import {group, h, renderInto, viewFragment} from './effect-view';
 import {preparePassage} from '../../desktop/coanalysis-prompt.mjs';
 import {draftContext} from './api';
@@ -5,7 +8,7 @@ import type {Document,Operation,View} from './contracts';
 import {desktop} from './desktop';
 import {icon} from './icons';
 import {findCandidates,lensDescriptions,makePassage,type Passage,type TrainingLens} from './training-candidates';
-import {exportTraining,trainingCollections,trainingCounts,trainingOperation,type TrainingAssistance,type TrainingRecord} from './training-store';
+import {exportTraining,trainingCollections,trainingCounts,trainingOperation,type TrainingRecord} from './training-store';
 import {sourceCard} from './training-source';
 import './training.css';
 
@@ -22,33 +25,31 @@ export class TrainingPanel {
   readonly node = document.createElement('section');
   private view!:View;
   private seed:Passage|null = null;
-  private mode:Mode = 'label';
-  private limit = 3;
-  private collection = '';
-  private library = false;
-  private libraryName = '';
-  private libraryLabel = '';
   private collections = new Map<string,TrainingRecord[]>();
-  private selection = '';
-  private pendingId = '';
-  private stale = false;
-  private query = '';
-  private matchedWordsOnly = false;
-  private candidates:Passage[] = [];
-  private candidateIndex = 0;
-  private assistance: TrainingAssistance | undefined;
-  constructor(private actions:Actions,private comparison:HTMLElement) {
+  private candidates: Passage[] = [];
+  private readonly heading = document.createElement('div');
+  private readonly workflow;
+  private get state() { return this.workflow.model()!; }
+  constructor(private actions: Actions, private comparison: HTMLElement, signal: AbortSignal) {
+    this.workflow = runComponent(BrowserHost.mountEffect(TrainingWorkflow, {}, this.heading, {head: false, onEmit: event => {
+      if (event._tag === 'Pinned') {
+        this.status('Save or discard this review before opening saved collections.');
+        return;
+      }
+      this.draw();
+      this.heading.querySelector<HTMLButtonElement>('[data-page="' + (this.state.library ? 'saved' : 'collect') + '"]')?.focus();
+    }}), signal);
     this.node.id='training-panel';
     this.node.className='training-panel';
   }
-  get dirty() {return !!this.node.querySelector('form[data-dirty="true"]');}
+  get dirty() {return this.state.dirty;}
   stopAudio() {this.node.querySelectorAll('.training-source').forEach(card=>card.dispatchEvent(new Event('training-stop')));}
   update(view:View,doc:Document,ids:string[],entry?:{mode:Mode;limit:number}) {
     const key=JSON.stringify([view.revision.snapshot_hash,doc.path,ids]);
     const changed=this.view!==view;
     if (changed) this.collections=trainingCollections(view);
-    if (this.pendingId && [...this.collections.values()].some(rows=>rows.some(record=>record.id===this.pendingId))) {
-      this.pendingId='';this.selection='';this.stale=false;this.assistance=undefined;
+    if (this.state.pendingId && [...this.collections.values()].some(rows=>rows.some(record=>record.id===this.state.pendingId))) {
+      this.workflow.send(Msg.Committed({id: this.state.pendingId}));
       const form=this.node.querySelector<HTMLFormElement>('#training-review');if(form)form.dataset.dirty='false';
     }
     if (this.dirty) {
@@ -56,57 +57,34 @@ export class TrainingPanel {
       if(entry)this.status('Your current review is pinned. Save or discard it to collect another passage.');
       return;
     }
-    if (!changed && key===this.selection && !entry)return;
-    this.view=view;this.selection=key;
+    if (!changed && key===this.state.selection && !entry)return;
+    this.view=view;
+    this.workflow.send(Msg.Passage({key, ...(entry && {entry})}));
     this.seed=makePassage(view,doc,ids);
-    if(entry){this.mode=entry.mode;this.limit=entry.mode==='label'?3:entry.limit;this.library=false;}
-    this.query='';this.assistance=undefined;this.rerank();this.draw();
+    this.rerank();this.draw();
   }
   markStale() {
-    this.stale=true;
+    this.workflow.send(Msg.Stale());
     const save=this.node.querySelector<HTMLButtonElement>('[data-training-save]');
     if(save)save.disabled=true;
     this.status('The saved revision changed. Discard this review and reopen the passage on the current revision.');
   }
   clear() {
-    this.stopAudio();this.selection='';this.stale=false;this.pendingId='';this.assistance=undefined;
+    this.stopAudio();this.workflow.send(Msg.Reset());
     this.node.replaceChildren();
   }
   private status(text:string) {const out=this.node.querySelector('[data-status]');if(out)out.textContent=text;}
   private rerank() {
-    this.candidateIndex=0;
-    this.candidates=this.seed && this.mode!=='label'?findCandidates(this.view,this.seed,this.mode,{limit:this.limit,query:this.query,matchedWordsOnly:this.matchedWordsOnly}):[];
+    this.candidates=this.seed && this.state.mode!=='label'?findCandidates(this.view,this.seed,this.state.mode,{limit:this.state.limit,query:this.state.query,matchedWordsOnly:this.state.matchedWordsOnly}):[];
   }
   private draw() {
     this.stopAudio();
-    this.node.dataset.mode=this.mode;this.node.dataset.limit=String(this.mode==='label'?1:this.limit);
-    renderInto(this.node,
-      h.div
-      .class('training-heading')
-      .children(
-        h.h2(icon('library_books'), 'Training collections'),
-        h.nav
-          .attrs({'aria-label': 'Training workspace'})
-          .children(
-            h.button
-              .attrs({type: 'button', 'data-page': 'collect', 'aria-pressed': String(!this.library)})
-              .children('Collect'),
-            h.button
-              .attrs({type: 'button', 'data-page': 'saved', 'aria-pressed': String(this.library)})
-              .children('Saved collections'),
-          ),
-      ),
-      h.div.attrs({'data-body': ''}),
-      h.p.attrs({'data-status': '', role: 'status'}),
-    );
+    this.node.dataset.mode=this.state.mode;this.node.dataset.limit=String(this.state.mode==='label'?1:this.state.limit);
+    const body=document.createElement('div');
+    body.dataset.body='';
+    this.node.replaceChildren(this.heading, body, viewFragment(h.p.attrs({'data-status': '', role: 'status'})));
     this.comparison.replaceChildren();
-    this.node.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(b=>b.onclick=()=>{
-      if(this.dirty){this.status('Save or discard this review before opening saved collections.');return;}
-      this.library=b.dataset.page==='saved';this.draw();
-      this.node.querySelector<HTMLButtonElement>('[data-page][aria-pressed="true"]')?.focus();
-    });
-    const body=this.node.querySelector<HTMLElement>('[data-body]')!;
-    if(this.library){this.drawLibrary(body);return;}
+    if(this.state.library){this.drawLibrary(body);return;}
     if(!this.seed){
       renderInto(body,
         h.p
@@ -129,7 +107,7 @@ export class TrainingPanel {
             type: 'radio',
             name: 'training-mode',
             value: id,
-            checked: this.mode === id ? '' : undefined,
+            checked: this.state.mode === id ? '' : undefined,
           }),
           label,
         ),
@@ -137,11 +115,11 @@ export class TrainingPanel {
     );
     body.append(controls);
     controls.onchange=e=>{
-      this.mode=(e.target as HTMLInputElement).value as Mode;this.query='';this.assistance=undefined;this.rerank();this.draw();
+      this.workflow.send(Msg.Mode({mode:(e.target as HTMLInputElement).value as Mode}));this.rerank();this.draw();
       this.node.querySelector<HTMLInputElement>('[name="training-mode"]:checked')?.focus();
     };
-    const candidate=this.candidates[this.candidateIndex]??null;
-    if(this.mode!=='label'){
+    const candidate=this.candidates[this.state.candidateIndex]??null;
+    if(this.state.mode!=='label'){
       this.drawDiscovery(body,candidate);
       if(!candidate)return;
       this.drawComparison(candidate);
@@ -159,7 +137,7 @@ export class TrainingPanel {
             h.strong(
               icon('link'),
               ' Comparison ',
-              String(this.candidateIndex + 1),
+              String(this.state.candidateIndex + 1),
               ' of ',
               String(this.candidates.length),
             ),
@@ -182,9 +160,9 @@ export class TrainingPanel {
       ),
     );
     this.comparison.querySelectorAll<HTMLButtonElement>('[data-move]').forEach(button=>{
-      const next=this.candidateIndex+Number(button.dataset.move);
+      const next=this.state.candidateIndex+Number(button.dataset.move);
       button.disabled=next<0||next>=this.candidates.length;
-      button.onclick=()=>{if(this.dirty)return;this.candidateIndex=next;this.assistance=undefined;this.draw();
+      button.onclick=()=>{if(this.dirty)return;this.workflow.send(Msg.Candidate({index:next}));this.draw();
         const buttons=[...this.comparison.querySelectorAll<HTMLButtonElement>('[data-move]:not(:disabled)')];
         (buttons.find(b=>b.dataset.move===button.dataset.move)??buttons[0])?.focus({preventScroll:true});};
     });
@@ -200,17 +178,17 @@ export class TrainingPanel {
     renderInto(section,
       h.details
       .class('training-search')
-      .attrs({open: !candidate || this.query ? '' : undefined})
+      .attrs({open: !candidate || this.state.query ? '' : undefined})
       .children(
         h.summary('Refine search'),
-        h.p.class('muted').children(lensDescriptions[this.mode as TrainingLens]),
+        h.p.class('muted').children(lensDescriptions[this.state.mode as TrainingLens]),
         h.search(
           h.form
             .attrs({'aria-label': 'Find a comparison', 'data-dirty': 'false'})
             .children(
               h.label(
                 'Find words in the corpus',
-                h.input.attrs({type: 'search', name: 'query', value: this.query, autocomplete: 'off'}),
+                h.input.attrs({type: 'search', name: 'query', value: this.state.query, autocomplete: 'off'}),
               ),
               h.label(
                 'Search result span',
@@ -219,7 +197,7 @@ export class TrainingPanel {
                   .children(
                     h.option.attrs({value: 'passage'}).children('Surrounding passage'),
                     h.option
-                      .attrs({value: 'matched', selected: this.matchedWordsOnly ? '' : undefined})
+                      .attrs({value: 'matched', selected: this.state.matchedWordsOnly ? '' : undefined})
                       .children('Matched words only'),
                   ),
               ),
@@ -229,7 +207,7 @@ export class TrainingPanel {
                   .attrs({name: 'limit'})
                   .children(
                     [3, 6, 12].map((n) =>
-                      h.option.attrs({selected: n === this.limit ? '' : undefined}).children(String(n)),
+                      h.option.attrs({selected: n === this.state.limit ? '' : undefined}).children(String(n)),
                     ),
                   ),
               ),
@@ -241,8 +219,8 @@ export class TrainingPanel {
     body.append(section);
     section.querySelector('form')!.onsubmit=e=>{
       e.preventDefault();const data=new FormData(e.currentTarget as HTMLFormElement);
-      this.query=String(data.get('query')??'').trim();this.limit=Number(data.get('limit'));
-      this.matchedWordsOnly=data.get('manual-scope')==='matched';this.assistance=undefined;this.rerank();this.draw();
+      this.workflow.send(Msg.Find({query:String(data.get('query')??'').trim(),limit:Number(data.get('limit')),
+        matchedWordsOnly:data.get('manual-scope')==='matched'}));this.rerank();this.draw();
       (this.node.querySelector<HTMLSelectElement>('[name="candidate"]') ?? this.node.querySelector<HTMLInputElement>('[name="query"]'))?.focus();
     };
     if(!candidate){section.prepend(
@@ -257,13 +235,13 @@ export class TrainingPanel {
     const select=document.createElement('select');select.name='candidate';
     for(const [index,p] of this.candidates.entries()){
       const ids = p.tokenIds;
-      const location = this.query && this.matchedWordsOnly ? ' · ' + (ids.length===1 ? ids[0] : ids[0]+'–'+ids.at(-1)) : '';
+      const location = this.state.query && this.state.matchedWordsOnly ? ' · ' + (ids.length===1 ? ids[0] : ids[0]+'–'+ids.at(-1)) : '';
       const option=new Option(`${index+1}. ${p.quote} · ${p.title}${location}`,String(index));select.add(option);
     }
-    select.value=String(this.candidateIndex);
-    select.onchange=()=>{this.candidateIndex=Number(select.value);this.assistance=undefined;this.draw();this.node.querySelector<HTMLSelectElement>('[name="candidate"]')?.focus();};
+    select.value=String(this.state.candidateIndex);
+    select.onchange=()=>{this.workflow.send(Msg.Candidate({index:Number(select.value)}));this.draw();this.node.querySelector<HTMLSelectElement>('[name="candidate"]')?.focus();};
     label.append(select);
-    const card=sourceCard(candidate,`Comparison ${this.candidateIndex+1} of ${this.candidates.length}`,this.view);
+    const card=sourceCard(candidate,`Comparison ${this.state.candidateIndex+1} of ${this.candidates.length}`,this.view);
     const review=document.createElement('button');
     review.type='button';review.className='secondary training-card-review';review.textContent='Review example';
     review.onclick=()=>this.focusReview();
@@ -273,7 +251,7 @@ export class TrainingPanel {
   private drawReview(body:HTMLElement,candidate:Passage|null) {
     const form=document.createElement('form');form.id='training-review';form.dataset.dirty='false';
     form.setAttribute('aria-labelledby','training-review-heading');
-    const pair=this.mode!=='label';
+    const pair=this.state.mode!=='label';
     const savedLabels=[...this.collections.values()].flat().filter(record=>record.kind===(pair?'pair':'classification')).map(record=>record.label);
     const labels=new Set([...(pair?decisions:['Question','Request','Reported experience','Code-switch','Transcription uncertain']),...savedLabels]);
     renderInto(form,
@@ -285,7 +263,7 @@ export class TrainingPanel {
           required: '',
           maxlength: '120',
           list: 'training-names',
-          value: this.collection,
+          value: this.state.collection,
           placeholder: 'e.g. Community notices',
         }),
       ),
@@ -319,6 +297,7 @@ export class TrainingPanel {
     );
     body.append(form);
     const mark=()=>{
+      this.workflow.send(Msg.Dirty());
       form.dataset.dirty='true';form.querySelector<HTMLElement>('[data-discard]')!.hidden=false;
       this.node.querySelector<HTMLFieldSetElement>('.training-modes')!.disabled=true;
       this.node.querySelectorAll<HTMLButtonElement|HTMLInputElement|HTMLSelectElement>('.training-discovery search :is(button,input,select),[name="candidate"]').forEach(el=>el.disabled=true);
@@ -326,22 +305,22 @@ export class TrainingPanel {
       this.actions.dirty();
     };
     form.oninput=mark;
-    form.querySelector<HTMLButtonElement>('[data-discard]')!.onclick=()=>void this.actions.reset(this.stale);
+    form.querySelector<HTMLButtonElement>('[data-discard]')!.onclick=()=>void this.actions.reset(this.state.stale);
     this.drawModel(form.querySelector('[data-assistant]')!,candidate,mark);
     form.onsubmit=async event=>{
       event.preventDefault();
-      if(this.stale)return;
+      if(this.state.stale)return;
       const fields=new FormData(form);
       try {
-        if(!this.assistance && (fields.get('assistant-model') || fields.get('assistant-reply'))) {
+        if(!this.state.assistance && (fields.get('assistant-model') || fields.get('assistant-reply'))) {
           this.status('Attach the model reading or clear its fields before saving the review.');return;
         }
         const collection=String(fields.get('collection')).trim();
-        const searchMethod=this.matchedWordsOnly?'manual text search · matched words only':'manual text search';
-        const op=trainingOperation(this.view,{collection,lens:this.mode,seed:this.seed!,candidate,
+        const searchMethod=this.state.matchedWordsOnly?'manual text search · matched words only':'manual text search';
+        const op=trainingOperation(this.view,{collection,lens:this.state.mode,seed:this.seed!,candidate,
           label:String(fields.get('label')).trim(),note:String(fields.get('note')??'').trim(),
-          discovery:pair?(this.query?searchMethod:'local '+this.mode+' ranking'):'manual selection',assistance:this.assistance},draftContext()?.actor??'');
-        this.collection=collection;this.libraryName=collection;this.libraryLabel='';this.pendingId=op.id;
+          discovery:pair?(this.state.query?searchMethod:'local '+this.state.mode+' ranking'):'manual selection',assistance:this.state.assistance ?? undefined},draftContext()?.actor??'');
+        this.workflow.send(Msg.Saving({collection,id:op.id}));
         await this.actions.save([op],`Collect example in ${collection}`,form,this.view);
       } catch(error) {this.status(error instanceof Error?error.message:String(error));}
     };
@@ -378,7 +357,7 @@ export class TrainingPanel {
     const feedback=host.querySelector('[data-model-status]')!;
     const attach=host.querySelector<HTMLButtonElement>('[data-attach]')!,ask=host.querySelector<HTMLButtonElement>('[data-ask]');
     const capture=()=>{if(!model.value.trim()||!reply.value.trim()){feedback.textContent='Enter the model name and its proposal.';return;}
-      mark();this.assistance={model:model.value.trim(),reply:reply.value,prompt};model.readOnly=true;reply.readOnly=true;attach.disabled=true;if(ask)ask.disabled=true;
+      mark();this.workflow.send(Msg.Attach({reading:{model:model.value.trim(),reply:reply.value,prompt}}));model.readOnly=true;reply.readOnly=true;attach.disabled=true;if(ask)ask.disabled=true;
       feedback.textContent='Model reading attached. Enter your own label above.';};
     attach.onclick=capture;
     if(ask)ask.onclick=async()=>{
@@ -386,7 +365,7 @@ export class TrainingPanel {
       const save=host.closest('form')!.querySelector<HTMLButtonElement>('[data-training-save]')!;save.disabled=true;
       try {const result=await desktop!.askLocalModel(request);if(!this.node.contains(host))return;model.value=result.model;reply.value=result.reply;capture();}
       catch(error){if(!this.node.contains(host))return;feedback.textContent=String(error);ask.disabled=false;attach.disabled=false;model.readOnly=false;reply.readOnly=false;}
-      finally{if(this.node.contains(host))save.disabled=this.stale;}
+      finally{if(this.node.contains(host))save.disabled=this.state.stale;}
     };
   }
   private drawLibrary(body:HTMLElement) {
@@ -406,18 +385,18 @@ export class TrainingPanel {
         ),
       );
       body.querySelector('button')!.onclick=()=>{
-        this.library=false;this.draw();
+        this.workflow.send(Msg.Page({library:false}));
         if(this.seed)this.node.querySelector<HTMLInputElement>('[name="training-mode"]:checked')?.focus();
         else this.actions.read();
       };
       return;
     }
-    if(!this.collections.has(this.libraryName))this.libraryName=this.collections.keys().next().value!;
-    const rows=this.collections.get(this.libraryName)!;
+    if(!this.collections.has(this.state.libraryName))this.workflow.send(Msg.Collection({name:this.collections.keys().next().value!}));
+    const rows=this.collections.get(this.state.libraryName)!;
     const counts=trainingCounts(rows);
     const labels=new Map<string,number>();
     for(const record of rows)labels.set(record.label,(labels.get(record.label)??0)+1);
-    if(!labels.has(this.libraryLabel))this.libraryLabel='';
+    if(!labels.has(this.state.libraryLabel))this.workflow.send(Msg.Label({label:''}));
     renderInto(body,
       h.div.class('training-library-filters').children(
         h.label(
@@ -426,7 +405,7 @@ export class TrainingPanel {
             .attrs({name: 'saved-collection'})
             .children(
               [...this.collections.keys()].map((n) =>
-                h.option.attrs({selected: n === this.libraryName ? '' : undefined}).children(n),
+                h.option.attrs({selected: n === this.state.libraryName ? '' : undefined}).children(n),
               ),
             ),
         ),
@@ -496,21 +475,21 @@ export class TrainingPanel {
       ),
     );
     const select=body.querySelector('select')!;
-    select.onchange=()=>{this.libraryName=select.value;this.libraryLabel='';this.draw();this.node.querySelector<HTMLSelectElement>('[name="saved-collection"]')?.focus();};
+    select.onchange=()=>{this.workflow.send(Msg.Collection({name:select.value}));this.draw();this.node.querySelector<HTMLSelectElement>('[name="saved-collection"]')?.focus();};
     body.querySelector<HTMLButtonElement>('[data-export]')!.onclick=()=>{
-      try{exportTraining(this.view,this.libraryName);}catch(error){this.status(String(error));}
+      try{exportTraining(this.view,this.state.libraryName);}catch(error){this.status(String(error));}
     };
     const filter=body.querySelector<HTMLSelectElement>('[name="saved-label"]')!;
-    filter.value=this.libraryLabel;
+    filter.value=this.state.libraryLabel;
     const list=body.querySelector<HTMLElement>('[data-records]')!;
     const drawRecords=()=>{
-      const matching=this.libraryLabel?rows.filter(record=>record.label===this.libraryLabel):rows;
-      body.querySelector('[data-result-count]')!.textContent=this.libraryLabel?`${matching.length} of ${rows.length} · ${this.libraryLabel}`:`${rows.length} total`;
+      const matching=this.state.libraryLabel?rows.filter(record=>record.label===this.state.libraryLabel):rows;
+      body.querySelector('[data-result-count]')!.textContent=this.state.libraryLabel?`${matching.length} of ${rows.length} · ${this.state.libraryLabel}`:`${rows.length} total`;
       this.stopAudio();
       list.replaceChildren();
       for(const record of matching)this.appendRecord(list,record);
     };
-    filter.onchange=()=>{this.libraryLabel=filter.value;drawRecords();};
+    filter.onchange=()=>{this.workflow.send(Msg.Label({label:filter.value}));drawRecords();};
     drawRecords();
   }
   private appendRecord(body:HTMLElement,record:TrainingRecord) {

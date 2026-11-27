@@ -15,8 +15,8 @@
     "test:electron": "playwright test --config desktop/playwright.config.mjs"
   },
   "devDependencies": {
-    "electron": "44.7.0",
     "@electron/packager": "20.3.0",
-    "@playwright/test": "1.56.1"
+    "@playwright/test": "1.56.1",
+    "electron": "44.11.6"
   }
 }

@@ -3,12 +3,18 @@ let csrf='';try{csrf=sessionStorage.getItem('wb-csrf')??''}catch{/* A denied bro
 function retainCsrf(value:string){csrf=value;try{sessionStorage.setItem('wb-csrf',csrf)}catch{/* Keep the existing authenticated page usable in memory. */}}
 let context:{authority:string;actor:string;project:string}|null=null;
 export const draftContext=()=>context;
+// The authority advertises its sign-in mode even when a browser needs to sign in.
+// Every deployment can then serve exactly the same compiled frontend.
+let preview = false;
+export const isRemotePreview = () => preview;
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }
 export async function api<T>(path:string,body?:unknown,signal?:AbortSignal):Promise<T> {
   const response=await fetch(path,body===undefined ? {signal:signal??null} : {
     method:'POST',headers:{'Content-Type':'application/json','X-WB-CSRF':csrf},body:JSON.stringify(body),signal:signal??null,
   });
-  const result=await response.json(); if(!response.ok) throw new ApiError(result.error??'Request failed',response.status); return result as T;
+  const result=await response.json();
+  if (path === '/api/session' && body === undefined) preview = result.remote_preview === true;
+  if(!response.ok) throw new ApiError(result.error??'Request failed',response.status); return result as T;
 }
 export async function uploadFile(upload:string,path:string,file:File):Promise<void>{
   const response=await fetch(`/api/return/file?upload=${encodeURIComponent(upload)}&path=${encodeURIComponent(path)}`,{method:'POST',headers:{'Content-Type':'application/octet-stream','X-WB-CSRF':csrf},body:file});

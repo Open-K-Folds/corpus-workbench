@@ -24,13 +24,12 @@ $dc = @('compose','--env-file',$config,'-f','compose.yaml','-f','compose.preview
 docker @dc config --quiet
 docker @dc build authoring login
 npm.cmd ci --prefix ui
-$env:VITE_WB_REMOTE_PREVIEW = '1'
 Push-Location ui
-try { node.exe node_modules/vite/bin/vite.js build --outDir ../.runtime/remote-preview/ui --emptyOutDir }
+try { node.exe node_modules/vite/bin/vite.js build --config vite.config.ts --outDir ../.runtime/remote-preview/ui --emptyOutDir }
 finally { Pop-Location }
 ```
 
-The initial frontend build creates the directory that Compose mounts read-only at `/opt/workbench/ui`. The preview writes subsequent builds to the same directory. Desktop packaging uses `ui/dist`.
+The initial frontend build creates the directory that Compose mounts read-only at `/opt/workbench/ui`. Desktop packaging and the preview use the same Vite configuration. The authority's session response enables preview update notifications when `WB_PUBLIC_ORIGIN` is configured. The supervisor restarts the frontend watcher when the Vite configuration changes.
 
 ## Seed an independent corpus
 

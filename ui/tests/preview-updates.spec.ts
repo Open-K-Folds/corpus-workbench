@@ -1,10 +1,19 @@
-import {expect} from '@playwright/test';
+import {expect, type Page} from '@playwright/test';
 import {test} from './practice-fixture';
 
-test('remote sign-in uses the same-origin handoff and retains manual entry', async ({page,practiceUrl})=>{
+async function previewDeployment(page: Page) {
+  await page.route('**/api/session', async route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    await route.fulfill({response, json: {...await response.json(), remote_preview: true}});
+  });
+}
+
+for (const remote of [false, true]) test('sign-in offers the handoff only for the configured deployment: '+remote, async ({page,practiceUrl})=>{
+  if (remote) await previewDeployment(page);
   await page.goto(new URL(practiceUrl).origin);
   const cloudflare=page.getByRole('link',{name:'Sign in with Cloudflare'});
-  if (process.env.VITE_WB_REMOTE_PREVIEW==='1') {
+  if (remote) {
     await expect(cloudflare).toHaveAttribute('href','/open');
     await page.getByText('Use a session code',{exact:true}).click();
   }
@@ -20,7 +29,6 @@ test('an expired launcher link can be recovered with the current session code', 
   await page.goto(current.href);
   await expect(page.getByRole('alert').filter({hasText:'This link has expired'})).toBeVisible();
   await expect(page).toHaveURL(current.origin+'/?view=reading');
-  if(process.env.VITE_WB_REMOTE_PREVIEW==='1')await page.getByText('Use a session code',{exact:true}).click();
   const input=page.getByLabel('Session code');
   await input.fill('rejected');
   await input.press('Enter');
@@ -31,21 +39,22 @@ test('an expired launcher link can be recovered with the current session code', 
   await expect(page.locator('#save-state')).toContainText('R1');
 });
 
-test('the remote preview offers a guarded refresh only when deployed assets change', async ({page,practiceUrl}) => {
+for (const remote of [false, true]) test('asset update checks follow the deployment setting and protect drafts: '+remote, async ({page,practiceUrl}) => {
+  if (remote) await previewDeployment(page);
   let checks=0;
   let deployment:'current'|'offline'|'updated'='current';
   await page.route('**/index.html', async route=>{
     checks++;
     if (deployment==='current') return route.continue();
     if (deployment==='offline') return route.abort('internetdisconnected');
-    await route.fulfill({contentType:'text/html',body:'<div id="app"></div><script type="module" src="/assets/index-newbuild.js"></script>'});
+    await route.fulfill({contentType:'text/html',body:'<div id="workbench-root"></div><script type="module" src="/assets/index-newbuild.js"></script>'});
   });
   await page.clock.install();
   await page.goto(practiceUrl);
   const word=page.locator('#tokens .lexeme[data-token] > .reading-text').first();
   await expect(word).toBeVisible();
   const refresh=page.getByRole('button',{name:'Refresh to load update'});
-  if (process.env.VITE_WB_REMOTE_PREVIEW!=='1') {
+  if (!remote) {
     await page.clock.fastForward(61_000);
     expect(checks).toBe(0);
     await expect(refresh).toHaveCount(0);

@@ -11,6 +11,14 @@
 
 ## 0.2.0-dev.12 - Electron desktop preview
 
+- Retry a failed Projects download in the open editing session. Preview and
+  desktop now share a build, with deployment mode supplied by the authority.
+- Move revision review, corpus search, training collections and co-analysis
+  transitions into typed Effect UI components. Test late replies and draft
+  preservation with component stories and browser journeys.
+- Exercise the packaged Windows executable in CI, audit its contents and
+  retain the Electron, Chromium, Rust and frontend license notices.
+
 - Reuse the Rust SQLite/object authority and transcript-first TypeScript editor
   in a sandboxed, isolated Electron renderer with a stable local storage origin.
 - Own native import/open, recent projects, exact-revision export, verified backups,

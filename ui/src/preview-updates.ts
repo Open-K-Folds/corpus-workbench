@@ -1,8 +1,8 @@
 function builtAssets(page: Document) {
   const entry = page.querySelector('script[type="module"][src^="/assets/index-"][src$=".js"]')?.getAttribute('src');
-  if (!entry || !page.getElementById('app')) return null;
-  const styles = [...page.querySelectorAll('link[rel="stylesheet"][href^="/assets/"]')];
-  return [entry, ...styles.map(link => link.getAttribute('href'))].join('\n');
+  if (!entry || !page.getElementById('workbench-root')) return null;
+  const assets = [...page.querySelectorAll('link:is([rel="stylesheet"],[rel="modulepreload"])[href^="/assets/"]')];
+  return [entry, ...assets.map(link => link.getAttribute('href'))].join('\n');
 }
 
 export function watchPreviewUpdates(footer: HTMLElement, signal: AbortSignal) {

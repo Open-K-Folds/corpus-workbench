@@ -1,5 +1,5 @@
 import {h, renderInto} from './effect-view';
-import {api,ApiError,commit,loadView,login,makeCommand,resumeSession} from './api';
+import {api,ApiError,commit,isRemotePreview,loadView,login,makeCommand,resumeSession} from './api';
 import type {Command,Document,Operation,Span,View} from './contracts';
 import {el,field,formValues} from './dom';
 import {emptyTokenInspector,tokenInspector,annotationInspector} from './inspector';
@@ -40,7 +40,11 @@ let view:View;let docPath='';let selected:string[]=[];let tab:InspectorView|'sou
 let projectFiles: ReturnType<typeof bindProjectFiles>;
 const tokenDrafts=new Map<string,HTMLElement>();const annotationDrafts=new Map<string,HTMLElement>();const structuralDrafts=new Map<string,HTMLElement>();
 const returnDrafts=new Map<number,HTMLElement>();
-let coanalysisDraft: {key: string; revision: number; document: string; panel: HTMLElement} | null = null;
+let coanalysisDraft: {lifetime: AbortController; key: string; revision: number; document: string; panel: HTMLElement} | null = null;
+function clearCoanalysis() {
+  coanalysisDraft?.lifetime.abort();
+  coanalysisDraft = null;
+}
 let training:TrainingPanel;
 let cueMedia: {document:string;snapshot:string;scope:string}|null = null;
 let pinnedPlayback: {anchor:PassageAnchor;cue:RecordingCue}|null = null;
@@ -51,7 +55,6 @@ let inspectorLifetime: AbortController | undefined;
 const screenHost=el('workbench-root');
 let app=screenHost;
 let workspaceUi: ReturnType<typeof mountWorkbench>;
-const remotePreview=import.meta.env.VITE_WB_REMOTE_PREVIEW === '1' && !desktop;
 if(desktop)document.documentElement.classList.add('desktop-app');
 try{document.documentElement.dataset.theme=localStorage.getItem('wb-theme')??'dark'}catch{document.documentElement.dataset.theme='dark'}
 
@@ -91,7 +94,7 @@ async function start(){
       docPath=view.documents.find(doc=>doc.path==='xmlfiles/noticeboard.xml')?.path??'';
     shell();render();void followCitation();}catch(e){if(e instanceof ApiError&&e.status===403){loginScreen(expiredLink);return}throw e}
 }
-function loginScreen(expiredLink=false){ mountLogin(screenHost, {remote: remotePreview, expired: expiredLink}, start); }
+function loginScreen(expiredLink=false){ mountLogin(screenHost, {remote: isRemotePreview(), expired: expiredLink}, start); }
 function shell(){
   overview?.dispose();
   playbackSync?.destroy();
@@ -124,7 +127,7 @@ function shell(){
       void renderInspector();
     },
   );
-  if (remotePreview) {
+  if (isRemotePreview()) {
     watchPreviewUpdates(app.querySelector<HTMLElement>('.studio-status')!, signal);
   }
   if(initialLayout()==='editing')document.querySelector('.workspace')!.classList.remove('navigation-folded','properties-folded');
@@ -139,7 +142,7 @@ function shell(){
       try{view=await loadView();}catch(error){message(String(error),true);return;}
     }
     training.clear();render();draftStatus();
-  }},el('training-comparison'));
+  }},el('training-comparison'),signal);
   const audioPane=el('recording-pane');
   // A text-only document can use the compact recording header on its first paint.
   if (!recordingCandidate(currentDoc())) {
@@ -567,12 +570,14 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   if (coanalysisDraft && coanalysisDraft.revision !== view.revision.id) {
     const prior = coanalysisDraft;
     const committed = view.documents.find(document => document.path === prior.document)?.spans.some(span => span.id === prior.panel.dataset.spanId);
-    if (committed) coanalysisDraft = null;
+    if (committed) clearCoanalysis();
   }
   if (tab === 'coanalysis') {
     const key = JSON.stringify([view.snapshot.project, view.revision.id, view.revision.snapshot_hash, doc.path, selected]);
     if (!coanalysisDraft || (coanalysisDraft.key !== key && !coanalysisDraft.panel.querySelector('form[data-dirty="true"]'))) {
-      coanalysisDraft = {key, revision: view.revision.id, document: doc.path, panel: coanalysisInspector(view, doc, selected, {
+      clearCoanalysis();
+      const lifetime = new AbortController();
+      coanalysisDraft = {lifetime, key, revision: view.revision.id, document: doc.path, panel: coanalysisInspector(view, doc, selected, {
         read: () => el('rail-reading').click(),
         reveal: ids => revealSavedSource(doc, ids, () => transcript.revealPassage(ids)),
         dirty: draftStatus, save, listening:{check:checkCue,play:listen}, discard: async stale => {
@@ -583,7 +588,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
             if (expected !== coanalysisDraft || saving || pendingWrite) return;
             const otherDraft = transcript.dirty() || draftPanels().some(panel => panel !== expected?.panel && panel.querySelector('form[data-dirty="true"]'));
             if (otherDraft) {
-              coanalysisDraft = null;
+              clearCoanalysis();
               await renderInspector();
               draftStatus();
               message('Co-analysis draft discarded. Finish your other authoring drafts before reloading the changed revision.');
@@ -591,10 +596,10 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
             }
             view = latest;
           }
-          coanalysisDraft = null;
+          clearCoanalysis();
           render();
         },
-      })};
+      }, AbortSignal.any([workspaceUi.signal, lifetime.signal]))};
     }
     content.append(coanalysisDraft.panel);
   }
@@ -677,7 +682,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
       h.pre(JSON.stringify(view.snapshot.config.layers, null, 2)),
     ),
   );el<HTMLFormElement>('definition-form').onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await save([{kind:'define_language',value:v.value,description:v.description}],`Define language: ${v.value}`)};el('save-default').onclick=()=>void save([{kind:'set_language_default',value:el<HTMLSelectElement>('language-default').value||null}],'Set project language default');try{const panel=await teitokReaderInspector(view,save);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
-  if(tab==='review'){content.append(reviewInspector(view));el<HTMLFormElement>('review-form').onsubmit=async e=>{e.preventDefault();if(saving||pendingWrite)return;if(transcript.dirty()||draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'))){message('Save or discard annotation drafts and structural drafts before recording review. Token drafts must also be saved or reset.',true);return;}const basis=view;const v=formValues(e.currentTarget as HTMLFormElement);saving=true;++inspectorEpoch;const unlock=lockAuthoring();try{await api('/api/review',{revision:basis.revision.id,snapshot_hash:basis.revision.snapshot_hash,decision:v.decision,note:v.note});view=await loadView();message(`Review recorded for R${basis.revision.id}.`);render()}catch(e){message(String(e),true)}finally{saving=false;unlock()}};el('compiler-contract').onclick=async()=>{try{el('contract-preview').textContent=JSON.stringify(await api('/api/contract'),null,2)}catch(e){message(String(e),true)}};}
+  if(tab==='review'){content.append(reviewInspector(view, panelSignal));el<HTMLFormElement>('review-form').onsubmit=async e=>{e.preventDefault();if(saving||pendingWrite)return;if(transcript.dirty()||draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'))){message('Save or discard annotation drafts and structural drafts before recording review. Token drafts must also be saved or reset.',true);return;}const basis=view;const v=formValues(e.currentTarget as HTMLFormElement);saving=true;++inspectorEpoch;const unlock=lockAuthoring();try{await api('/api/review',{revision:basis.revision.id,snapshot_hash:basis.revision.snapshot_hash,decision:v.decision,note:v.note});view=await loadView();message(`Review recorded for R${basis.revision.id}.`);render()}catch(e){message(String(e),true)}finally{saving=false;unlock()}};el('compiler-contract').onclick=async()=>{try{el('contract-preview').textContent=JSON.stringify(await api('/api/contract'),null,2)}catch(e){message(String(e),true)}};}
   if(tab==='research')content.append(researchInspector(view,{dirty:()=>{const state=departure();return state.dirty||state.saving||transcript.busy()},perform:performResearch,go:(next,source)=>{tab=next;if(next==='source'){sourcePath=source??doc.path;projectFiles.refresh()}showProperties();void renderInspector()}}));
   if(tab==='structure'){
     const key=JSON.stringify([doc.path,selected]);let draft=structuralDrafts.get(key);

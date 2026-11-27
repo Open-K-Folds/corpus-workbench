@@ -387,6 +387,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
         .context("HTTP listener address required")?
         .port();
     let configured_origin = std::env::var_os("WB_PUBLIC_ORIGIN").unwrap_or_default();
+    let remote_preview = !options.desktop && !configured_origin.is_empty();
     let origin = browser_origin(
         configured_origin
             .to_str()
@@ -507,10 +508,15 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
             continue;
         }
         if is_api && !session {
+            let error = if path == "/api/session" {
+                json!({"error":"unauthorized session","remote_preview":remote_preview})
+            } else {
+                json!({"error":"unauthorized session"})
+            };
             respond(
                 request,
                 403,
-                b"{\"error\":\"unauthorized session\"}".to_vec(),
+                serde_json::to_vec(&error)?,
                 "application/json",
                 vec![],
             );
@@ -636,7 +642,7 @@ fn serve(mut store: Store, project: &str, ui: &Path, options: ServeOptions) -> R
                 }
                 match (method, path.as_str()) {
                     (Method::Get, "/api/session") => Ok(
-                        json!({"actor":"local-owner","project":project,"authority":draft_authority,"roles":["reader","editor","reviewer"],"csrf":if options.desktop { "" } else { token.as_str() }}),
+                        json!({"actor":"local-owner","project":project,"authority":draft_authority,"roles":["reader","editor","reviewer"],"remote_preview":remote_preview,"csrf":if options.desktop { "" } else { token.as_str() }}),
                     ),
                     (Method::Get, "/api/inventory") => {
                         let inventory = store.reference_inventory(
