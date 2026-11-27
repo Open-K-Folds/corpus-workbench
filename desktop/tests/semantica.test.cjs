@@ -11,8 +11,9 @@ const {SemanticaController, lastJSON} = require('../semantica.cjs');
 const HASH = 'a'.repeat(64), ID = 'b'.repeat(64), RECIPE = 'c'.repeat(64);
 const FORMAT = 'open-k-folds/corpus-semantica-handoff';
 async function fixture(t) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'workbench-semantica-control-'));
-  t.after(async () => {assert.equal(path.dirname(root), path.resolve(os.tmpdir())); await fs.rm(root, {recursive: true, force: true});});
+  const temporary = await fs.realpath(os.tmpdir());
+  const root = await fs.mkdtemp(path.join(temporary, 'workbench-semantica-control-'));
+  t.after(async () => {assert.equal(path.dirname(root), temporary); await fs.rm(root, {recursive: true, force: true});});
   const python = path.join(root, 'Python with spaces.exe'), compilerRoot = path.join(root, 'compiler');
   await fs.writeFile(python, 'test double, not an executable'); await fs.mkdir(compilerRoot);
   const active = {store: path.join(root, 'authority'), project: 'synthetic-only'};
@@ -53,6 +54,7 @@ async function fixture(t) {
       if (state.afterVerify) state.afterVerify();
       return JSON.stringify({ok: true, verified: state.verification, native_reopen: true, generation_id: ID, revision: 7, snapshot_hash: HASH, node_count: 8, edge_count: 13, files_verified: 4, format: FORMAT, schema: 1});
     }
+    state.onCompile?.();
     if (state.hold) await state.hold;
     if (state.adapterFailure) throw new Error('SOURCE NOTE MUST NEVER APPEAR');
     const reused = state.accepted;
@@ -205,14 +207,17 @@ test('reveal recovery rejects moved or substituted export folders', async t => {
 test('concurrent dispatch is refused and interrupted attempts reconcile against authoritative generations', async t => {
   const f = await fixture(t);
   await f.controller.configure({python: f.python, compilerRoot: f.compilerRoot});
-  let release; f.state.hold = new Promise(resolve => {release = resolve;});
+  const entered = Promise.withResolvers(), gate = Promise.withResolvers();
+  f.state.onCompile = entered.resolve;
+  f.state.hold = gate.promise;
   const running = f.controller.run(f.active, {revision: 7, snapshot_hash: HASH});
-  while (!f.pythonCalls.some(call => call.args.includes('--output'))) await new Promise(resolve => setImmediate(resolve));
-  await assert.rejects(f.controller.run(f.active, {revision: 7, snapshot_hash: HASH}), /already in progress/);
-  assert.equal((await f.controller.state(f.active)).status, 'running');
-  const restored = await new SemanticaController(f.options).state(f.active);
-  assert.equal(restored.status, 'interrupted'); assert.equal(restored.lastAttempt.status, 'interrupted');
-  release(); await running;
+  try {
+    await Promise.race([entered.promise, running.then(() => assert.fail('Handoff ended before dispatching the compiler'))]);
+    await assert.rejects(f.controller.run(f.active, {revision: 7, snapshot_hash: HASH}), /already in progress/);
+    assert.equal((await f.controller.state(f.active)).status, 'running');
+    const restored = await new SemanticaController(f.options).state(f.active);
+    assert.equal(restored.status, 'interrupted'); assert.equal(restored.lastAttempt.status, 'interrupted');
+  } finally { gate.resolve(); await running; }
   assert.equal((await f.controller.state(f.active)).status, 'current');
 });
 

@@ -95,13 +95,15 @@ class PreparationController {
   }
   async checkedPreview(token) {
     const folder = this.previewFolder(token), info = await fs.lstat(folder).catch(() => null);
-    if (!info?.isDirectory() || info.isSymbolicLink() || !samePath(path.dirname(await fs.realpath(folder)), await fs.realpath(this.previews))) throw new Error('This preparation preview is unavailable. Choose the source files again.');
+    if (!info?.isDirectory() || info.isSymbolicLink()) throw new Error('This preparation preview is unavailable. Choose the source files again.');
+    const canonicalFolder = path.join(await fs.realpath(this.previews), token);
+    if (!samePath(await fs.realpath(folder), canonicalFolder)) throw new Error('This preparation preview is unavailable. Choose the source files again.');
     const record = await readJSON(path.join(folder, 'preview.json'));
     if (record.schema !== 1 || record.token !== token || !FORMATS.includes(record.format) || record.version !== VERSION || !['preview', 'committed'].includes(record.status) || !HASH.test(record.key ?? '') || !validSources(record.sources) || !record.files || identityKey(record.format, record.version, record.sources) !== record.key) throw new Error('This preparation preview is invalid and has been preserved. Choose the sources again.');
     for (const source of [record.sources.audio, record.sources.transcript]) {
       if (!source || !HASH.test(source.sha256 ?? '') || !Number.isSafeInteger(source.bytes) || source.bytes < 1 || source.bytes > MAX_FILE || !validRelative(source.path) || record.files[source.path]?.sha256 !== source.sha256 || record.files[source.path]?.bytes !== source.bytes) throw new Error('This preparation preview lost its source binding and has been preserved.');
     }
-    return {folder, record};
+    return {folder:canonicalFolder, record};
   }
   async walk(directory, prefix = '') {
     const files = [];
@@ -119,8 +121,9 @@ class PreparationController {
     const folder = this.previewFolder(token);
     const info = await fs.lstat(folder).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
     if (!info) return;
-    if (!info.isDirectory() || info.isSymbolicLink() || !samePath(path.dirname(await fs.realpath(folder)), await fs.realpath(this.previews))) throw new Error('Refusing cleanup outside an owned preparation preview.');
-    const target = packageOnly ? path.join(folder, 'package') : folder;
+    const canonicalFolder = path.join(await fs.realpath(this.previews), token);
+    if (!info.isDirectory() || info.isSymbolicLink() || !samePath(await fs.realpath(folder), canonicalFolder)) throw new Error('Refusing cleanup outside an owned preparation preview.');
+    const target = packageOnly ? path.join(canonicalFolder, 'package') : canonicalFolder;
     const targetInfo = await fs.lstat(target).catch(error => error.code === 'ENOENT' ? null : Promise.reject(error));
     if (!targetInfo) return;
     if (!targetInfo.isDirectory() || targetInfo.isSymbolicLink() || !samePath(await fs.realpath(target), target)) throw new Error('Preparation cleanup target changed and was preserved.');

@@ -39,6 +39,7 @@ async function fixture(t) {
     native.calls.push(args);
     const option = flag => args[args.indexOf(flag) + 1], store = option('--store'), project = option('--project');
     if (args[0] === 'import') {
+      native.onImport?.();
       if (native.hold) await native.hold;
       await fs.mkdir(store, {recursive: true}); await fs.writeFile(path.join(store, 'ledger.sqlite'), 'synthetic control-plane double');
       if (native.failures-- > 0) throw new Error('SYNTHETIC private native diagnostic');
@@ -210,11 +211,14 @@ test('source junctions and substituted preview directories never become cleanup 
 
 test('one controller refuses duplicate commit/cancel dispatch while importing', async t => {
   const f = await fixture(t), preview = await f.controller.preview(f.input);
-  let release; f.native.hold = new Promise(resolve => {release = resolve;});
+  const entered = Promise.withResolvers(), gate = Promise.withResolvers();
+  f.native.onImport = entered.resolve;
+  f.native.hold = gate.promise;
   const pending = f.controller.commit(preview.token);
-  while (!f.native.calls.some(args => args[0] === 'import')) await new Promise(resolve => setImmediate(resolve));
-  await assert.rejects(f.controller.commit(preview.token), /already in progress/);
-  await assert.rejects(f.controller.cancel(preview.token), /already in progress/);
-  release(); await pending;
+  try {
+    await Promise.race([entered.promise, pending.then(() => assert.fail('Import ended before calling the native authority'))]);
+    await assert.rejects(f.controller.commit(preview.token), /already in progress/);
+    await assert.rejects(f.controller.cancel(preview.token), /already in progress/);
+  } finally { gate.resolve(); await pending; }
   assert.equal(f.native.calls.filter(args => args[0] === 'import').length, 1);
 });

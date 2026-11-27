@@ -23,6 +23,17 @@ test('an edited search rejects a late success and keeps its actions disabled', (
   expect(s.model.status).toContain('Search again');
 }).pipe(Effect.scoped,Effect.runSync));
 
+test('a saved revision change ends a pending search even before its first response', () => Effect.gen(function*() {
+  const s = yield* Story.make(CorpusSearch, head);
+  const cmd = runSearch.make({query,generation:1});
+  s.send(SearchMessage.Submitted({query})).emitted({_tag:'Availability',enabled:false}).keepPending(cmd);
+  s.send(SearchMessage.HeadChanged({head:{revision:3,hash:'next'}})).emitted({_tag:'Availability',enabled:false});
+  s.resolve(cmd, SearchMessage.Received({generation:1,response}));
+  expect(s.model.pending).toBe(false);
+  expect(s.model.status).toContain('R3');
+  expect(s.model.response).toBeNull();
+}).pipe(Effect.scoped,Effect.runSync));
+
 test('switching to a historical review keeps the full decision for the current revision', () => Effect.gen(function*() {
   const current = {id:2,label:'current',snapshot_hash:head.hash}, old = {id:1,label:'older',snapshot_hash:'snapshot-1'};
   const s = yield* Story.make(RevisionReview,{head:current, files:1, documents:1, issues:[]});

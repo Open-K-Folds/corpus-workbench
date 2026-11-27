@@ -1,6 +1,13 @@
 import {mkdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 
+export async function openEditingWorkspace(page) {
+  if (await page.evaluate(() => localStorage.getItem('wb-studio-layout')) === 'editing') return;
+  await page.getByRole('button', {name:'Workspace settings'}).click();
+  await page.getByRole('radio', {name:'Transcript with library and tools'}).check();
+  await page.getByRole('button', {name:'Close workspace settings'}).click();
+}
+
 // Deliberately synthetic: never points at a research corpus or a user profile.
 export function createPackage(root,name='Field interview — desktop preview') {
   for(const directory of ['Resources','xmlfiles','Audio','Other'])mkdirSync(join(root,directory),{recursive:true});

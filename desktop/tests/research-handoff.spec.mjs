@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
-import {createPackage} from './fixtures.mjs';
+import {createPackage,openEditingWorkspace} from './fixtures.mjs';
 
 const root=fileURLToPath(new URL('../..',import.meta.url));
 const python=process.env.WB_SEMANTICA_PYTHON;
@@ -43,10 +43,10 @@ async function launch(profile){
 async function queue(application,...files){await application.evaluate((_electron,files)=>{globalThis.__researchFileDialogs.queue.push(...files)},files)}
 async function head(page){return page.evaluate(async()=>{const response=await fetch('/api/view');if(!response.ok)throw new Error(await response.text());return response.json()})}
 async function handoff(page){return page.evaluate(()=>window.workbenchDesktop.semanticaState())}
-async function ready(page){await expect(page.locator('#save-state')).toContainText('Saved R');await expect(page.locator('[data-token="w1"]')).toBeVisible()}
+async function ready(page){await expect(page.locator('#save-state')).toContainText('Saved R');await expect(page.locator('[data-token="w1"]')).toBeVisible();await openEditingWorkspace(page)}
 async function openResearch(page){await page.locator('#open-research').click();await expect(page.locator('#research-status')).not.toHaveAttribute('data-state','loading')}
 async function decision(page,value,note){
-  await page.getByRole('button',{name:'Review',exact:true}).click();
+  await page.getByRole('button',{name:'Open revision review',exact:true}).click();
   await page.locator('#review-form').getByRole('combobox',{name:'Decision',exact:true}).selectOption(value);
   await page.getByLabel('Review rationale',{exact:true}).fill(note);
   const posted=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/review'&&response.request().method()==='POST');
@@ -87,7 +87,7 @@ test('native research handoff compiles authored synthetic evidence and reopens p
   const watch=()=>{page.on('pageerror',error=>errors.push(error.message));page.on('console',message=>{if(message.type()==='error')consoleErrors.push(message.text())})};
   try{
     ({application,page}=await launch(profile));watch();
-    expect(page.url()).toBe('workbench://app/');await expect(page).toHaveTitle('Corpus workbench');await expect(page.locator('#desktop-import')).toBeVisible();
+    await expect(page).toHaveURL('workbench://app/');await expect(page).toHaveTitle('Corpus workbench');await expect(page.locator('#desktop-import')).toBeVisible();
     await queue(application,source);await page.locator('#desktop-import').click();await ready(page);
     await expect(page.locator('#audio-play')).toBeEnabled();
     await openResearch(page);await expect(page.locator('#research-run')).toBeDisabled();
@@ -159,7 +159,12 @@ test('native research handoff compiles authored synthetic evidence and reopens p
 
     // An edit removes current eligibility; the preserved prior export remains a
     // verifiable snapshot and must not claim to check present authority approval.
-    await page.locator('[data-token="w1"]').click();await page.getByRole('button',{name:'Token',exact:true}).click();
+    await page.locator('[data-token="w1"]').click();
+    if (!await page.getByLabel('Human-corrected reading',{exact:true}).isVisible()) {
+      const tools = page.getByRole('button',{name:'Tools',exact:true});
+      if (await tools.getAttribute('aria-expanded') === 'false') await tools.click();
+      await page.getByRole('button',{name:'Token',exact:true}).click();
+    }
     await page.getByLabel('Human-corrected reading',{exact:true}).fill('SYNTHETIC corrected successor');
     await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#save-state')).toContainText(`Saved R${original.id+1}`);
     const successor=(await head(page)).revision;await openResearch(page);
@@ -182,7 +187,7 @@ test('native research handoff compiles authored synthetic evidence and reopens p
   }catch(error){
     if(application&&page&&!page.isClosed()){
       writeFileSync(join(evidence,'research-handoff-native-failure.json'),JSON.stringify({url:page.url(),body:await page.locator('body').innerText(),state:await handoff(page).catch(()=>null),page_errors:errors,console_errors:consoleErrors},null,2));
-      await capture(application,page,'research-handoff-native-failure.png');
+      await capture(application,page,'research-handoff-native-failure.png').catch(() => {});
     }
     throw error;
   }finally{if(application)await application.close();}

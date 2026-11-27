@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {promisify} from 'node:util';
 import {createHash} from 'node:crypto';
+import {openEditingWorkspace} from './fixtures.mjs';
 
 // Optional installed-runtime qualification. Public tests do not install or claim
 // this separately supplied compiler. All source files and profiles are synthetic.
@@ -54,7 +55,7 @@ async function desktopState(page){return page.evaluate(()=>window.workbenchDeskt
 async function head(page){return page.evaluate(async()=>{const response=await fetch('/api/view');if(!response.ok)throw new Error(await response.text());return response.json()})}
 async function handoff(page){return page.evaluate(()=>window.workbenchDesktop.semanticaState())}
 async function reviews(page,revision){return page.evaluate(async revision=>{const response=await fetch(`/api/reviews?revision=${revision}`);if(!response.ok)throw new Error(await response.text());return response.json()},revision)}
-async function ready(page){await expect(page.locator('#save-state')).toContainText('Saved R');await expect(page.locator('[data-token="draft-t000001"] .reading-text')).toBeVisible();await expect.poll(()=>page.locator('#tokens').evaluate(element=>element.inert)).toBe(false)}
+async function ready(page){await expect(page.locator('#save-state')).toContainText('Saved R');await expect(page.locator('[data-token="draft-t000001"] .reading-text')).toBeVisible();await expect.poll(()=>page.locator('#tokens').evaluate(element=>element.inert)).toBe(false);await openEditingWorkspace(page)}
 async function openPreparation(page){
   const trigger=page.locator('#desktop-prepare');
   await expect(trigger).toBeAttached();
@@ -75,7 +76,7 @@ async function capture(application,page,filename){
 }
 async function openResearch(page){await page.locator('#open-research').click();await expect(page.locator('#research-status')).not.toHaveAttribute('data-state','loading')}
 async function approve(page,note){
-  await page.getByRole('button',{name:'Review',exact:true}).click();await page.locator('#review-form').getByRole('combobox',{name:'Decision',exact:true}).selectOption('approved');
+  await page.getByRole('button',{name:'Open revision review',exact:true}).click();await page.locator('#review-form').getByRole('combobox',{name:'Decision',exact:true}).selectOption('approved');
   await page.getByLabel('Review rationale',{exact:true}).fill(note);await page.getByRole('button',{name:'Record review',exact:true}).click();
   await expect(page.locator('#review-current-status')).toHaveAttribute('data-decision','approved');
 }
@@ -136,7 +137,8 @@ test('native recording and UTF-8 transcript preparation reaches reviewed actual 
     await page.locator('[data-token="draft-t000001"]').click();
     await expect(page.locator('#listen-selected')).toBeDisabled();
     await expect(page.locator('#listen-selected')).toHaveAttribute('title','No complete supplied timing for this passage.');
-    await page.getByRole('button',{name:'Tools',exact:true}).click();
+    const tools = page.getByRole('button',{name:'Tools',exact:true});
+    if (await tools.getAttribute('aria-expanded') === 'false') await tools.click();
     const note='SYNTHETIC uncertain hearing; supplied code-switching and slang need another listening pass; confidence unknown.';
     await page.getByLabel('Human-corrected reading',{exact:true}).fill('Molweni');await page.getByLabel('Reviewer note',{exact:true}).fill(note);await page.getByLabel('Revision name',{exact:true}).fill('SYNTHETIC human listening correction');
     await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Saved R2');
@@ -196,7 +198,8 @@ test('native Omnilingual chunk preparation keeps supplied chunk bounds separate 
     const view=await head(page),doc=view.documents[0];expect(view.approved).toBe(false);expect((await reviews(page,1)).reviews).toEqual([]);expect(doc.segments.map(value=>[value.start_us,value.end_us])).toEqual([[0,2000000],[2000000,4000000]]);
     expect(doc.tokens.map(value=>value.original)).toEqual(['Molo','sawubona','café','🙂']);for(const token of doc.tokens){expect(token.start_us).toBeNull();expect(token.end_us).toBeNull();expect(token.language_effective).toBeNull();expect(token.normalized).toBeNull()}
     await page.locator('[data-token="draft-t000002"]').click();
-    await page.getByRole('button',{name:'Tools',exact:true}).click();
+    const tools = page.getByRole('button',{name:'Tools',exact:true});
+    if (await tools.getAttribute('aria-expanded') === 'false') await tools.click();
     await page.getByRole('tab',{name:'Source details'}).click();
     const sourceDetails=page.getByRole('tabpanel',{name:'Source details'});
     await expect(sourceDetails.getByText('Word timing',{exact:true})).toBeVisible();

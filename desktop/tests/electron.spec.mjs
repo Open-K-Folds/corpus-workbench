@@ -4,7 +4,7 @@ import {existsSync,mkdirSync,readFileSync,readdirSync,writeFileSync} from 'node:
 import {resolve,join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
-import {createPackage} from './fixtures.mjs';
+import {createPackage,openEditingWorkspace} from './fixtures.mjs';
 
 const root=fileURLToPath(new URL('../..',import.meta.url));
 const evidence=process.env.WB_EVIDENCE_DIR??resolve(root,'..','evidence','electron');
@@ -49,11 +49,7 @@ async function ready(page){
   await expect(page.locator('[data-token="w1"]')).toBeVisible();
   // These journeys edit across both panes. Choose the public split layout
   // once per test profile, allowing later launches to exercise its persistence.
-  if(await page.evaluate(()=>localStorage.getItem('wb-studio-layout'))!=='editing'){
-    await page.getByRole('button',{name:'Workspace settings'}).click();
-    await page.getByRole('radio',{name:'Transcript with library and tools'}).check();
-    await page.getByRole('button',{name:'Close workspace settings'}).click();
-  }
+  await openEditingWorkspace(page);
 }
 async function draft(page,replacement,token='w2',backward=false){
   // Discarding a recovered draft clears its journal before its asynchronous

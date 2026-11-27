@@ -18,7 +18,7 @@ jobs:
       - name: Prepare the pinned Windows build
         shell: pwsh
         run: |
-          rustup toolchain install 1.90.0 --profile minimal --component rust-docs
+          rustup toolchain install 1.90.0 --profile minimal
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $flags = '--remap-path-prefix=' + $env:GITHUB_WORKSPACE + '=/source' + [char]31 + '--remap-path-prefix=' + $env:USERPROFILE + '=/build-user'
           Add-Content $env:GITHUB_ENV "CARGO_ENCODED_RUSTFLAGS=$flags"
@@ -40,7 +40,7 @@ jobs:
           $metadata = Join-Path $env:RUNNER_TEMP 'cargo-metadata.json'
           cargo metadata --locked --format-version=1 --filter-platform x86_64-pc-windows-msvc | Set-Content -Encoding utf8 $metadata
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $docs = Join-Path (rustc --print sysroot) 'share/doc/rust/html'
+          $docs = Join-Path (rustc --print sysroot) 'share/doc/rust'
           $stage = Join-Path $env:RUNNER_TEMP 'package'
           python scripts/package-preview.py --binary target/release/corpus-workbench.exe --cargo-metadata $metadata --rust-notices $docs --desktop $pkg --out $stage
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

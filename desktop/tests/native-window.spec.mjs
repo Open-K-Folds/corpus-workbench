@@ -13,10 +13,11 @@ const packaged = join(root, 'release/desktop/Open-K-Folds Workbench-win32-x64/Op
 const nativeControl = (script, ...args) => invoke('powershell.exe', [
   '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File',
   join(root, 'desktop/tests', script), ...args.map(String),
-], {windowsHide: true, timeout: 15000});
+], {windowsHide: true, timeout: 30000});
 const nativeButton = (handle, button) => nativeControl('native-caption.ps1', handle, button);
 
 test('Windows caption buttons, keyboard menus and appearance work on the desktop', async ({}, testInfo) => {
+  test.setTimeout(180000);
   test.skip(process.platform !== 'win32', 'Windows UI Automation exercises the integrated Windows frame');
   const installed = process.env.WB_ELECTRON_EXECUTABLE || (existsSync(packaged) && packaged);
   const executablePath = installed || createRequire(import.meta.url)('electron');

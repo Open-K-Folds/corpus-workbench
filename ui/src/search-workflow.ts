@@ -17,7 +17,7 @@ export const runSearch = Command.make('SearchCorpus', {args: {query: Query, gene
       return SearchMessage.Received({generation, response});
     } catch (error) { return SearchMessage.Failed({generation, reason: String(error)}); }
   }));
-const Model = Schema.Struct({head: Head, generation: Schema.Number, changed: Schema.Boolean,
+const Model = Schema.Struct({head: Head, generation: Schema.Number, changed: Schema.Boolean, pending: Schema.Boolean,
   response: Schema.NullOr(Response), status: Schema.String});
 export function outOfDate(head: typeof Head.Type, response: SearchResponse|null) {
   return !!response && response.result.query.mode === 'current' &&
@@ -25,11 +25,11 @@ export function outOfDate(head: typeof Head.Type, response: SearchResponse|null)
 }
 
 export const CorpusSearch = Html.component({name: 'CorpusSearch', props: Head, model: Model, message: SearchMessage, events: Event}).make({
-  init: ({props}) => ({head: props, generation: 0, changed: false, response: null, status: ''}),
+  init: ({props}) => ({head: props, generation: 0, changed: false, pending: false, response: null, status: ''}),
   update: {
     Submitted: ($, {query}) => {
       const generation = $.model.generation + 1;
-      return $.evolve({generation, changed: true, status: 'Searching exact R' + query.revision + '…'})
+      return $.evolve({generation, changed: true, pending: true, status: 'Searching exact R' + query.revision + '…'})
         .emit(Event.Availability({enabled: false})).run(runSearch.make({generation, query}));
     },
     Received: ($, {generation, response}) => {
@@ -39,19 +39,19 @@ export const CorpusSearch = Html.component({name: 'CorpusSearch', props: Head, m
       const status = r.total + ' hits · ' + (q.mode === 'historical' ? 'Historical' : 'Saved') + ' R' + r.binding.revision +
         ' · ' + q.reading + ' reading' + (q.span ? ' · span ' + q.span.field + ' = ' + JSON.stringify(q.span.value) : '') +
         (stale ? ' · stale against saved head; search again' : '');
-      return $.evolve({response, changed: false, status}).emit(Event.Display({response}), Event.Availability({enabled: !stale}));
+      return $.evolve({response, changed: false, pending: false, status}).emit(Event.Display({response}), Event.Availability({enabled: !stale}));
     },
-    Failed: ($, {generation, reason}) => generation === $.model.generation ? $.evolve({status: reason}) : $.model,
-    Edited: $ => $.evolve({generation: $.model.generation + 1, changed: true, status: 'Query changed. Search again to update results.'})
+    Failed: ($, {generation, reason}) => generation === $.model.generation ? $.evolve({pending: false, status: reason}) : $.model,
+    Edited: $ => $.evolve({generation: $.model.generation + 1, changed: true, pending: false, status: 'Query changed. Search again to update results.'})
       .emit(Event.Availability({enabled: false})),
     HeadChanged: ($, {head}) => {
       if (head.revision === $.model.head.revision && head.hash === $.model.head.hash) return $.model;
       const {response} = $.model;
       const status = response && outOfDate(head, response)
         ? 'Results R' + response.result.binding.revision + ' are stale against saved R' + head.revision + '. Search again.'
-        : $.model.status;
-      return $.evolve({head, status, generation: $.model.generation + 1})
-        .emit(Event.Availability({enabled: !$.model.changed && !outOfDate(head, response)}));
+        : $.model.pending ? 'The saved revision changed. Search again against R' + head.revision + '.' : $.model.status;
+      return $.evolve({head, status, pending: false, generation: $.model.generation + 1})
+        .emit(Event.Availability({enabled: !!response && !$.model.changed && !outOfDate(head, response)}));
     },
     Notice: ($, {text}) => $.evolve({status: text}),
   },

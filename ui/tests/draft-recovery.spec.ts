@@ -21,6 +21,8 @@ async function open(page:Page){page.on('dialog',d=>void d.accept());await page.g
 async function records(page:Page){return page.evaluate(()=>Object.values(JSON.parse(localStorage.getItem('wb-correction-v1:journal')??'{}')))}
 async function head(page:Page){return page.evaluate(async()=>{const response=await fetch('/api/view');const value=await response.json();if(!response.ok)throw new Error('Synthetic head read failed: '+JSON.stringify(value));return value})}
 async function draft(page:Page,text:string,id='w2',start=0,end?:number,backward=false){
+  await expect.poll(()=>page.locator('#tokens').evaluate(element=>element.inert)).toBe(false);
+  await expect(page.locator(`[data-token="${id}"] .reading-text`)).toBeVisible();
   await page.locator('#tokens').focus();await page.evaluate(({id,start,end,backward})=>{const node=document.querySelector(`[data-token="${id}"] .reading-text`)!.firstChild!;const last=end??node.textContent!.length;window.getSelection()!.setBaseAndExtent(node,backward?last:start,node,backward?start:last)}, {id,start,end,backward});
   await expect(page.locator('.selection-tools')).toBeVisible();await page.getByRole('button',{name:'Correct',exact:true}).click();await page.getByLabel('Proposed correction').fill(text);await expect(page.locator('#draft-explanation')).not.toContainText('Updating local draft');
 }
