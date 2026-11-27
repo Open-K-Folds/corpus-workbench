@@ -178,6 +178,7 @@ test.describe('phone meaning labels', () => {
     await expect(action).toBeInViewport({ratio:1});
     await action.tap();
     const form = page.locator('#meaning-form'), input = form.getByLabel('English meaning');
+    await expect(input).toHaveCSS('font-size','16px');
     let release!: () => void;
     const gate = new Promise<void>(done => {release=done});
     await page.route('**/english-wordnet-2025/g.json.gz', async route => {await gate; await route.continue()});
