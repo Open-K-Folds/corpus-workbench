@@ -110,9 +110,10 @@ export function drawerClose(side:'navigation'|'properties') {
   const label=side==='navigation'?'Close project files':'Close inspector';
   return h.button
     .class('drawer-close pane-return')
-    .attrs({type: 'button', 'data-close-drawer': side, title: label})
+    .attrs({type: 'button', 'data-close-drawer': side})
     .children(
-      icon('close'),
+      h.span.class('drawer-close-icon').attr('title', label).children(icon('close')),
+      h.span.class('drawer-back-label').attr('aria-hidden', 'true').children(icon('arrow_back'), 'Transcript'),
       h.span.class('sr-only drawer-desktop-name').children(label),
       h.span.class('sr-only drawer-phone-name').children('Back to transcript'),
     );
@@ -190,9 +191,9 @@ export function workspaceSettings() {
       ),
       h.h3('Keyboard'),
       h.dl(
-        h.div(h.dt('Find in transcript'), h.dd(h.kbd('Ctrl / ⌘ K'))),
+        h.div(h.dt('Find in transcript'), h.dd(h.kbd(/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl'), h.kbd('K'))),
         h.div(h.dt('Next match'), h.dd(h.kbd('F3'))),
-        h.div(h.dt('Inspector tools'), h.dd(h.kbd('Alt 1–9'))),
+        h.div(h.dt('Inspector tools'), h.dd(h.kbd('Alt'), h.kbd('1–9'))),
       ),
       h.footer('Interaction design inspired by Chuanqi Sun’s Spaceship IDE, MIT Media Lab. ', h.span('2026')),
     );

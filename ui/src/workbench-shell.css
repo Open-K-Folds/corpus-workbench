@@ -136,9 +136,15 @@ body {background:var(--paper);color:var(--ink)}
 .inspector-tools > summary strong {margin-inline-start:auto;color:var(--ink);font-weight:600}
 .inspector-tools[open] > summary .material-symbol:last-child {rotate:180deg}
 .inspector-tools nav {display:grid;gap:8px;margin:6px 0 0;padding:0;border:0;background:transparent}
-.inspector-tool-group > span {color:var(--muted);font:600 11px/1.4 system-ui,sans-serif}
-.inspector-tool-group > div {display:flex;flex-wrap:wrap;gap:0 2px;margin-inline-start:-6px}
-.inspector-tools nav button {min-height:28px;padding:3px 6px;font-size:12px;white-space:nowrap}
+.inspector-tool-group > span {display:block;margin-block-end:4px;color:var(--muted);font:600 12px/1.4 system-ui,sans-serif}
+.inspector-tool-group > div {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(8.4rem,100%),1fr));gap:2px 6px}
+.inspector-tools nav button {
+  display:flex;justify-content:space-between;gap:4px;width:100%;min-height:32px;padding:5px 8px;
+  border:1px solid transparent;border-radius:5px;color:var(--ink);
+  text-align:start;font-size:13px;font-weight:500;line-height:1.3;white-space:normal;overflow-wrap:anywhere;
+}
+.inspector-tools nav button[aria-pressed=true] {background:var(--selection-surface);color:var(--selection-ink);font-weight:650}
+.inspector-tools nav button .material-symbol {font-size:16px}
 @media (pointer:coarse) {
   .inspector-tools > summary,.inspector-tools nav button {min-width:44px;min-height:44px}
 }
@@ -167,14 +173,22 @@ body {background:var(--paper);color:var(--ink)}
 .studio-settings::backdrop {background:#070c09a6}
 .studio-dialog-heading,.studio-settings dl div {display:flex;align-items:center;justify-content:space-between;gap:12px}
 .studio-dialog-heading h2,.studio-dialog-heading form {margin:0}
-.studio-settings fieldset {margin:20px 0 14px;padding:12px;border:1px solid var(--border)}
-.studio-settings fieldset label {display:flex;align-items:center;gap:8px;min-height:32px;margin:0;color:var(--ink)}
+.studio-settings fieldset {display:grid;gap:5px;margin:20px 0 18px;padding:0;border:0}
+.studio-settings legend {margin-block-end:6px;font-size:13px}
+.studio-settings fieldset label {
+  display:flex;align-items:center;gap:9px;min-height:40px;margin:0;padding:7px 10px;
+  border:1px solid var(--control-edge);border-radius:6px;color:var(--ink);font-size:13px;cursor:pointer;
+}
+.studio-settings fieldset label:has(:checked) {background:var(--selection-surface);border-color:var(--indicator);color:var(--selection-ink)}
+.studio-settings fieldset label:has(:focus-visible) {outline:2px solid var(--indicator);outline-offset:2px}
 .studio-settings input[type=radio] {width:auto;margin:0;accent-color:var(--indicator)}
 .studio-settings h3 {font-size:13px}
 .studio-settings dl div {padding:5px 0;font-size:12px}
-.studio-settings dd {margin:0;font:11px var(--font-mono)}
+.studio-settings dd {display:flex;gap:4px;margin:0;font:12px var(--font-mono)}
+.studio-settings kbd {padding:2px 5px;border:1px solid var(--control-edge);border-radius:4px;background:var(--control-surface);font:inherit}
 .studio-settings footer {padding-top:12px;border-top:1px solid var(--border);color:var(--muted);font-size:11px}
 @media (pointer:coarse) {
+  .studio-settings fieldset label,.studio-dialog-heading button {min-height:44px}
   .studio-rail .rail-button {height:44px;width:100%;grid-template-columns:var(--studio-rail) minmax(0,1fr);border:0}
   .rail-destinations,.rail-utilities {gap:0}
 }

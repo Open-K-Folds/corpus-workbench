@@ -54,7 +54,8 @@
 }
 .drawer-close .material-symbol {font-size:18px}
 #app .workspace .drawer-close:hover {background:var(--control-hover);color:var(--ink)}
-.drawer-phone-name {display:none}
+.drawer-phone-name,.drawer-back-label {display:none}
+.drawer-close-icon {display:inline-flex}
 .inspector > .drawer-bar {display:block}
 .inspector .drawer-close {position:absolute;inset:7px 9px auto auto}
 .drawer-bar .inspector-tools {margin:0;padding:0;border:0}
@@ -66,7 +67,8 @@
 }
 .drawer-bar .inspector-tools > summary strong {margin:0}
 .drawer-bar .inspector-tools > summary:hover strong {text-decoration:underline;text-underline-offset:3px}
-.drawer-bar .inspector-tools nav {padding:0 0 12px;margin:0;gap:10px}
+.drawer-bar .inspector-tools nav {padding:0 0 14px;margin:0;gap:10px}
+.drawer-bar .inspector-tool-group + .inspector-tool-group {border-block-start:1px solid var(--border);padding-block-start:9px}
 .drawer-bar:has(.inspector-tools[open]) {position:relative}
 #properties-pane > #inspector-content {
   padding:20px var(--drawer-inset) 30px;
@@ -81,8 +83,16 @@
   .documents .drawer-trail > :not(strong) {display:none}
 }
 @media (max-width:700px) {
-  .drawer-desktop-name {display:none}
+  .drawer-desktop-name,.drawer-close-icon {display:none}
   .drawer-phone-name {display:inline}
+  .drawer-back-label {display:inline-flex;align-items:center;gap:4px}
+  #app .workspace .drawer-close {width:auto;min-height:44px;padding-inline:7px;color:var(--accent);font-size:12px}
+  .inspector .drawer-close {inset:1px 4px auto auto}
+  .drawer-bar .inspector-tools > summary.drawer-trail {max-width:calc(100% - 94px)}
+}
+@media (max-width:400px) {
+  .drawer-bar .inspector-tools > summary > span:first-child,
+  .drawer-bar .inspector-tools > summary > span:nth-child(2) {display:none}
 }
 @media (pointer:coarse) {
   #app .workspace .drawer-close {min-width:44px;min-height:44px}

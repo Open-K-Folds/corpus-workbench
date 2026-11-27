@@ -24,7 +24,8 @@ export const InspectorNavigation = Html.component({
         h.div(inspectorViews.filter(tool => tool.group === group).map(tool =>
           h.button.key(tool.id).class(tool.id === h.props && 'active')
             .attrs({type: 'button', 'data-tab': tool.id, 'aria-pressed': String(tool.id === h.props)})
-            .onMount(activate(Pick.PickedTool({tool: tool.id}))).children(tool.label))),
+            .onMount(activate(Pick.PickedTool({tool: tool.id})))
+            .children(h.span(tool.label), tool.id === h.props && icon('check')))),
       ))),
   ),
 });
