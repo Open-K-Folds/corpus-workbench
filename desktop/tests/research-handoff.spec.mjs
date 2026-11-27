@@ -165,7 +165,10 @@ test('native research handoff compiles authored synthetic evidence and reopens p
     if (!await page.getByLabel('Human-corrected reading',{exact:true}).isVisible()) {
       const tools = page.getByRole('button',{name:'Tools',exact:true});
       if (await tools.getAttribute('aria-expanded') === 'false') await tools.click();
-      await page.getByRole('button',{name:'Token',exact:true}).click();
+      const chooser = page.locator('.inspector-tools');
+      const tokenTool = chooser.getByRole('button',{name:'Token',exact:true});
+      if (!await tokenTool.isVisible()) await chooser.locator('summary').click();
+      await tokenTool.click();
     }
     await page.getByLabel('Human-corrected reading',{exact:true}).fill('SYNTHETIC corrected successor');
     await page.getByRole('button',{name:'Save token',exact:true}).click();await expect(page.locator('#save-state')).toContainText(`Saved R${original.id+1}`);
