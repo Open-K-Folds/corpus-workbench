@@ -93,6 +93,8 @@ test('native research handoff compiles authored synthetic evidence and reopens p
     await openResearch(page);await expect(page.locator('#research-run')).toBeDisabled();
     await expect(page.locator('#research-status')).toContainText('Review and approve');
     await expect(page.locator('#research-guide')).toContainText('uncertainty is not a confidence score');
+    const theme = page.getByRole('button',{name:'Dark appearance',exact:true});
+    if (await theme.getAttribute('aria-pressed') === 'true') await theme.click();
     await capture(application,page,'research-guide-light.png');
     await page.locator('#research-skip-guide').click();await expect(page.locator('#research-guide')).toBeHidden();
 

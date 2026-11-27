@@ -18,6 +18,12 @@ $startup = '"{0}" -NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolic
 function Read-State {
     if (Test-Path -LiteralPath $stateFile) { [IO.File]::ReadAllText($stateFile) | ConvertFrom-Json }
 }
+function Get-ConfigHash([string]$path) {
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { [BitConverter]::ToString($sha.ComputeHash([IO.File]::ReadAllBytes($path))) }
+    catch [IO.IOException] { return $null }
+    finally { $sha.Dispose() }
+}
 function Identity($process,$executable) {
     @{id=$process.Id; started=$process.StartTime.ToUniversalTime().Ticks.ToString(); path=$executable}
 }
@@ -95,10 +101,10 @@ if ($Action -eq 'Supervise') {
         $state = @{supervisor=(Identity (Get-Process -Id $PID) $shellExe); config=$config; frontend=$null; backend=$null}
         $changed = $true
         $viteConfig = Join-Path $ui 'vite.config.ts'
-        $configHash = (Get-FileHash -LiteralPath $viteConfig).Hash
+        $configHash = Get-ConfigHash $viteConfig
         while (!(Test-Path -LiteralPath $stopFile)) {
-            $nextHash = (Get-FileHash -LiteralPath $viteConfig).Hash
-            if ($nextHash -ne $configHash) {
+            $nextHash = Get-ConfigHash $viteConfig
+            if ($nextHash -and $nextHash -ne $configHash) {
                 Stop-Tree $state.frontend
                 $state.frontend = $null
                 $configHash = $nextHash
