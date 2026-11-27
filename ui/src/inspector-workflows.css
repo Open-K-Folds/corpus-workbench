@@ -1,8 +1,25 @@
-/* Keep the primary action legible against the studio accent in both themes. */
-#inspector-content :is(form button[type="submit"], #review-form button, [data-run], #undo-committed, #redo-committed, #research-run):not(.secondary) {
+/* A button without a type is also a submit action inside a form. */
+#inspector-content :is(form button[type="submit"], form button:not([type]), [data-run], #undo-committed, #redo-committed, #research-run, #install-teitok-reader, #commit-return):not(.secondary) {
   color:var(--paper);
   background:var(--accent);
   border-color:var(--accent);
+}
+
+#inspector-content :where(p, label, summary, button, select, textarea, input:not([type=radio],[type=checkbox],[type=range])) {
+  font-size:.93rem;
+  line-height:1.5;
+}
+#inspector-content :where(h3, legend) {font-size:1rem;line-height:1.4}
+#inspector-content :where(button, summary, select) {min-height:34px;align-content:center}
+#inspector-content :where(label > input, label > select, label > textarea) {min-width:0}
+#inspector-content :where(button, summary, a, select, textarea, input):focus-visible {
+  outline:2px solid var(--indicator);
+  outline-offset:2px;
+}
+#inspector-content .training-heading nav button[aria-pressed=true] {
+  border-block-end:2px solid var(--indicator);
+  color:var(--ink);
+  font-weight:650;
 }
 
 #inspector-content .search-panel form {
@@ -51,9 +68,12 @@
   align-content:center;
 }
 
+
 @media (pointer:coarse) {
-  #inspector-content :is(.search-panel, .review-panel, .research-panel) :is(button, summary, select) {
+  #properties-pane #inspector-content :where(button, summary, select, textarea,
+      input:not([type=checkbox],[type=radio],[type=range],[type=hidden]), label:has(> input:is([type=checkbox],[type=radio]))) {
     min-height:44px;
     align-content:center;
   }
+  #inspector-content :where(input:not([type=checkbox],[type=radio],[type=range],[type=file]), textarea, select) {font-size:16px}
 }
