@@ -26,6 +26,9 @@ The UI bundles a local compact-control font subset. Axis choices, retrieval
 provenance, checksum and the full license are retained under
 ui/public/third-party/material-symbols/ and copied to built UI distributions.
 
+The Workbench frontend bundles Effect and Effect UI, both copyright Effectful
+Technologies Inc. Their shared MIT license is in ui/public/third-party/effect/LICENSE.txt.
+
 Software licenses do not grant corpus, recording, transcript or creator rights.
 Private data and private evaluation copies are excluded from public distribution.
 

@@ -1,6 +1,6 @@
+import {displayText, h, renderInto} from './effect-view';
 import {api} from './api';
 import type {Document,View} from './contracts';
-import {esc} from './dom';
 import {icon} from './icons';
 import {suppliedCue,type RecordingCue} from './listening';
 import type {Passage} from './training-candidates';
@@ -13,10 +13,18 @@ const intervalText = (start:number, end:number) => `${Number(start.toFixed(3))}�
 export function sourceCard(p:Passage, caption:string, current:View) {
   const card = document.createElement('article');
   card.className = 'training-source';
-  card.innerHTML = `<div class="training-byline"><strong>${esc(caption)}</strong><small>R${esc(p.revision)}</small></div>
-    <blockquote>${esc(p.quote)}</blockquote>
-    <p>${esc(p.title)} · ${esc(p.utterance ?? 'Unsegmented passage')} · ${p.speaker ? 'Speaker '+esc(p.speaker) : 'Speaker unknown'}</p>
-    <details><summary>Source context</summary><div></div></details>`;
+  renderInto(card,
+    h.div.class('training-byline').children(h.strong(caption), h.small('R', displayText(p.revision))),
+    h.blockquote(p.quote),
+    h.p(
+      p.title,
+      ' · ',
+      p.utterance ?? 'Unsegmented passage',
+      ' · ',
+      p.speaker ? 'Speaker ' + p.speaker : 'Speaker unknown',
+    ),
+    h.details(h.summary('Source context'), h.div),
+  );
   const details = card.querySelector('details')!;
   const body = details.querySelector('div')!;
   let stopPlayback:(()=>void)|undefined;
@@ -38,11 +46,23 @@ export function sourceCard(p:Passage, caption:string, current:View) {
       if (generation !== ticket || !details.open) return;
       const from = Math.max(0,first-14), end = first+p.tokenIds.length;
       const words = doc.tokens.slice(from,end+14).map((token,i) => {
-        const text = esc(token.corrected ?? token.original);
-        return from+i >= first && from+i < end ? '<mark>'+text+'</mark>' : text;
+        const text = token.corrected ?? token.original;
+        return from+i >= first && from+i < end ? h.mark(text) : text;
       });
-      body.innerHTML = `<p class="training-context">${from?'… ':''}${words.join(' ')}${end+14<doc.tokens.length?' …':''}</p>
-        <small>${esc(p.document)} · ${esc(p.tokenIds[0])}${p.tokenIds.length>1?' – '+esc(p.tokenIds.at(-1)):''}${p.language?' · '+esc(p.language):''}</small>`;
+      renderInto(body,
+        h.p.class('training-context').children(
+          from ? '… ' : '',
+          words.flatMap((word, index) => (index ? [' ', word] : [word])),
+          end + 14 < doc.tokens.length ? ' …' : '',
+        ),
+        h.small(
+          p.document,
+          ' · ',
+          p.tokenIds[0],
+          p.tokenIds.length > 1 ? ' – ' + displayText(p.tokenIds.at(-1)) : '',
+          p.language ? ' · ' + p.language : '',
+        ),
+      );
       const cue = suppliedCue(doc,p.tokenIds,Infinity);
       const media = [...new Set(doc.media.flatMap(name=>[name,'Audio/'+name,'Video/'+name]).filter(name=>basis.snapshot.files[name]?.role==='source-media'))];
       if ('reason' in cue || media.length !== 1) return;
@@ -63,11 +83,16 @@ function addListeningControls(details:HTMLDetailsElement, body:HTMLElement, doc:
   controls.className = 'training-source-audio';
   controls.setAttribute('role','group');
   controls.setAttribute('aria-label','Passage audio');
-  controls.innerHTML = `<small>${cue.basis === 'word' ? 'Word' : 'Utterance'} timing · ${intervalText(cue.start,cue.end)}</small>
-    <div class="training-source-buttons">
-      <button type="button" class="secondary" data-mode="excerpt"></button>
-      <button type="button" class="secondary" data-mode="context"></button>
-    </div><small role="status"></small>`;
+  renderInto(controls,
+    h.small(cue.basis === 'word' ? 'Word' : 'Utterance', ' timing · ', intervalText(cue.start, cue.end)),
+    h.div
+    .class('training-source-buttons')
+    .children(
+      h.button.class('secondary').attrs({type: 'button', 'data-mode': 'excerpt'}),
+      h.button.class('secondary').attrs({type: 'button', 'data-mode': 'context'}),
+    ),
+    h.small.attrs({role: 'status'}),
+  );
   body.append(controls);
   const buttons = controls.querySelectorAll<HTMLButtonElement>('button');
   const status = controls.querySelector<HTMLElement>('[role=status]')!;
@@ -78,8 +103,10 @@ function addListeningControls(details:HTMLDetailsElement, body:HTMLElement, doc:
     for (const button of buttons) {
       const playing = active === button.dataset.mode;
       const context = button.dataset.mode === 'context';
-      button.innerHTML = icon(playing ? 'stop_circle' : context ? 'graphic_eq' : 'headphones')
-        + (playing ? (context ? 'Stop context' : 'Stop excerpt') : (context ? 'Hear in context' : 'Hear excerpt'));
+      renderInto(button,
+        icon(playing ? 'stop_circle' : context ? 'graphic_eq' : 'headphones'),
+        playing ? (context ? 'Stop context' : 'Stop excerpt') : context ? 'Hear in context' : 'Hear excerpt',
+      );
     }
   }
   function stop() {

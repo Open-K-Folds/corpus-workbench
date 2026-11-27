@@ -1,7 +1,7 @@
+import {group, h, renderInto} from './effect-view';
 import type {Document,View} from './contracts';
 import type {AudioAnalysis} from './audio-analysis';
 import {desktop,type SemanticaState} from './desktop';
-import {esc} from './dom';
 import './overview.css';
 
 interface Sources {
@@ -31,23 +31,177 @@ export class ResearchOverview {
   constructor(private sources:Sources){
     this.dialog.id='research-overview';this.dialog.className='overview';
     this.dialog.setAttribute('aria-labelledby','overview-heading');this.dialog.setAttribute('aria-describedby','overview-intro');
-    this.dialog.innerHTML=`<div class="overview-header"><div class="overview-title"><h2 id="overview-heading">Research overview</h2><p id="overview-intro" class="overview-project"></p></div><div class="overview-controls"><button id="overview-refresh" class="secondary">Refresh state</button><button id="overview-pause" class="secondary" aria-pressed="false">Pause motion</button><button id="overview-close">Return to transcript</button></div></div>
-      <div id="overview-basis" class="overview-basis"></div>
-      <div class="overview-stage"><section class="overview-evidence" aria-labelledby="overview-evidence-heading"><h3 id="overview-evidence-heading">Preserved evidence <span class="overview-label">Snapshot membership</span></h3><div class="overview-diagram"><svg id="overview-map" role="img" viewBox="0 0 570 390" aria-labelledby="overview-map-title overview-map-description"></svg><p class="overview-label">Lines connect files to this saved package. They are not semantic relationships or a claim that one file generated another.</p></div>
-        <ul id="overview-file-preview" aria-label="Snapshot files"></ul>
-        <details class="overview-files"><summary id="overview-files-summary"></summary><ul id="overview-files-list"></ul></details></section>
-      <section class="overview-signal" aria-labelledby="overview-signal-heading"><h3 id="overview-signal-heading">Recording trace <span id="overview-media" class="overview-label"></span></h3>
-        <div class="overview-plot"><canvas id="overview-traces" role="img" aria-label="Recording peak envelope and eight sampled frequency bands"></canvas>
-          <div id="overview-trace-key" role="group" aria-label="Recording trace labels" hidden>
-            <div class="overview-trace-labels"><span class="overview-peak-label">Peak envelope</span><span class="overview-bands-label">Sampled frequency bands</span>
-              <div class="overview-trace-axis"><span>0:00</span><span id="overview-trace-mid"></span><span id="overview-trace-end"></span></div>
-            </div>
-          </div>
-        </div>
-        <p id="overview-analysis-status" class="overview-label"></p><div class="overview-player"><button id="overview-play" class="secondary">Play recording</button><label>Recording position<input id="overview-seek" type="range" min="0" max="1" step="0.1" value="0" aria-label="Seek recording"></label><output id="overview-time"></output></div><p id="overview-motion-status" class="overview-label"></p></section></div>
-      <div class="overview-instruments"><section class="overview-instrument"><span>Preserved files</span><strong id="overview-file-count"></strong><small id="overview-file-bytes"></small></section><section class="overview-instrument"><span>Selected tokens</span><strong id="overview-selection-count"></strong><small id="overview-token-total"></small></section><section class="overview-instrument"><span>Exact-revision review</span><strong id="overview-review"></strong><button id="overview-open-review" class="secondary">Inspect review</button></section><section class="overview-instrument"><span>Local Semantica</span><strong id="overview-runtime"></strong><small id="overview-generation"></small><button id="overview-open-handoff" class="secondary">Open handoff</button></section></div>
-      <div class="overview-detail-row"><section class="overview-selection"><h3>Selection in context</h3><p id="overview-selection-text"></p><p id="overview-selection-timing" class="overview-label"></p><p id="overview-draft-status" class="overview-label">Saved readings only. Unsaved drafts are excluded.</p></section><section class="overview-activity"><h3>This session <span class="overview-label">Observed changes</span></h3><ol id="overview-events"></ol></section></div>
-      <footer class="overview-footer">Local evidence, not inferred certainty. Waveforms and sampled frequency bands describe the recording, not speech alignment, language, confidence or transcription accuracy.</footer>`;
+    renderInto(this.dialog,
+      h.div
+      .class('overview-header')
+      .children(
+        h.div
+          .class('overview-title')
+          .children(
+            h.h2.id('overview-heading').children('Research overview'),
+            h.p.id('overview-intro').class('overview-project'),
+          ),
+        h.div
+          .class('overview-controls')
+          .children(
+            h.button.id('overview-refresh').class('secondary').children('Refresh state'),
+            h.button
+              .id('overview-pause')
+              .class('secondary')
+              .attrs({'aria-pressed': 'false'})
+              .children('Pause motion'),
+            h.button.id('overview-close').children('Return to transcript'),
+          ),
+      ),
+      h.div.id('overview-basis').class('overview-basis'),
+      h.div.class('overview-stage').children(
+        h.section
+          .class('overview-evidence')
+          .attrs({'aria-labelledby': 'overview-evidence-heading'})
+          .children(
+            h.h3
+              .id('overview-evidence-heading')
+              .children(
+                'Preserved evidence ',
+                h.span.class('overview-label').children('Snapshot membership'),
+              ),
+            h.div
+              .class('overview-diagram')
+              .children(
+                h.svg
+                  .id('overview-map')
+                  .attrs({
+                    role: 'img',
+                    viewBox: '0 0 570 390',
+                    'aria-labelledby': 'overview-map-title overview-map-description',
+                  }),
+                h.p
+                  .class('overview-label')
+                  .children(
+                    'Lines connect files to this saved package. They are not semantic relationships or a claim that one file generated another.',
+                  ),
+              ),
+            h.ul.id('overview-file-preview').attrs({'aria-label': 'Snapshot files'}),
+            h.details
+              .class('overview-files')
+              .children(h.summary.id('overview-files-summary'), h.ul.id('overview-files-list')),
+          ),
+        h.section
+          .class('overview-signal')
+          .attrs({'aria-labelledby': 'overview-signal-heading'})
+          .children(
+            h.h3
+              .id('overview-signal-heading')
+              .children('Recording trace ', h.span.id('overview-media').class('overview-label')),
+            h.div.class('overview-plot').children(
+              h.canvas
+                .id('overview-traces')
+                .attrs({
+                  role: 'img',
+                  'aria-label': 'Recording peak envelope and eight sampled frequency bands',
+                }),
+              h.div
+                .id('overview-trace-key')
+                .attrs({role: 'group', 'aria-label': 'Recording trace labels', hidden: ''})
+                .children(
+                  h.div
+                    .class('overview-trace-labels')
+                    .children(
+                      h.span.class('overview-peak-label').children('Peak envelope'),
+                      h.span.class('overview-bands-label').children('Sampled frequency bands'),
+                      h.div
+                        .class('overview-trace-axis')
+                        .children(
+                          h.span('0:00'),
+                          h.span.id('overview-trace-mid'),
+                          h.span.id('overview-trace-end'),
+                        ),
+                    ),
+                ),
+            ),
+            h.p.id('overview-analysis-status').class('overview-label'),
+            h.div
+              .class('overview-player')
+              .children(
+                h.button.id('overview-play').class('secondary').children('Play recording'),
+                h.label(
+                  'Recording position',
+                  h.input
+                    .id('overview-seek')
+                    .attrs({
+                      type: 'range',
+                      min: '0',
+                      max: '1',
+                      step: '0.1',
+                      value: '0',
+                      'aria-label': 'Seek recording',
+                    }),
+                ),
+                h.output.id('overview-time'),
+              ),
+            h.p.id('overview-motion-status').class('overview-label'),
+          ),
+      ),
+      h.div
+      .class('overview-instruments')
+      .children(
+        h.section
+          .class('overview-instrument')
+          .children(
+            h.span('Preserved files'),
+            h.strong.id('overview-file-count'),
+            h.small.id('overview-file-bytes'),
+          ),
+        h.section
+          .class('overview-instrument')
+          .children(
+            h.span('Selected tokens'),
+            h.strong.id('overview-selection-count'),
+            h.small.id('overview-token-total'),
+          ),
+        h.section
+          .class('overview-instrument')
+          .children(
+            h.span('Exact-revision review'),
+            h.strong.id('overview-review'),
+            h.button.id('overview-open-review').class('secondary').children('Inspect review'),
+          ),
+        h.section
+          .class('overview-instrument')
+          .children(
+            h.span('Local Semantica'),
+            h.strong.id('overview-runtime'),
+            h.small.id('overview-generation'),
+            h.button.id('overview-open-handoff').class('secondary').children('Open handoff'),
+          ),
+      ),
+      h.div
+      .class('overview-detail-row')
+      .children(
+        h.section
+          .class('overview-selection')
+          .children(
+            h.h3('Selection in context'),
+            h.p.id('overview-selection-text'),
+            h.p.id('overview-selection-timing').class('overview-label'),
+            h.p
+              .id('overview-draft-status')
+              .class('overview-label')
+              .children('Saved readings only. Unsaved drafts are excluded.'),
+          ),
+        h.section
+          .class('overview-activity')
+          .children(
+            h.h3('This session ', h.span.class('overview-label').children('Observed changes')),
+            h.ol.id('overview-events'),
+          ),
+      ),
+      h.footer
+      .class('overview-footer')
+      .children(
+        'Local evidence, not inferred certainty. Waveforms and sampled frequency bands describe the recording, not speech alignment, language, confidence or transcription accuracy.',
+      ),
+    );
     document.body.append(this.dialog);
     this.enableCanvasLabels();
     this.find('overview-close').onclick=()=>this.close();
@@ -128,20 +282,97 @@ export class ResearchOverview {
     const timed=tokens.filter(t=>t.start_us!==null&&t.end_us!==null),bounds=this.extent();
     this.find('overview-selection-timing').textContent=!tokens.length?'No selection.':timed.length===tokens.length?`Supplied word bounds: ${duration(bounds![0])}–${duration(bounds![1])}.`:bounds?`Supplied segment/chunk bounds: ${duration(bounds[0])}–${duration(bounds[1])}. Word timing is incomplete or unknown.`:'No supplied timing. Word positions are not aligned to the recording.';
     this.find('overview-files-summary').textContent=`Inspect snapshot files · ${entries.length} total${entries.length>16?' · first 16 shown':''}`;
-    this.find('overview-files-list').innerHTML=entries.slice(0,16).map(([path,file])=>`<li><span>${esc(path)}</span><code title="${esc(file.sha256)}">${esc(file.sha256.slice(0,12))}</code><small>${bytes(file.bytes)} · ${esc(file.role)}</small></li>`).join('');
+    renderInto(this.find('overview-files-list'),
+      entries
+      .slice(0, 16)
+      .map(([path, file]) =>
+        h.li(
+          h.span(path),
+          h.code.attrs({title: file.sha256}).children(file.sha256.slice(0, 12)),
+          h.small(bytes(file.bytes), ' · ', file.role),
+        ),
+      ),
+    );
     const preview=entries.filter(([path])=>path===d.path || path===this.media);
     if(!preview.length) preview.push(...entries.slice(0,1));
-    this.find('overview-file-preview').innerHTML=preview.map(([path,file])=>{
-      const label=path===d.path?'Active transcript':path===this.media?'Linked recording':file.role;
-      return `<li><small>${esc(label)}</small><span>${esc(path)}</span></li>`;
-    }).join('');
+    renderInto(this.find('overview-file-preview'),
+      preview.map(([path, file]) => {
+        const label =
+          path === d.path ? 'Active transcript' : path === this.media ? 'Linked recording' : file.role;
+        return h.li(h.small(label), h.span(path));
+      }),
+    );
     this.map(entries);this.player();this.generation();this.draw();
   }
   private resolveMedia(v:View,d:Document){const paths=[...new Set(d.media.flatMap(path=>[path,`Audio/${path}`,`Video/${path}`]).filter(path=>v.snapshot.files[path]?.role==='source-media'))];return paths.length===1?paths[0]:undefined}
   private extent():[number,number]|null{const d=this.sources.doc(),ids=new Set(this.sources.selected()),bounds=d.tokens.filter(t=>ids.has(t.id)).map(t=>t.start_us!==null&&t.end_us!==null?[t.start_us,t.end_us]:d.segments.find(s=>s.id===t.utterance)).map(s=>Array.isArray(s)?s:s?.start_us!==null&&s?.end_us!==null?[s?.start_us,s?.end_us]:null).filter((s):s is number[]=>!!s&&s.every(n=>typeof n==='number'));return bounds.length?[Math.min(...bounds.map(s=>s[0]))/1e6,Math.max(...bounds.map(s=>s[1]))/1e6]:null}
   private map(entries:[string,View['snapshot']['files'][string]][]){
     const v=this.sources.view(),d=this.sources.doc(),visible=entries.slice(0,16),count=visible.length;
-    this.find('overview-map').innerHTML=`<title id="overview-map-title">Files retained in saved revision ${v.revision.id}</title><desc id="overview-map-description">${entries.length} package files; first ${count} shown. Highlighted files are the active document source and its unambiguous recording association. Lines show snapshot membership, not semantic inference.</desc><circle cx="104" cy="195" r="69" class="overview-orbit"/><circle cx="104" cy="195" r="56" class="overview-orbit"/><circle cx="104" cy="195" r="42" class="overview-core"/><text x="104" y="190" text-anchor="middle" class="overview-revision">R${v.revision.id}</text><text x="104" y="211" text-anchor="middle" class="overview-svg-small">SAVED BASIS</text>${visible.map(([path,file],i)=>{const y=28+i*(334/Math.max(1,count-1)),x=320+52*Math.sin(Math.PI*i/Math.max(1,count-1)),active=path===d.path||path===this.media;return `<path class="overview-link ${active?'overview-link-current':''}" d="M 150 195 C 225 195, 235 ${y}, ${x-12} ${y}"/><path class="overview-flow" ${path===this.media?'data-recording="true"':''} d="M 150 195 C 225 195, 235 ${y}, ${x-12} ${y}"/><circle cx="${x-7}" cy="${y}" r="${active?3:1.7}" class="overview-node"/><text x="${x}" y="${y-3}" class="overview-svg-file"><title>${esc(path)}</title>${esc(path.length>25?path.slice(0,22)+'…':path)}</text><text x="${x}" y="${y+11}" class="overview-svg-small">${esc(file.role)}${path===d.path?' · active source':path===this.media?' · recording reference':''}</text>`}).join('')}<text x="30" y="382" class="overview-svg-small">${entries.length>count?`${entries.length-count} more files retained · inspect file list below`:'Original source bytes stay in the saved package'}</text>`;
+    const map = this.find('overview-map');
+    renderInto(map,
+      h.circle.class('overview-orbit').attrs({cx: '104', cy: '195', r: '69'}),
+      h.circle.class('overview-orbit').attrs({cx: '104', cy: '195', r: '56'}),
+      h.circle.class('overview-core').attrs({cx: '104', cy: '195', r: '42'}),
+      h.svgText
+      .class('overview-revision')
+      .attrs({x: '104', y: '190', 'text-anchor': 'middle'})
+      .children('R', String(v.revision.id)),
+      h.svgText
+      .class('overview-svg-small')
+      .attrs({x: '104', y: '211', 'text-anchor': 'middle'})
+      .children('SAVED BASIS'),
+      visible.flatMap(([path, file], i) => {
+        const y = 28 + i * (334 / Math.max(1, count - 1)),
+          x = 320 + 52 * Math.sin((Math.PI * i) / Math.max(1, count - 1)),
+          active = path === d.path || path === this.media;
+        return group(
+          h.path
+            .class('overview-link ' + (active ? 'overview-link-current' : ''))
+            .attrs({d: 'M 150 195 C 225 195, 235 ' + String(y) + ', ' + String(x - 12) + ' ' + String(y)}),
+          h.path
+            .class('overview-flow')
+            .attrs({
+              'data-recording': path === this.media ? 'true' : undefined,
+              d: 'M 150 195 C 225 195, 235 ' + String(y) + ', ' + String(x - 12) + ' ' + String(y),
+            }),
+          h.circle
+            .class('overview-node')
+            .attrs({cx: String(x - 7), cy: String(y), r: String(active ? 3 : 1.7)}),
+          h.svgText
+            .class('overview-svg-file')
+            .attrs({x: String(x), y: String(y - 3)})
+            .children(
+              path.length > 25 ? path.slice(0, 22) + '…' : path,
+            ),
+          h.svgText
+            .class('overview-svg-small')
+            .attrs({x: String(x), y: String(y + 11)})
+            .children(
+              file.role,
+              path === d.path ? ' · active source' : path === this.media ? ' · recording reference' : '',
+            ),
+        );
+      }),
+      h.svgText
+      .class('overview-svg-small')
+      .attrs({x: '30', y: '382'})
+      .children(
+        entries.length > count
+          ? `${entries.length - count} more files retained · inspect file list below`
+          : 'Original source bytes stay in the saved package',
+      ),
+    );
+
+    // Accessible SVG metadata needs the SVG namespace, including tooltips on individual files.
+    const label = (parent: Element, tag: 'title'|'desc', text: string, id?: string) => {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      if (id) node.id = id;
+      node.textContent = text;
+      parent.prepend(node);
+    };
+    label(map, 'desc', entries.length + ' package files; first ' + count + ' shown. Highlighted files are the active document source and its unambiguous recording association. Lines show snapshot membership, not semantic inference.', 'overview-map-description');
+    label(map, 'title', 'Files retained in saved revision ' + v.revision.id, 'overview-map-title');
+    map.querySelectorAll('.overview-svg-file').forEach((node, i) => label(node, 'title', visible[i][0]));
   }
   private playable(){const a=this.sources.audio;return !!this.media&&!a.hidden&&!!a.getAttribute('src')&&!a.error&&Number.isFinite(a.duration)&&a.duration>0}
   private player(){const a=this.sources.audio,available=this.playable();const play=this.find<HTMLButtonElement>('overview-play'),seek=this.find<HTMLInputElement>('overview-seek');play.disabled=!available;play.textContent=a.paused?'Play recording':'Pause recording';seek.disabled=!available;seek.max=String(available?a.duration:1);seek.value=String(available?a.currentTime:0);this.find('overview-time').textContent=available?`${duration(a.currentTime)} / ${duration(a.duration)}`:'No playback';this.find('overview-media').textContent=available?this.media!:this.media?'Recording unavailable or still loading':'No unambiguous recording reference';}
@@ -196,5 +427,7 @@ export class ResearchOverview {
     }
     this.find('overview-runtime').textContent=label;this.find('overview-generation').textContent=detail;
   }
-  private record(text:string){this.events.unshift({time:stamp(),text});this.events=this.events.slice(0,6);this.find('overview-events').innerHTML=this.events.map(event=>`<li class="overview-event"><time>${esc(event.time)}</time><span>${esc(event.text)}</span></li>`).join('')}
+  private record(text:string){this.events.unshift({time:stamp(),text});this.events=this.events.slice(0,6);renderInto(this.find('overview-events'),
+    this.events.map((event) => h.li.class('overview-event').children(h.time(event.time), h.span(event.text))),
+  )}
 }

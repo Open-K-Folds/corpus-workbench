@@ -51,15 +51,19 @@ ui = root / 'ui/dist'
 ui_files = [p for p in ui.rglob('*') if p.is_file()]
 fixed_files = {'index.html', 'third-party/material-symbols/LICENSE.txt', 'third-party/material-symbols/README.md',
                'third-party/material-symbols/source-css.txt', 'third-party/jetbrains-mono/OFL.txt',
-               'third-party/jetbrains-mono/README.md'}
+               'third-party/jetbrains-mono/README.md', 'third-party/effect/LICENSE.txt'}
 for subset in ('latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'vietnamese'):
     fixed_files.add(f'third-party/jetbrains-mono/jetbrains-mono-{subset}-wght-normal.woff2')
 ui_names = {p.relative_to(ui).as_posix() for p in ui_files}
-bundles = (r'assets/index-[A-Za-z0-9_-]+\.js', r'assets/index-[A-Za-z0-9_-]+\.css',
-           r'assets/audio-analysis\.worker-[A-Za-z0-9_-]+\.js', r'assets/material-symbols-subset-[A-Za-z0-9_-]+\.woff2')
+bundles = (
+    r'assets/index-[A-Za-z0-9_-]+\.js', r'assets/index-[A-Za-z0-9_-]+\.css',
+    r'assets/effect-ui-[A-Za-z0-9_-]+\.js', r'assets/project-files-[A-Za-z0-9_-]+\.js',
+    r'assets/history-[A-Za-z0-9_-]+\.js', r'assets/audio-analysis\.worker-[A-Za-z0-9_-]+\.js',
+    r'assets/material-symbols-subset-[A-Za-z0-9_-]+\.woff2',
+)
 if (not fixed_files.issubset(ui_names) or len(ui_names) != len(fixed_files) + len(bundles) or
         any(sum(bool(re.fullmatch(pattern, name)) for name in ui_names) != 1 for pattern in bundles)):
-    raise SystemExit('Expected the four compiled UI bundles, entry point, bundled fonts and their license/provenance notices.')
+    raise SystemExit('Expected the compiled UI bundles, entry point, bundled fonts and their license/provenance notices.')
 for file in ui_files:
     name = file.relative_to(ui).as_posix()
     if file.is_symlink():
@@ -86,7 +90,7 @@ licenses.mkdir()
 index = []
 def notice_files(path):
     return [p for p in path.rglob('*') if p.is_file() and
-            (any(p.name.lower().startswith(v) for v in ['license', 'licence', 'copying', 'copyright', 'notice']) or
+            (any(p.name.lower().startswith(v) for v in ['license', 'licence', 'copying', 'copyright', 'notice', 'third_party_notices']) or
              any(parent.name.lower() in ['licenses', 'license'] for parent in p.relative_to(path).parents))]
 metadata = json.loads(args.cargo_metadata.read_text(encoding='utf-8-sig'))
 if metadata['resolve'] is None:

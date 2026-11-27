@@ -1,3 +1,4 @@
+import {renderInto} from './effect-view';
 import type {Document} from './contracts';
 import {el} from './dom';
 import {icon} from './icons';
@@ -91,7 +92,7 @@ export class PlaybackSync {
     if(this.play.getAttribute('aria-label')!==action) {
       this.play.setAttribute('aria-label',action);
       this.play.title=action;
-      this.play.innerHTML=icon(plays?'pause':'play_arrow');
+      renderInto(this.play, icon(plays ? 'pause' : 'play_arrow'));
     }
     this.play.disabled=!playable;
     this.follow.disabled=!this.cues?.available;

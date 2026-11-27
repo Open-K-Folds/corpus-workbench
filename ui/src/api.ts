@@ -4,8 +4,10 @@ function retainCsrf(value:string){csrf=value;try{sessionStorage.setItem('wb-csrf
 let context:{authority:string;actor:string;project:string}|null=null;
 export const draftContext=()=>context;
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }
-export async function api<T>(path:string,body?:unknown):Promise<T> {
-  const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{'Content-Type':'application/json','X-WB-CSRF':csrf},body:body===undefined?undefined:JSON.stringify(body)});
+export async function api<T>(path:string,body?:unknown,signal?:AbortSignal):Promise<T> {
+  const response=await fetch(path,body===undefined ? {signal:signal??null} : {
+    method:'POST',headers:{'Content-Type':'application/json','X-WB-CSRF':csrf},body:JSON.stringify(body),signal:signal??null,
+  });
   const result=await response.json(); if(!response.ok) throw new ApiError(result.error??'Request failed',response.status); return result as T;
 }
 export async function uploadFile(upload:string,path:string,file:File):Promise<void>{

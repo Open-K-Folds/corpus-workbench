@@ -1,17 +1,21 @@
+import {group, h, renderInto, viewFragment} from './effect-view';
 import './inspector-workflows.css';
 import './token-drawer.css';
 import './annotation-details.css';
 import {annotationDetail} from './annotation-detail';
 import type {Document, Operation, Span, Token, View} from './contracts';
-import {esc, field, formValues, seconds} from './dom';
+import {field, formValues, seconds} from './dom';
 import {buttonGroup} from './controls';
 import {icon} from './icons';
 
 export function emptyTokenInspector(): HTMLElement {
   const section = document.createElement('section');
   section.className = 'token-drawer-empty';
-  section.innerHTML = `<div class="token-record-icon">${icon('book_2')}</div>
-    <h2>Inspect a word</h2><p>Select a word in the transcript to review its readings, timing and source.</p>`;
+  renderInto(section,
+    h.div.class('token-record-icon').children(icon('book_2')),
+    h.h2('Inspect a word'),
+    h.p('Select a word in the transcript to review its readings, timing and source.'),
+  );
   return section;
 }
 
@@ -23,7 +27,8 @@ export function tokenInspector(
   const section = document.createElement('section');
   section.className = 'token-drawer';
   const options = Object.entries(view.snapshot.config.language_values).map(([value, description]) =>
-    `<option value="${esc(value)}">${esc(description || value)}</option>`).join('');
+    h.option.attrs({value: value}).children(description || value),
+  );
   const turnIndex = doc.segments.findIndex(segment => segment.id === token.utterance);
   const wordTiming = token.start_us !== null && token.end_us !== null
     ? `${seconds(token.start_us)} – ${seconds(token.end_us)}`
@@ -39,45 +44,112 @@ export function tokenInspector(
     ['Language source', languageSources[token.language_source] ?? token.language_source],
     ['Definition version', String(view.snapshot.config.version)], ['Saved revision', 'R' + view.revision.id],
   ];
-  const identity = `Source token ${esc(token.id)}${turnIndex < 0 ? '' : ` <span aria-hidden="true">·</span> Turn ${turnIndex + 1}`}`;
+  const identity = group(
+    'Source token ',
+    token.id,
+    turnIndex < 0
+      ? ''
+      : group(' ', h.span.attrs({'aria-hidden': 'true'}).children('·'), ' Turn ', String(turnIndex + 1)),
+  );
   const needsConfirmation = token.attrs.wb_normalized_status === 'unresolved';
-  section.innerHTML = `
-    <div class="token-record-heading">
-      <div class="token-record-icon">${icon('book_2')}</div>
-      <hgroup><h2 class="original" dir="auto">${esc(token.original) || 'Empty source token'}</h2><p>${identity}</p></hgroup>
-    </div>
-    <div class="token-record-switcher" role="tablist" aria-label="Token views">
-      <button type="button" id="token-edit-tab" role="tab" aria-controls="token-edit-panel" aria-selected="true">${icon('edit_note')}Edit token</button>
-      <button type="button" id="token-source-tab" role="tab" aria-controls="token-source-panel" aria-selected="false" tabindex="-1">${icon('description')}Source details</button>
-    </div>
-    <section id="token-edit-panel" role="tabpanel" aria-labelledby="token-edit-tab">
-      <form id="token-form">
-        <fieldset><legend>Readings</legend>
-          ${field('nform', 'Human-corrected reading', token.corrected ?? '', token.original)}
-          ${field('wb_normalized', 'Optional normalized reading', token.normalized ?? '')}
-          ${needsConfirmation ? '<div class="token-confirmation"><p>Review the normalized reading after the correction.</p><button type="button" class="secondary">Confirm retained normalized reading</button></div>' : ''}
-          <label>Language / variety<input name="variety" value="${esc(token.attrs.variety ?? '')}" placeholder="${esc(token.language_effective ?? '')}" list="language-values" autocomplete="off"></label>
-          <datalist id="language-values">${options}</datalist>
-        </fieldset>
-        <fieldset><legend>Annotations</legend>
-          ${field('annotation', 'Custom annotation', token.attrs.annotation ?? '')}
-          ${field('note', 'Reviewer note', token.attrs.note ?? '')}
-        </fieldset>
-        <div class="token-revision">
-          ${field('revision_label', 'Revision name', 'Correct ' + token.id)}
-          <div class="token-save-actions">
-            <button type="submit" id="save-token">${icon('check')}Save token</button>
-            <button type="reset" class="secondary">Undo unsaved edits</button>
-          </div>
-        </div>
-      </form>
-    </section>
-    <section id="token-source-panel" role="tabpanel" aria-labelledby="token-source-tab" tabindex="0" hidden>
-      <h3>Source record</h3>
-      <dl class="token-source-rows">${metadata.map(([name, value]) =>
-        `<div><dt>${esc(name)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl>
-      <details><summary>All imported attributes</summary><pre>${esc(JSON.stringify(token.attrs, null, 2))}</pre></details>
-    </section>`;
+  renderInto(section,
+    h.div.class('token-record-heading').children(
+      h.div.class('token-record-icon').children(icon('book_2')),
+      h.hgroup(
+        h.h2
+          .class('original')
+          .attrs({dir: 'auto'})
+          .children(token.original || 'Empty source token'),
+        h.p(identity),
+      ),
+    ),
+    h.div
+    .class('token-record-switcher')
+    .attrs({role: 'tablist', 'aria-label': 'Token views'})
+    .children(
+      h.button
+        .id('token-edit-tab')
+        .attrs({
+          type: 'button',
+          role: 'tab',
+          'aria-controls': 'token-edit-panel',
+          'aria-selected': 'true',
+        })
+        .children(icon('edit_note'), 'Edit token'),
+      h.button
+        .id('token-source-tab')
+        .attrs({
+          type: 'button',
+          role: 'tab',
+          'aria-controls': 'token-source-panel',
+          'aria-selected': 'false',
+          tabindex: '-1',
+        })
+        .children(icon('description'), 'Source details'),
+    ),
+    h.section
+    .id('token-edit-panel')
+    .attrs({role: 'tabpanel', 'aria-labelledby': 'token-edit-tab'})
+    .children(
+      h.form
+        .id('token-form')
+        .children(
+          h.fieldset(
+            h.legend('Readings'),
+            field('nform', 'Human-corrected reading', token.corrected ?? '', token.original),
+            field('wb_normalized', 'Optional normalized reading', token.normalized ?? ''),
+            needsConfirmation
+              ? h.div
+                  .class('token-confirmation')
+                  .children(
+                    h.p('Review the normalized reading after the correction.'),
+                    h.button
+                      .class('secondary')
+                      .attrs({type: 'button'})
+                      .children('Confirm retained normalized reading'),
+                  )
+              : '',
+            h.label(
+              'Language / variety',
+              h.input.attrs({
+                name: 'variety',
+                value: token.attrs.variety ?? '',
+                placeholder: token.language_effective ?? '',
+                list: 'language-values',
+                autocomplete: 'off',
+              }),
+            ),
+            h.datalist.id('language-values').children(options),
+          ),
+          h.fieldset(
+            h.legend('Annotations'),
+            field('annotation', 'Custom annotation', token.attrs.annotation ?? ''),
+            field('note', 'Reviewer note', token.attrs.note ?? ''),
+          ),
+          h.div
+            .class('token-revision')
+            .children(
+              field('revision_label', 'Revision name', 'Correct ' + token.id),
+              h.div
+                .class('token-save-actions')
+                .children(
+                  h.button.id('save-token').attrs({type: 'submit'}).children(icon('check'), 'Save token'),
+                  h.button.class('secondary').attrs({type: 'reset'}).children('Undo unsaved edits'),
+                ),
+            ),
+        ),
+    ),
+    h.section
+    .id('token-source-panel')
+    .attrs({role: 'tabpanel', 'aria-labelledby': 'token-source-tab', tabindex: '0', hidden: ''})
+    .children(
+      h.h3('Source record'),
+      h.dl
+        .class('token-source-rows')
+        .children(metadata.map(([name, value]) => h.div(h.dt(name), h.dd(value)))),
+      h.details(h.summary('All imported attributes'), h.pre(JSON.stringify(token.attrs, null, 2))),
+    ),
+  );
 
   const switcher = section.querySelector<HTMLElement>('[role="tablist"]')!;
   const tabs = Array.from(switcher.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
@@ -107,7 +179,9 @@ export function tokenInspector(
   }
   if (!token.editable) {
     form.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input,button').forEach(input => input.disabled = true);
-    form.insertAdjacentHTML('beforebegin', '<p class="token-read-only">This nested token is read-only.</p>');
+    form.before(
+      viewFragment(h.p.class('token-read-only').children('This nested token is read-only.')),
+    );
   }
   const updateDirty = () => {
     const values = formValues(form);
@@ -132,37 +206,152 @@ export function annotationInspector(view:View,doc:Document,selected:string[],onS
   const section=document.createElement('section');
   section.className='annotation-drawer';
   const relations=doc.tokens.filter(token=>token.attrs.relation_target);
-  section.innerHTML=`<hgroup class="annotation-heading"><h2>Annotations</h2><p dir="auto">${esc(doc.title)} <span>· R${view.revision.id}</span></p></hgroup>
-    <details class="annotation-compose" ${selected.length?'open':''}><summary>${icon('edit_note')}Annotate selection${icon('expand_more')}</summary>
-    <p class="annotation-selection">${selected.length ? `${selected.length} ${selected.length===1?'word':'words'} selected` : 'Select words in the transcript to create a span.'}</p>
-    <form id="span-form">${field('label','Span label')}${field('variety','Language / variety')}${field('note','Note')}
-    <details><summary>Subtoken judgment (one token)</summary><p class="muted">Offsets count Unicode code points in the corrected reading.</p>${field('start','Start code point')}${field('end','End code point')}${field('quote','Exact quote')}</details>
-    <button type="submit" ${selected.length?'':'disabled'}>Create span</button></form></details>
-    <h3 class="annotation-list-heading">Saved annotations <span>${doc.spans.length}</span></h3>
-    <div class="annotation-list">${doc.spans.map((span,index)=>{
-      const detail=annotationDetail(doc,span,view.snapshot.project);
-      const caption = detail.quote && detail.title !== detail.kind ? `${detail.kind} · ${detail.title}` : detail.kind;
-      return `<details class="annotation annotation-record" data-saved-annotation="${esc(span.id)}" data-sidecar="${esc(span.sidecar)}" ${doc.spans.length===1?'open':''}>
-        <summary><span class="annotation-number">${index+1}</span><span class="annotation-summary">
-          <strong dir="auto">${esc(detail.quote || detail.title)}</strong><small dir="auto">${esc(caption)}</small>
-        </span>${icon('expand_more')}</summary>
-        <div class="annotation-body">
-          ${detail.note?`<p class="annotation-note" dir="auto">${esc(detail.note)}</p>`:''}
-          <p class="annotation-source">${icon('menu_book')}<span dir="auto">${esc(detail.source)}</span></p>
-          <div class="annotation-actions">
-            ${onReveal && detail.tokenIds.length?`<button type="button" class="secondary" data-reveal-span="${index}">${icon('menu_book')}Show in transcript</button>`:''}
-            <button type="button" class="secondary" data-edit-span="${index}" aria-label="Edit span ${esc(span.id)}">${icon('edit_note')}Edit span</button>
-          </div>
-          <div data-span-editor="${index}"></div>
-          <details class="annotation-provenance"><summary>Source record</summary><dl>
-            <dt>File</dt><dd>${esc(doc.path)}</dd><dt>Sidecar</dt><dd>${esc(span.sidecar)}</dd>
-            <dt>Span ID</dt><dd>${esc(span.id)}</dd><dt>Tokens</dt><dd>${esc(span.token_ids.join(' → ')) || 'No token IDs supplied'}</dd>
-          </dl><pre>${esc(JSON.stringify(span.fields,null,2))}</pre></details>
-        </div></details>`;
-    }).join('')||'<p class="annotation-empty">No saved annotations in this transcript.</p>'}</div>
-    <details class="annotation-relations" ${selected.length || relations.length?'open':''}><summary>Token relations</summary>
-    <h3>Directed relation</h3><form id="relation-form">${field('target','Target token ID',selected[1]??'')}${field('relation_type','Relation type')}${field('note','Relation note')}<button type="submit" ${selected.length?'':'disabled'}>Create relation</button></form>
-    <h3>Saved relations</h3>${relations.map(t=>`<article class="annotation"><p>${esc(t.id)} → ${esc(t.attrs.relation_target)} · ${esc(t.attrs.relation_type)}</p><button type="button" class="secondary" data-edit-relation="${esc(t.id)}">Edit relation from ${esc(t.id)}</button><button type="button" class="secondary" data-clear-relation="${esc(t.id)}">Clear relation from ${esc(t.id)}</button><div data-relation-editor="${esc(t.id)}"></div></article>`).join('')||'<p class="muted">No relations yet.</p>'}</details>`;
+  renderInto(section,
+    h.hgroup
+    .class('annotation-heading')
+    .children(
+      h.h2('Annotations'),
+      h.p.attrs({dir: 'auto'}).children(doc.title, ' ', h.span('· R', String(view.revision.id))),
+    ),
+    h.details
+    .class('annotation-compose')
+    .attrs({open: selected.length ? '' : undefined})
+    .children(
+      h.summary(icon('edit_note'), 'Annotate selection', icon('expand_more')),
+      h.p
+        .class('annotation-selection')
+        .children(
+          selected.length
+            ? `${selected.length} ${selected.length === 1 ? 'word' : 'words'} selected`
+            : 'Select words in the transcript to create a span.',
+        ),
+      h.form
+        .id('span-form')
+        .children(
+          field('label', 'Span label'),
+          field('variety', 'Language / variety'),
+          field('note', 'Note'),
+          h.details(
+            h.summary('Subtoken judgment (one token)'),
+            h.p.class('muted').children('Offsets count Unicode code points in the corrected reading.'),
+            field('start', 'Start code point'),
+            field('end', 'End code point'),
+            field('quote', 'Exact quote'),
+          ),
+          h.button
+            .attrs({type: 'submit', disabled: selected.length ? undefined : ''})
+            .children('Create span'),
+        ),
+    ),
+    h.h3.class('annotation-list-heading').children('Saved annotations ', h.span(String(doc.spans.length))),
+    h.div.class('annotation-list').children(
+      doc.spans.length
+        ? doc.spans.map((span, index) => {
+            const detail = annotationDetail(doc, span, view.snapshot.project);
+            const caption =
+              detail.quote && detail.title !== detail.kind
+                ? `${detail.kind} · ${detail.title}`
+                : detail.kind;
+            return h.details
+              .class('annotation annotation-record')
+              .attrs({
+                'data-saved-annotation': span.id,
+                'data-sidecar': span.sidecar,
+                open: doc.spans.length === 1 ? '' : undefined,
+              })
+              .children(
+                h.summary(
+                  h.span.class('annotation-number').children(String(index + 1)),
+                  h.span
+                    .class('annotation-summary')
+                    .children(
+                      h.strong.attrs({dir: 'auto'}).children(detail.quote || detail.title),
+                      h.small.attrs({dir: 'auto'}).children(caption),
+                    ),
+                  icon('expand_more'),
+                ),
+                h.div.class('annotation-body').children(
+                  detail.note
+                    ? h.p.class('annotation-note').attrs({dir: 'auto'}).children(detail.note)
+                    : '',
+                  h.p
+                    .class('annotation-source')
+                    .children(icon('menu_book'), h.span.attrs({dir: 'auto'}).children(detail.source)),
+                  h.div.class('annotation-actions').children(
+                    onReveal && detail.tokenIds.length
+                      ? h.button
+                          .class('secondary')
+                          .attrs({type: 'button', 'data-reveal-span': String(index)})
+                          .children(icon('menu_book'), 'Show in transcript')
+                      : '',
+                    h.button
+                      .class('secondary')
+                      .attrs({
+                        type: 'button',
+                        'data-edit-span': String(index),
+                        'aria-label': 'Edit span ' + span.id,
+                      })
+                      .children(icon('edit_note'), 'Edit span'),
+                  ),
+                  h.div.attrs({'data-span-editor': String(index)}),
+                  h.details
+                    .class('annotation-provenance')
+                    .children(
+                      h.summary('Source record'),
+                      h.dl(
+                        h.dt('File'),
+                        h.dd(doc.path),
+                        h.dt('Sidecar'),
+                        h.dd(span.sidecar),
+                        h.dt('Span ID'),
+                        h.dd(span.id),
+                        h.dt('Tokens'),
+                        h.dd(span.token_ids.join(' → ') || 'No token IDs supplied'),
+                      ),
+                      h.pre(JSON.stringify(span.fields, null, 2)),
+                    ),
+                ),
+              );
+          })
+        : h.p.class('annotation-empty').children('No saved annotations in this transcript.'),
+    ),
+    h.details
+    .class('annotation-relations')
+    .attrs({open: selected.length || relations.length ? '' : undefined})
+    .children(
+      h.summary('Token relations'),
+      h.h3('Directed relation'),
+      h.form
+        .id('relation-form')
+        .children(
+          field('target', 'Target token ID', selected[1] ?? ''),
+          field('relation_type', 'Relation type'),
+          field('note', 'Relation note'),
+          h.button
+            .attrs({type: 'submit', disabled: selected.length ? undefined : ''})
+            .children('Create relation'),
+        ),
+      h.h3('Saved relations'),
+      relations.length
+        ? relations.map((t) =>
+            h.article
+              .class('annotation')
+              .children(
+                h.p(t.id, ' → ', t.attrs.relation_target, ' · ', t.attrs.relation_type),
+                h.button
+                  .class('secondary')
+                  .attrs({type: 'button', 'data-edit-relation': t.id})
+                  .children('Edit relation from ', t.id),
+                h.button
+                  .class('secondary')
+                  .attrs({type: 'button', 'data-clear-relation': t.id})
+                  .children('Clear relation from ', t.id),
+                h.div.attrs({'data-relation-editor': t.id}),
+              ),
+          )
+        : h.p.class('muted').children('No relations yet.'),
+    ),
+  );
   const dirty=(event:Event)=>{const form=(event.target as HTMLElement).closest("form");if(form){form.dataset.dirty="true";onDirty()}};section.addEventListener("input",dirty);section.addEventListener("change",dirty);
   section.querySelector<HTMLFormElement>('#span-form')!.onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await onSave([{kind:'add_span',document:doc.path,id:`an-${crypto.randomUUID()}`,token_ids:selected,fields:{label:v.label,variety:v.variety,note:v.note},character:v.start!==''?{token:selected[0],start:Number(v.start),end:Number(v.end),quote:v.quote,coordinate:'unicode-codepoint',layer:'corrected'}:null}],`Create span: ${v.label}`,e.currentTarget as HTMLFormElement)};
   section.querySelector<HTMLFormElement>('#relation-form')!.onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await onSave([{kind:'add_relation',document:doc.path,from:selected[0],to:v.target,relation_type:v.relation_type,note:v.note}],`Relation: ${v.relation_type}`,e.currentTarget as HTMLFormElement)};
@@ -184,12 +373,44 @@ export function annotationInspector(view:View,doc:Document,selected:string[],onS
 }
 
 function spanEditor(doc:Document,span:Span,selected:string[],onSave:(ops:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>,onDirty:()=>void):HTMLElement {
-  const section=document.createElement('section');section.innerHTML=`<h4>Edit ${esc(span.id)}</h4><p class="muted">Stable ID and supplied XML content remain intact. Anchors define the selection. Unsupported dialects stay read-only.</p><form class="span-edit-form">
-    ${field('label','Saved span label',span.fields.label??'')}${field('variety','Saved span language / variety',span.fields.variety??'')}${field('note','Saved span note',span.fields.note??'')}
-    <label>Anchor change<select name="anchor_mode"><option value="keep">Keep existing anchors</option><option value="tokens">Whole-token anchors</option><option value="character">Subtoken anchor</option></select></label>
-    ${field('token_ids','Token IDs in order',span.token_ids.join(' '))}<button type="button" class="secondary use-selected" ${selected.length?'':'disabled'}>Use selected tokens</button>
-    ${field('start','Saved start code point',span.fields.wb_start??'')}${field('end','Saved end code point',span.fields.wb_end??'')}${field('quote','Saved exact quote',span.fields.wb_quote??'')}
-    <p class="muted">Subtoken coordinates count Unicode code points in the corrected reading. Whole-token mode removes character coordinates; keeping anchors retains any unresolved status.</p><p class="editor-error error" role="alert"></p><button type="submit">Save span changes</button></form>`;
+  const section=document.createElement('section');renderInto(section,
+    h.h4('Edit ', span.id),
+    h.p
+    .class('muted')
+    .children(
+      'Stable ID and supplied XML content remain intact. Anchors define the selection. Unsupported dialects stay read-only.',
+    ),
+    h.form.class('span-edit-form').children(
+      field('label', 'Saved span label', span.fields.label ?? ''),
+      field('variety', 'Saved span language / variety', span.fields.variety ?? ''),
+      field('note', 'Saved span note', span.fields.note ?? ''),
+      h.label(
+        'Anchor change',
+        h.select
+          .attrs({name: 'anchor_mode'})
+          .children(
+            h.option.attrs({value: 'keep'}).children('Keep existing anchors'),
+            h.option.attrs({value: 'tokens'}).children('Whole-token anchors'),
+            h.option.attrs({value: 'character'}).children('Subtoken anchor'),
+          ),
+      ),
+      field('token_ids', 'Token IDs in order', span.token_ids.join(' ')),
+      h.button
+        .class('secondary use-selected')
+        .attrs({type: 'button', disabled: selected.length ? undefined : ''})
+        .children('Use selected tokens'),
+      field('start', 'Saved start code point', span.fields.wb_start ?? ''),
+      field('end', 'Saved end code point', span.fields.wb_end ?? ''),
+      field('quote', 'Saved exact quote', span.fields.wb_quote ?? ''),
+      h.p
+        .class('muted')
+        .children(
+          'Subtoken coordinates count Unicode code points in the corrected reading. Whole-token mode removes character coordinates; keeping anchors retains any unresolved status.',
+        ),
+      h.p.class('editor-error error').attrs({role: 'alert'}),
+      h.button.attrs({type: 'submit'}).children('Save span changes'),
+    ),
+  );
   const form=section.querySelector('form')!;const initial=formValues(form);
   section.querySelector<HTMLButtonElement>('.use-selected')!.onclick=()=>{form.querySelector<HTMLInputElement>('[name="token_ids"]')!.value=selected.join(' ');form.querySelector<HTMLSelectElement>('[name="anchor_mode"]')!.value='tokens';form.dataset.dirty='true';onDirty()};
   form.onsubmit=async event=>{
@@ -206,7 +427,16 @@ function spanEditor(doc:Document,span:Span,selected:string[],onSave:(ops:Operati
   };return section;
 }
 function relationEditor(doc:Document,token:Token,onSave:(ops:Operation[],label:string,source?:HTMLFormElement)=>Promise<void>):HTMLElement {
-  const section=document.createElement('section');section.innerHTML=`<h4>Edit relation from ${esc(token.id)}</h4><p class="muted">Clearing a relation preserves the token's note and identity.</p><form>${field('target','Saved relation target',token.attrs.relation_target??'')}${field('relation_type','Saved relation type',token.attrs.relation_type??'')}${field('note','Saved relation note',token.attrs.note??'')}<button>Save relation changes</button></form>`;
+  const section=document.createElement('section');renderInto(section,
+    h.h4('Edit relation from ', token.id),
+    h.p.class('muted').children("Clearing a relation preserves the token's note and identity."),
+    h.form(
+      field('target', 'Saved relation target', token.attrs.relation_target ?? ''),
+      field('relation_type', 'Saved relation type', token.attrs.relation_type ?? ''),
+      field('note', 'Saved relation note', token.attrs.note ?? ''),
+      h.button('Save relation changes'),
+    ),
+  );
   const form=section.querySelector('form')!;const initial=formValues(form);
   form.onsubmit=async event=>{event.preventDefault();const v=formValues(form);if(v.target===initial.target&&v.relation_type===initial.relation_type&&v.note===initial.note)return;await onSave([{kind:'set_relation',document:doc.path,from:token.id,to:v.target,relation_type:v.relation_type,note:v.note===initial.note?null:v.note}],`Edit relation: ${token.id}`,form)};return section;
 }

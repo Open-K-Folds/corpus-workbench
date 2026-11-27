@@ -30,7 +30,7 @@ def copy_notices(source, destination):
     for file in source.rglob('*'):
         relative = file.relative_to(source)
         if file.is_file() and not file.is_symlink() and (
-                any(file.name.lower().startswith(word) for word in ('license', 'licence', 'copying', 'copyright', 'notice')) or
+                any(file.name.lower().startswith(word) for word in ('license', 'licence', 'copying', 'copyright', 'notice', 'third_party_notices')) or
                 any(part.lower() in ('licenses', 'license') for part in relative.parts[:-1])):
             target = destination / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -101,13 +101,13 @@ for name in ('Cargo.toml', 'Cargo.lock', 'rust-toolchain.toml', 'Dockerfile', 'c
     source_out.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, source_out / name)
 for name in ('src', 'tests', 'assets', 'docs', 'containers', 'fixtures/synthetic', 'fixtures/coanalysis',
-             'ui/public/third-party/material-symbols', 'ui/public/third-party/jetbrains-mono'):
+             'ui/public/third-party/material-symbols', 'ui/public/third-party/jetbrains-mono', 'ui/public/third-party/effect'):
     shutil.copytree(root / name, source_out / name)
 for name in ('coanalysis-prompt.mjs', 'coanalysis-prompt.d.mts'):
     destination = source_out / 'desktop' / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / 'desktop' / name, destination)
-for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'scripts/runtime-contracts.py', 'evidence/dependency-inventory.json', 'evidence/coanalysis/noticeboard.json', 'evidence/trixie-runtime-packages.tsv', 'ui/package.json', 'ui/package-lock.json', 'ui/tsconfig.json', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
+for name in ('.dockerignore', 'scripts/prepare-synthetic.py', 'scripts/container-inventory.py', 'scripts/build-containers.py', 'scripts/container-smoke.py', 'scripts/container-upgrade-smoke.py', 'scripts/runtime-contracts.py', 'evidence/dependency-inventory.json', 'evidence/coanalysis/noticeboard.json', 'evidence/trixie-runtime-packages.tsv', 'ui/package.json', 'ui/package-lock.json', 'ui/.npmrc', 'ui/tsconfig.json', 'ui/vite.config.ts', 'ui/playwright.config.ts', 'ui/container-browser.mjs', 'ui/index.html'):
     destination = source_out / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(root / name, destination)

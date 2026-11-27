@@ -1,5 +1,6 @@
+import {h, renderInto} from './effect-view';
 import {api} from './api';
-import {esc,seconds} from './dom';
+import {seconds} from './dom';
 import {AudioPlayer} from './player';
 import {icon} from './icons';
 import type {Revision,View} from './contracts';
@@ -12,48 +13,171 @@ export interface SearchHit {id:string;document:string;title:string;utterance:str
 interface Envelope {result_hash:string;result:{schema:number;binding:{engine:string;project:string;revision:number;snapshot_hash:string;projection_hash:string};query:SearchQuery;total:number;hits:SearchHit[];next_offset:number|null;rights:string}}
 interface Resolved {binding:Envelope['result']['binding'];hit:SearchHit;historical:boolean}
 export interface SearchPanel {element:HTMLElement;update:(view:View)=>void;pause:()=>void}
-export function corpusSearch(initial:View,open:(binding:Envelope['result']['binding'],hit:SearchHit,reading:SearchQuery['reading'])=>void,refresh:()=>Promise<View>):SearchPanel {
+export function corpusSearch(initial:View,open:(binding:Envelope['result']['binding'],hit:SearchHit,reading:SearchQuery['reading'])=>void,refresh:()=>Promise<View>, signal: AbortSignal):SearchPanel {
   const panel=document.createElement('section');panel.className='search-panel';
-  panel.innerHTML=`
-    <h2>Corpus search</h2>
-    <form id="corpus-search-form">
-      <label>Exact token sequence<textarea name="tokens" rows="2" required placeholder="One token per line" aria-describedby="search-query-help"></textarea></label>
-      <small id="search-query-help" class="muted">Enter 1 to 8 tokens, one per line. Spelling and spaces match exactly within a single utterance or unsegmented run.</small>
-      <div class="search-query-actions">
-        <button type="submit">${icon('search')} Search corpus</button>
-        <button type="button" class="secondary" id="reload-search-evidence">Reload saved evidence</button>
-      </div>
-      <details class="search-options">
-        <summary>Search options</summary>
-        <fieldset class="search-group"><legend>Reading and language</legend>
-          <label>Search reading<select name="reading"><option value="corrected">Corrected, then original</option><option value="original">Original source</option><option value="normalized">Current normalized, then corrected / original</option></select></label>
-          <label>Language / variety filter<input name="language" autocomplete="off" placeholder="Any language" aria-describedby="search-language-default-help"></label>
-          <small id="search-language-default-help" class="muted">Default for terms set to Use default. Leave empty for any language.</small>
-          <details class="search-term-languages"><summary>${icon('tune')} Per-term language filters</summary>
-            <p id="search-term-language-help" class="muted">Choose a language for each term to find language transitions. Blank lines are ignored. Custom values match spaces and Unicode spelling exactly.</p>
-            <div id="search-term-languages"></div><small id="search-term-language-empty" class="muted">Enter tokens above to set their language filters.</small>
-          </details>
-        </fieldset>
-        <details class="search-span"><summary>${icon('tune')} Span annotation constraint</summary>
-          <fieldset class="search-group"><legend>Whole-token span</legend><div class="search-controls">
-            <label>Span field<select name="span-field"><option value="">Any span / no constraint</option><option value="label">Label</option><option value="variety">Language / variety</option></select></label>
-            <label>Exact span value<input name="span-value" autocomplete="off" disabled aria-describedby="span-search-help"></label>
-          </div><small id="span-search-help" class="muted">All matched tokens must be explicit anchors of one whole-token span. Discontinuous anchors are respected. An empty value matches an authored empty field.</small></fieldset>
-        </details>
-        <fieldset class="search-group"><legend>Evidence and results</legend>
-          <label>Search evidence revision<select name="revision"><option value="current">Current saved R${initial.revision.id}</option></select></label>
-          <label>Search documents<select name="document"><option value="">All documents</option>${initial.documents.map(d=>`<option value="${esc(d.path)}">${esc(d.path)}</option>`).join('')}</select></label>
-          <div class="search-controls"><label>Context tokens<input name="context" type="number" min="0" max="12" value="4"></label>
-            <label>Page size<select name="limit"><option>25</option><option selected>50</option><option>100</option><option>200</option></select></label>
-          </div>
-        </fieldset>
-      </details>
-    </form>
-    <p id="corpus-search-status" role="status"></p><div id="corpus-search-results"></div>
-    <audio id="search-audio" preload="metadata" hidden></audio><p id="search-audio-basis" class="muted"></p>`;
+  renderInto(panel,
+    h.h2('Corpus search'),
+    h.form.id('corpus-search-form').children(
+      h.label(
+        'Exact token sequence',
+        h.textarea.attrs({
+          name: 'tokens',
+          rows: '2',
+          required: '',
+          placeholder: 'One token per line',
+          'aria-describedby': 'search-query-help',
+        }),
+      ),
+      h.small
+        .id('search-query-help')
+        .class('muted')
+        .children(
+          'Enter 1 to 8 tokens, one per line. Spelling and spaces match exactly within a single utterance or unsegmented run.',
+        ),
+      h.div
+        .class('search-query-actions')
+        .children(
+          h.button.attrs({type: 'submit'}).children(icon('search'), ' Search corpus'),
+          h.button
+            .class('secondary')
+            .id('reload-search-evidence')
+            .attrs({type: 'button'})
+            .children('Reload saved evidence'),
+        ),
+      h.details.class('search-options').children(
+        h.summary('Search options'),
+        h.fieldset
+          .class('search-group')
+          .children(
+            h.legend('Reading and language'),
+            h.label(
+              'Search reading',
+              h.select
+                .attrs({name: 'reading'})
+                .children(
+                  h.option.attrs({value: 'corrected'}).children('Corrected, then original'),
+                  h.option.attrs({value: 'original'}).children('Original source'),
+                  h.option
+                    .attrs({value: 'normalized'})
+                    .children('Current normalized, then corrected / original'),
+                ),
+            ),
+            h.label(
+              'Language / variety filter',
+              h.input.attrs({
+                name: 'language',
+                autocomplete: 'off',
+                placeholder: 'Any language',
+                'aria-describedby': 'search-language-default-help',
+              }),
+            ),
+            h.small
+              .id('search-language-default-help')
+              .class('muted')
+              .children('Default for terms set to Use default. Leave empty for any language.'),
+            h.details
+              .class('search-term-languages')
+              .children(
+                h.summary(icon('tune'), ' Per-term language filters'),
+                h.p
+                  .id('search-term-language-help')
+                  .class('muted')
+                  .children(
+                    'Choose a language for each term to find language transitions. Blank lines are ignored. Custom values match spaces and Unicode spelling exactly.',
+                  ),
+                h.div.id('search-term-languages'),
+                h.small
+                  .id('search-term-language-empty')
+                  .class('muted')
+                  .children('Enter tokens above to set their language filters.'),
+              ),
+          ),
+        h.details
+          .class('search-span')
+          .children(
+            h.summary(icon('tune'), ' Span annotation constraint'),
+            h.fieldset
+              .class('search-group')
+              .children(
+                h.legend('Whole-token span'),
+                h.div
+                  .class('search-controls')
+                  .children(
+                    h.label(
+                      'Span field',
+                      h.select
+                        .attrs({name: 'span-field'})
+                        .children(
+                          h.option.attrs({value: ''}).children('Any span / no constraint'),
+                          h.option.attrs({value: 'label'}).children('Label'),
+                          h.option.attrs({value: 'variety'}).children('Language / variety'),
+                        ),
+                    ),
+                    h.label(
+                      'Exact span value',
+                      h.input.attrs({
+                        name: 'span-value',
+                        autocomplete: 'off',
+                        disabled: '',
+                        'aria-describedby': 'span-search-help',
+                      }),
+                    ),
+                  ),
+                h.small
+                  .id('span-search-help')
+                  .class('muted')
+                  .children(
+                    'All matched tokens must be explicit anchors of one whole-token span. Discontinuous anchors are respected. An empty value matches an authored empty field.',
+                  ),
+              ),
+          ),
+        h.fieldset.class('search-group').children(
+          h.legend('Evidence and results'),
+          h.label(
+            'Search evidence revision',
+            h.select
+              .attrs({name: 'revision'})
+              .children(
+                h.option.attrs({value: 'current'}).children('Current saved R', String(initial.revision.id)),
+              ),
+          ),
+          h.label(
+            'Search documents',
+            h.select.attrs({name: 'document'}).children(
+              h.option.attrs({value: ''}).children('All documents'),
+              initial.documents.map((d) => h.option.attrs({value: d.path}).children(d.path)),
+            ),
+          ),
+          h.div
+            .class('search-controls')
+            .children(
+              h.label(
+                'Context tokens',
+                h.input.attrs({name: 'context', type: 'number', min: '0', max: '12', value: '4'}),
+              ),
+              h.label(
+                'Page size',
+                h.select
+                  .attrs({name: 'limit'})
+                  .children(
+                    h.option('25'),
+                    h.option.attrs({selected: ''}).children('50'),
+                    h.option('100'),
+                    h.option('200'),
+                  ),
+              ),
+            ),
+        ),
+      ),
+    ),
+    h.p.id('corpus-search-status').attrs({role: 'status'}),
+    h.div.id('corpus-search-results'),
+    h.audio.id('search-audio').attrs({preload: 'metadata', hidden: ''}),
+    h.p.id('search-audio-basis').class('muted'),
+  );
   const find=<T extends HTMLElement=HTMLElement>(id:string)=>panel.querySelector<T>('#'+id)!;
   const form=find<HTMLFormElement>('corpus-search-form');const status=find('corpus-search-status');const results=find('corpus-search-results');const audio=find<HTMLAudioElement>('search-audio');
-  const player=new AudioPlayer(audio,'Search result playback');
+  const player=new AudioPlayer(audio, signal, 'Search result playback');
   let view=initial;let rows:Revision[]=[initial.revision];let envelope:Envelope|null=null;let epoch=0;let action=0;let changed=false;let stopAt=0;
   const revision=form.elements.namedItem('revision') as HTMLSelectElement;
   const tokenInput=form.elements.namedItem('tokens') as HTMLTextAreaElement;
@@ -67,7 +191,37 @@ export function corpusSearch(initial:View,open:(binding:Envelope['result']['bind
       let row=termLanguages.children[index] as HTMLElement|undefined;
       if(!row){
         row=document.createElement('div');row.className='search-term-language';
-        row.innerHTML=`<div class="search-term-heading"><span>Term ${position}</span><code class="search-term-text"></code></div><label><span class="sr-only">Term ${position} language</span><select name="term-language-mode-${position}" aria-describedby="search-term-language-help"><option value="default">Use default</option><option value="any">Any language</option><option value="exact">Exact custom value</option></select></label><label class="search-term-custom" hidden><span class="sr-only">Term ${position} exact language</span><input name="term-language-${position}" autocomplete="off" placeholder="Exact language / variety" aria-describedby="search-term-language-help" disabled></label>`;
+        renderInto(row,
+          h.div
+          .class('search-term-heading')
+          .children(h.span('Term ', String(position)), h.code.class('search-term-text')),
+          h.label(
+            h.span.class('sr-only').children('Term ', String(position), ' language'),
+            h.select
+              .attrs({
+                name: 'term-language-mode-' + String(position),
+                'aria-describedby': 'search-term-language-help',
+              })
+              .children(
+                h.option.attrs({value: 'default'}).children('Use default'),
+                h.option.attrs({value: 'any'}).children('Any language'),
+                h.option.attrs({value: 'exact'}).children('Exact custom value'),
+              ),
+          ),
+          h.label
+          .class('search-term-custom')
+          .attrs({hidden: ''})
+          .children(
+            h.span.class('sr-only').children('Term ', String(position), ' exact language'),
+            h.input.attrs({
+              name: 'term-language-' + String(position),
+              autocomplete: 'off',
+              placeholder: 'Exact language / variety',
+              'aria-describedby': 'search-term-language-help',
+              disabled: '',
+            }),
+          ),
+        );
         termLanguages.append(row);
       }
       row.querySelector('.search-term-text')!.textContent=text;
@@ -91,7 +245,12 @@ export function corpusSearch(initial:View,open:(binding:Envelope['result']['bind
   const enabled=()=>{const obsolete=changed||!!stale();player.setEnabled(!obsolete);results.querySelectorAll<HTMLButtonElement>('button[data-hit],button[data-listen],button[data-page]').forEach(b=>b.disabled=obsolete)};
   const pause=()=>{audio.pause();++action};
   const clearAudio=()=>{audio.pause();audio.hidden=true;stopAt=0;if(audio.hasAttribute('src')){audio.removeAttribute('src');audio.load()}find('search-audio-basis').textContent=''};
-  const options=()=>{const selected=revision.value;revision.innerHTML=`<option value="current">Current saved R${view.revision.id}</option>${rows.map(r=>`<option value="${r.id}">Historical R${r.id}: ${esc(r.label)}</option>`).join('')}`;revision.value=selected||'current'};
+  const options=()=>{const selected=revision.value;renderInto(revision,
+    h.option.attrs({value: 'current'}).children('Current saved R', String(view.revision.id)),
+    rows.map((r) =>
+      h.option.attrs({value: String(r.id)}).children('Historical R', String(r.id), ': ', r.label),
+    ),
+  );revision.value=selected||'current'};
   const reload=find<HTMLButtonElement>('reload-search-evidence');
   reload.onclick=async()=>{pause();try{const next=await refresh();if(panel.isConnected)status.textContent=`Loaded saved R${next.revision.id}. Search again to update results.`}catch(error){if(panel.isConnected)status.textContent=String(error)}};
   void api<Revision[]>('/api/history').then(history=>{rows=[...new Map([...history,...rows,view.revision].map(r=>[r.id,r])).values()].sort((a,b)=>b.id-a.id);options()}).catch(error=>{if(!envelope)status.textContent='Historical revision list unavailable: '+String(error)});
@@ -105,11 +264,107 @@ export function corpusSearch(initial:View,open:(binding:Envelope['result']['bind
   function draw(value:Envelope) {
     const r=value.result;const historical=r.query.mode==='historical';
     status.textContent=`${r.total} hits · ${historical?'Historical':'Saved'} R${r.binding.revision} · ${r.query.reading} reading${r.query.span?` · span ${r.query.span.field} = ${JSON.stringify(r.query.span.value)}`:''}${stale()?' · stale against saved head; search again':''}`;
-    results.innerHTML=`<div class="search-result-actions"><button type="button" id="export-search" class="secondary">${icon('download')} Export shown results (JSON)</button></div>${r.total===0?'<p class="muted">Try a different spelling or adjust the search options.</p>':r.hits.length<r.total?`<p class="muted">Showing ${r.query.offset+1}–${r.query.offset+r.hits.length} of ${r.total}.</p>`:''}${r.hits.map((hit,index)=>{
-      const left=hit.readings.slice(0,hit.left.length).join(' ');const matched=hit.readings.slice(hit.left.length,hit.left.length+hit.matched.length).join(' ');const right=hit.readings.slice(hit.left.length+hit.matched.length).join(' ');
-      const spans=hit.spans??[];
-      return `<article class="search-hit"><small>${esc(hit.document)} · ${esc(hit.utterance??'unsegmented')} ${esc(hit.speaker??'')}</small><p class="kwic"><span>${esc(left)}</span> <mark>${esc(matched)}</mark> <span>${esc(right)}</span></p><small>${esc(hit.token_ids.join(', '))}</small>${spans.length?`<details class="search-span-evidence"><summary>${spans.length} matching span${spans.length===1?'':'s'} · ${esc(spans.map(s=>`${s.sidecar} #${s.id}`).join('; '))}</summary><pre>${esc(JSON.stringify(spans,null,2))}</pre></details>`:''}<div class="search-hit-actions"><button type="button" class="secondary" data-hit="${index}">${icon(historical?'history':'link')}${historical?'Inspect historical hit':'Open matched tokens'}</button>${hit.audio?`<button type="button" class="secondary" data-listen="${index}">${icon('play_arrow')} Play ${hit.audio.basis==='word_intervals'?'word intervals':'utterance'}</button>`:'<span class="muted">No observed audio interval</span>'}</div></article>`;
-    }).join('')}${!r.hits.length?'<p class="empty-state">No matches on this page.</p>':''}<div class="search-result-actions">${r.query.offset?'<button type="button" class="secondary" data-page="previous">Previous page</button>':''}${r.next_offset!==null?'<button type="button" class="secondary" data-page="next">Next page</button>':''}</div><details><summary>Result provenance and scope</summary><p class="muted">${esc(r.rights)}</p><code class="hash">Snapshot ${esc(r.binding.snapshot_hash)}<br>Projection ${esc(r.binding.projection_hash)}<br>Result ${esc(value.result_hash)}</code></details><div id="historical-search-inspection"></div>`;
+    renderInto(results,
+      h.div
+      .class('search-result-actions')
+      .children(
+        h.button
+          .id('export-search')
+          .class('secondary')
+          .attrs({type: 'button'})
+          .children(icon('download'), ' Export shown results (JSON)'),
+      ),
+      r.total === 0
+      ? h.p.class('muted').children('Try a different spelling or adjust the search options.')
+      : r.hits.length < r.total
+        ? h.p
+            .class('muted')
+            .children(
+              'Showing ',
+              String(r.query.offset + 1),
+              '–',
+              String(r.query.offset + r.hits.length),
+              ' of ',
+              String(r.total),
+              '.',
+            )
+        : '',
+      r.hits.map((hit, index) => {
+        const left = hit.readings.slice(0, hit.left.length).join(' ');
+        const matched = hit.readings.slice(hit.left.length, hit.left.length + hit.matched.length).join(' ');
+        const right = hit.readings.slice(hit.left.length + hit.matched.length).join(' ');
+        const spans = hit.spans ?? [];
+        return h.article.class('search-hit').children(
+          h.small(hit.document, ' · ', hit.utterance ?? 'unsegmented', ' ', hit.speaker ?? ''),
+          h.p.class('kwic').children(h.span(left), ' ', h.mark(matched), ' ', h.span(right)),
+          h.small(hit.token_ids.join(', ')),
+          spans.length
+            ? h.details
+                .class('search-span-evidence')
+                .children(
+                  h.summary(
+                    String(spans.length),
+                    ' matching span',
+                    spans.length === 1 ? '' : 's',
+                    ' · ',
+                    spans.map((s) => `${s.sidecar} #${s.id}`).join('; '),
+                  ),
+                  h.pre(JSON.stringify(spans, null, 2)),
+                )
+            : '',
+          h.div.class('search-hit-actions').children(
+            h.button
+              .class('secondary')
+              .attrs({type: 'button', 'data-hit': String(index)})
+              .children(
+                icon(historical ? 'history' : 'link'),
+                historical ? 'Inspect historical hit' : 'Open matched tokens',
+              ),
+            hit.audio
+              ? h.button
+                  .class('secondary')
+                  .attrs({type: 'button', 'data-listen': String(index)})
+                  .children(
+                    icon('play_arrow'),
+                    ' Play ',
+                    hit.audio.basis === 'word_intervals' ? 'word intervals' : 'utterance',
+                  )
+              : h.span.class('muted').children('No observed audio interval'),
+          ),
+        );
+      }),
+      !r.hits.length ? h.p.class('empty-state').children('No matches on this page.') : '',
+      h.div
+      .class('search-result-actions')
+      .children(
+        r.query.offset
+          ? h.button
+              .class('secondary')
+              .attrs({type: 'button', 'data-page': 'previous'})
+              .children('Previous page')
+          : '',
+        r.next_offset !== null
+          ? h.button.class('secondary').attrs({type: 'button', 'data-page': 'next'}).children('Next page')
+          : '',
+      ),
+      h.details(
+        h.summary('Result provenance and scope'),
+        h.p.class('muted').children(r.rights),
+        h.code
+          .class('hash')
+          .children(
+            'Snapshot ',
+            r.binding.snapshot_hash,
+            h.br,
+            'Projection ',
+            r.binding.projection_hash,
+            h.br,
+            'Result ',
+            value.result_hash,
+          ),
+      ),
+      h.div.id('historical-search-inspection'),
+    );
     find<HTMLButtonElement>('export-search').onclick=()=>{const blob=new Blob([JSON.stringify(value,null,2)+'\n'],{type:'application/json'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download=`corpus-search-r${r.binding.revision}-${r.query.offset}.json`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
     results.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(b=>b.onclick=()=>void run({...r.query,offset:b.dataset.page==='next'?r.next_offset!:Math.max(0,r.query.offset-r.query.limit)}));
     results.querySelectorAll<HTMLButtonElement>('[data-hit],[data-listen]').forEach(button=>button.onclick=async()=>{
@@ -126,7 +381,12 @@ export function corpusSearch(initial:View,open:(binding:Envelope['result']['bind
           if(audio.readyState<1)await new Promise<void>((resolve,reject)=>{const timer=setTimeout(()=>{cleanup();reject(new Error('Audio metadata unavailable'))},5000);const done=()=>{cleanup();resolve()};const fail=()=>{cleanup();reject(new Error('Audio media error'))};const cleanup=()=>{clearTimeout(timer);audio.removeEventListener('loadedmetadata',done);audio.removeEventListener('error',fail)};audio.addEventListener('loadedmetadata',done,{once:true});audio.addEventListener('error',fail,{once:true})});
           if(intent!==action||!panel.isConnected)return;audio.currentTime=observed.start_us/1e6;await audio.play();
         } else if(resolved.historical){
-          find('historical-search-inspection').innerHTML=`<h3>Historical R${resolved.binding.revision} · read only</h3><p>${esc(resolved.hit.document)}</p><pre>${esc(JSON.stringify({matched:resolved.hit.matched,spans:resolved.hit.spans??[]},null,2))}</pre><p class="muted">Current authoring remains on saved R${view.revision.id}.</p>`;
+          renderInto(find('historical-search-inspection'),
+            h.h3('Historical R', String(resolved.binding.revision), ' · read only'),
+            h.p(resolved.hit.document),
+            h.pre(JSON.stringify({matched: resolved.hit.matched, spans: resolved.hit.spans ?? []}, null, 2)),
+            h.p.class('muted').children('Current authoring remains on saved R', String(view.revision.id), '.'),
+          );
         } else {open(resolved.binding,resolved.hit,r.query.reading)}
       }catch(error){if(intent===action&&panel.isConnected){status.textContent=String(error);audio.pause()}}
     });enabled();

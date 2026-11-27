@@ -1,6 +1,52 @@
 import {expect} from '@playwright/test';
 import {test} from './practice-fixture';
 
+test('project files load on first open and keep the filter across document and source navigation', async ({page, practiceUrl}) => {
+  let requests = 0;
+  let release!: () => void;
+  const delayed = new Promise<void>(resolve => {release = resolve});
+  await page.route('**/assets/project-files-*.js', async route => {
+    requests++;
+    await delayed;
+    await route.continue();
+  });
+  await page.goto(practiceUrl);
+  await expect(page.locator('#document-title')).toHaveText('Who gets the notice?');
+  expect(requests).toBe(0);
+  const projects = page.getByRole('button', {name: 'Projects', exact: true});
+  try {
+    await projects.click();
+    await expect.poll(() => requests).toBe(1);
+    await page.getByRole('button', {name: 'Close project files'}).click();
+    await projects.click();
+  } finally {
+    release();
+  }
+
+  const filter = page.getByLabel('Find documents or sources');
+  await filter.fill('SECOND-INTERVIEW');
+  const second = page.locator('[data-document="xmlfiles/second-interview.xml"]');
+  await second.click();
+  await expect(second).toHaveAttribute('aria-current', 'true');
+  await expect(filter).toHaveValue('SECOND-INTERVIEW');
+  await page.getByRole('button', {name: 'Documents', exact: true}).press('ArrowRight');
+  await expect(page.getByRole('button', {name: 'Sources', exact: true})).toBeFocused();
+  await expect(page.locator('#source-list [data-source]')).toHaveCount(1);
+  await page.getByRole('button', {name: 'Clear filter'}).click();
+  await expect(filter).toBeFocused();
+
+  await page.locator('.source-group summary').filter({hasText: 'Project settings'}).click();
+  const settings = page.locator('[data-source="Resources/settings.xml"]');
+  await expect(settings).toBeHidden();
+  await filter.fill('project settings');
+  await expect(settings).toBeVisible();
+  await settings.click();
+  await expect(settings).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.source-inspector')).toContainText('Resources/settings.xml');
+  await expect(page.locator('#save-state')).toContainText('R1');
+  expect(requests).toBe(1);
+});
+
 test('the stage tool chooser keeps the active tool visible after a keyboard selection',async({page,practiceUrl})=>{
   await page.goto(practiceUrl);
   await page.getByRole('button',{name:'Tools',exact:true}).click();
@@ -72,6 +118,10 @@ test('small studio keeps activity navigation and saved workspace choice usable',
   await expect(page.locator('.reading-settings')).not.toHaveAttribute('open','');
   await dialog.getByRole('radio',{name:'Transcript with library and tools'}).check();
   await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button',{name:'Workspace settings'})).toBeFocused();
+  await page.keyboard.press('Enter');
+  await dialog.getByRole('button',{name:'Close workspace settings'}).click();
   await expect(dialog).toBeHidden();
   await expect(page.getByRole('button',{name:'Workspace settings'})).toBeFocused();
   await page.getByRole('button',{name:'Dark appearance'}).click();

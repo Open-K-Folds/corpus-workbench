@@ -1,3 +1,4 @@
+import {h} from './effect-view';
 // Self-hosted Google Material Symbols. The subset and license are documented in assets/README.md.
 export const symbols = [
   'add', 'adjust', 'arrow_back', 'arrow_forward', 'attach_file',
@@ -14,5 +15,5 @@ export const symbols = [
 ] as const;
 export type SymbolName = typeof symbols[number];
 export function icon(name: SymbolName) {
-  return `<span class="material-symbol" aria-hidden="true">${name}</span>`;
+  return h.span.class('material-symbol').attrs({'aria-hidden': 'true'}).children(name);
 }

@@ -1,8 +1,8 @@
+import {group, h, renderInto, viewFragment} from './effect-view';
 import {preparePassage} from '../../desktop/coanalysis-prompt.mjs';
 import {draftContext} from './api';
 import type {Document,Operation,View} from './contracts';
 import {desktop} from './desktop';
-import {esc} from './dom';
 import {icon} from './icons';
 import {findCandidates,lensDescriptions,makePassage,type Passage,type TrainingLens} from './training-candidates';
 import {exportTraining,trainingCollections,trainingCounts,trainingOperation,type TrainingAssistance,type TrainingRecord} from './training-store';
@@ -36,7 +36,7 @@ export class TrainingPanel {
   private matchedWordsOnly = false;
   private candidates:Passage[] = [];
   private candidateIndex = 0;
-  private assistance?:TrainingAssistance;
+  private assistance: TrainingAssistance | undefined;
   constructor(private actions:Actions,private comparison:HTMLElement) {
     this.node.id='training-panel';
     this.node.className='training-panel';
@@ -80,9 +80,25 @@ export class TrainingPanel {
   private draw() {
     this.stopAudio();
     this.node.dataset.mode=this.mode;this.node.dataset.limit=String(this.mode==='label'?1:this.limit);
-    this.node.innerHTML=`<div class="training-heading"><h2>${icon('library_books')}Training collections</h2>
-      <nav aria-label="Training workspace"><button type="button" data-page="collect" aria-pressed="${!this.library}">Collect</button>
-      <button type="button" data-page="saved" aria-pressed="${this.library}">Saved collections</button></nav></div><div data-body></div><p data-status role="status"></p>`;
+    renderInto(this.node,
+      h.div
+      .class('training-heading')
+      .children(
+        h.h2(icon('library_books'), 'Training collections'),
+        h.nav
+          .attrs({'aria-label': 'Training workspace'})
+          .children(
+            h.button
+              .attrs({type: 'button', 'data-page': 'collect', 'aria-pressed': String(!this.library)})
+              .children('Collect'),
+            h.button
+              .attrs({type: 'button', 'data-page': 'saved', 'aria-pressed': String(this.library)})
+              .children('Saved collections'),
+          ),
+      ),
+      h.div.attrs({'data-body': ''}),
+      h.p.attrs({'data-status': '', role: 'status'}),
+    );
     this.comparison.replaceChildren();
     this.node.querySelectorAll<HTMLButtonElement>('[data-page]').forEach(b=>b.onclick=()=>{
       if(this.dirty){this.status('Save or discard this review before opening saved collections.');return;}
@@ -92,14 +108,33 @@ export class TrainingPanel {
     const body=this.node.querySelector<HTMLElement>('[data-body]')!;
     if(this.library){this.drawLibrary(body);return;}
     if(!this.seed){
-      body.innerHTML='<p class="training-empty">Select words within one transcript passage to label them or compare them with another passage.</p><button type="button" class="secondary">Choose words in transcript</button>';
+      renderInto(body,
+        h.p
+        .class('training-empty')
+        .children(
+          'Select words within one transcript passage to label them or compare them with another passage.',
+        ),
+        h.button.class('secondary').attrs({type: 'button'}).children('Choose words in transcript'),
+      );
       body.querySelector('button')!.onclick=this.actions.read;
       return;
     }
     const seed=sourceCard(this.seed,'Selected passage',this.view);seed.dataset.trainingSeed='';body.append(seed);
     const controls=document.createElement('fieldset');controls.className='training-modes';
-    controls.innerHTML='<legend>Collect an example</legend>'+Object.entries(modes).map(([id,label])=>
-      `<label><input type="radio" name="training-mode" value="${id}" ${this.mode===id?'checked':''}>${label}</label>`).join('');
+    renderInto(controls,
+      h.legend('Collect an example'),
+      Object.entries(modes).map(([id, label]) =>
+        h.label(
+          h.input.attrs({
+            type: 'radio',
+            name: 'training-mode',
+            value: id,
+            checked: this.mode === id ? '' : undefined,
+          }),
+          label,
+        ),
+      ),
+    );
     body.append(controls);
     controls.onchange=e=>{
       this.mode=(e.target as HTMLInputElement).value as Mode;this.query='';this.assistance=undefined;this.rerank();this.draw();
@@ -114,12 +149,38 @@ export class TrainingPanel {
     this.drawReview(body,candidate);
   }
   private drawComparison(candidate:Passage) {
-    this.comparison.innerHTML=`<div class="training-comparison-inner"><div class="training-strip-meta"><strong>${icon('link')} Comparison ${this.candidateIndex+1} of ${this.candidates.length}</strong>
-      <span>${esc(candidate.title)} · ${esc(candidate.utterance??'Unsegmented passage')}</span></div>
-      <blockquote>${esc(candidate.quote)}</blockquote>
-      <div class="training-strip-actions"><button type="button" class="secondary" aria-label="Previous comparison" data-move="-1">${icon('arrow_back')}</button>
-      <button type="button" class="secondary" aria-label="Next comparison" data-move="1">${icon('arrow_forward')}</button>
-      <button type="button" data-review>Review example</button></div></div>`;
+    renderInto(this.comparison,
+      h.div
+      .class('training-comparison-inner')
+      .children(
+        h.div
+          .class('training-strip-meta')
+          .children(
+            h.strong(
+              icon('link'),
+              ' Comparison ',
+              String(this.candidateIndex + 1),
+              ' of ',
+              String(this.candidates.length),
+            ),
+            h.span(candidate.title, ' · ', candidate.utterance ?? 'Unsegmented passage'),
+          ),
+        h.blockquote(candidate.quote),
+        h.div
+          .class('training-strip-actions')
+          .children(
+            h.button
+              .class('secondary')
+              .attrs({type: 'button', 'aria-label': 'Previous comparison', 'data-move': '-1'})
+              .children(icon('arrow_back')),
+            h.button
+              .class('secondary')
+              .attrs({type: 'button', 'aria-label': 'Next comparison', 'data-move': '1'})
+              .children(icon('arrow_forward')),
+            h.button.attrs({type: 'button', 'data-review': ''}).children('Review example'),
+          ),
+      ),
+    );
     this.comparison.querySelectorAll<HTMLButtonElement>('[data-move]').forEach(button=>{
       const next=this.candidateIndex+Number(button.dataset.move);
       button.disabled=next<0||next>=this.candidates.length;
@@ -136,11 +197,47 @@ export class TrainingPanel {
   }
   private drawDiscovery(body:HTMLElement,candidate:Passage|null) {
     const section=document.createElement('section');section.className='training-discovery';
-    section.innerHTML=`<details class="training-search" ${!candidate || this.query?'open':''}><summary>Refine search</summary>
-      <p class="muted">${esc(lensDescriptions[this.mode as TrainingLens])}</p>
-      <search><form aria-label="Find a comparison" data-dirty="false"><label>Find words in the corpus<input type="search" name="query" value="${esc(this.query)}" autocomplete="off"></label>
-      <label>Search result span<select name="manual-scope"><option value="passage">Surrounding passage</option><option value="matched" ${this.matchedWordsOnly?'selected':''}>Matched words only</option></select></label>
-      <label>Candidate limit<select name="limit">${[3,6,12].map(n=>`<option ${n===this.limit?'selected':''}>${n}</option>`).join('')}</select></label><button type="submit" class="secondary">${icon('search')}Find passages</button></form></search></details>`;
+    renderInto(section,
+      h.details
+      .class('training-search')
+      .attrs({open: !candidate || this.query ? '' : undefined})
+      .children(
+        h.summary('Refine search'),
+        h.p.class('muted').children(lensDescriptions[this.mode as TrainingLens]),
+        h.search(
+          h.form
+            .attrs({'aria-label': 'Find a comparison', 'data-dirty': 'false'})
+            .children(
+              h.label(
+                'Find words in the corpus',
+                h.input.attrs({type: 'search', name: 'query', value: this.query, autocomplete: 'off'}),
+              ),
+              h.label(
+                'Search result span',
+                h.select
+                  .attrs({name: 'manual-scope'})
+                  .children(
+                    h.option.attrs({value: 'passage'}).children('Surrounding passage'),
+                    h.option
+                      .attrs({value: 'matched', selected: this.matchedWordsOnly ? '' : undefined})
+                      .children('Matched words only'),
+                  ),
+              ),
+              h.label(
+                'Candidate limit',
+                h.select
+                  .attrs({name: 'limit'})
+                  .children(
+                    [3, 6, 12].map((n) =>
+                      h.option.attrs({selected: n === this.limit ? '' : undefined}).children(String(n)),
+                    ),
+                  ),
+              ),
+              h.button.class('secondary').attrs({type: 'submit'}).children(icon('search'), 'Find passages'),
+            ),
+        ),
+      ),
+    );
     body.append(section);
     section.querySelector('form')!.onsubmit=e=>{
       e.preventDefault();const data=new FormData(e.currentTarget as HTMLFormElement);
@@ -148,7 +245,14 @@ export class TrainingPanel {
       this.matchedWordsOnly=data.get('manual-scope')==='matched';this.assistance=undefined;this.rerank();this.draw();
       (this.node.querySelector<HTMLSelectElement>('[name="candidate"]') ?? this.node.querySelector<HTMLInputElement>('[name="query"]'))?.focus();
     };
-    if(!candidate){section.insertAdjacentHTML('afterbegin','<p role="status" class="training-empty">No other passage matched. Change the search words or clear the search.</p>');return;}
+    if(!candidate){section.prepend(
+      viewFragment(
+        h.p
+          .class('training-empty')
+          .attrs({role: 'status'})
+          .children('No other passage matched. Change the search words or clear the search.'),
+      ),
+    );return;}
     const label=document.createElement('label');label.textContent='Comparison passage';
     const select=document.createElement('select');select.name='candidate';
     for(const [index,p] of this.candidates.entries()){
@@ -172,14 +276,47 @@ export class TrainingPanel {
     const pair=this.mode!=='label';
     const savedLabels=[...this.collections.values()].flat().filter(record=>record.kind===(pair?'pair':'classification')).map(record=>record.label);
     const labels=new Set([...(pair?decisions:['Question','Request','Reported experience','Code-switch','Transcription uncertain']),...savedLabels]);
-    form.innerHTML=`<h3 id="training-review-heading">Your review</h3>
-      <label>Collection name<input name="collection" required maxlength="120" list="training-names" value="${esc(this.collection)}" placeholder="e.g. Community notices"></label>
-      <datalist id="training-names">${[...this.collections.keys()].map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>
-      <label>${pair?'Relationship':'Passage label'}<input name="label" required maxlength="160" list="training-labels" placeholder="${pair?'Choose or enter a relationship':'e.g. Request for clarification'}"></label>
-      <datalist id="training-labels">${[...labels].map(n=>`<option value="${esc(n)}"></option>`).join('')}</datalist>
-      <label>Review note (optional)<textarea name="note" rows="2"></textarea></label>
-      <div data-assistant></div><div class="training-actions"><button type="submit" data-training-save>${icon('check')}Save reviewed example</button>
-      <button type="button" class="secondary" data-discard hidden>Discard review</button></div>`;
+    renderInto(form,
+      h.h3.id('training-review-heading').children('Your review'),
+      h.label(
+        'Collection name',
+        h.input.attrs({
+          name: 'collection',
+          required: '',
+          maxlength: '120',
+          list: 'training-names',
+          value: this.collection,
+          placeholder: 'e.g. Community notices',
+        }),
+      ),
+      h.datalist
+      .id('training-names')
+      .children([...this.collections.keys()].map((n) => h.option.attrs({value: n}))),
+      h.label(
+        pair ? 'Relationship' : 'Passage label',
+        h.input.attrs({
+          name: 'label',
+          required: '',
+          maxlength: '160',
+          list: 'training-labels',
+          placeholder: pair ? 'Choose or enter a relationship' : 'e.g. Request for clarification',
+        }),
+      ),
+      h.datalist.id('training-labels').children([...labels].map((n) => h.option.attrs({value: n}))),
+      h.label('Review note (optional)', h.textarea.attrs({name: 'note', rows: '2'})),
+      h.div.attrs({'data-assistant': ''}),
+      h.div
+      .class('training-actions')
+      .children(
+        h.button
+          .attrs({type: 'submit', 'data-training-save': ''})
+          .children(icon('check'), 'Save reviewed example'),
+        h.button
+          .class('secondary')
+          .attrs({type: 'button', 'data-discard': '', hidden: ''})
+          .children('Discard review'),
+      ),
+    );
     body.append(form);
     const mark=()=>{
       form.dataset.dirty='true';form.querySelector<HTMLElement>('[data-discard]')!.hidden=false;
@@ -216,12 +353,27 @@ export class TrainingPanel {
       ...(candidate && {comparison:{document:candidate.document,token_ids:candidate.tokenIds}})};
     let prompt:string;
     try {prompt=preparePassage(this.view,request).prompt;}catch{return;}
-    host.innerHTML=`<details class="training-assistant"><summary>${icon('auto_awesome')}Model second reading</summary>
-      <details><summary>Inspect the model prompt</summary><pre>${esc(prompt)}</pre></details>
-      ${desktop?.askLocalModel?'<button class="secondary" type="button" data-ask>Ask local model</button><small>Uses the model at 127.0.0.1:8080.</small>':'<small>You can copy the prompt into your local model.</small>'}
-      <label>Model name<input name="assistant-model" autocomplete="off"></label>
-      <label>Model proposal<textarea name="assistant-reply" rows="3"></textarea></label>
-      <button type="button" class="secondary" data-attach>Attach model reading</button><p role="status" data-model-status></p></details>`;
+    renderInto(host,
+      h.details
+      .class('training-assistant')
+      .children(
+        h.summary(icon('auto_awesome'), 'Model second reading'),
+        h.details(h.summary('Inspect the model prompt'), h.pre(prompt)),
+        desktop?.askLocalModel
+          ? group(
+              h.button.class('secondary').attrs({type: 'button', 'data-ask': ''}).children('Ask local model'),
+              h.small('Uses the model at 127.0.0.1:8080.'),
+            )
+          : h.small('You can copy the prompt into your local model.'),
+        h.label('Model name', h.input.attrs({name: 'assistant-model', autocomplete: 'off'})),
+        h.label('Model proposal', h.textarea.attrs({name: 'assistant-reply', rows: '3'})),
+        h.button
+          .class('secondary')
+          .attrs({type: 'button', 'data-attach': ''})
+          .children('Attach model reading'),
+        h.p.attrs({role: 'status', 'data-model-status': ''}),
+      ),
+    );
     const model=host.querySelector<HTMLInputElement>('[name="assistant-model"]')!,reply=host.querySelector<HTMLTextAreaElement>('[name="assistant-reply"]')!;
     const feedback=host.querySelector('[data-model-status]')!;
     const attach=host.querySelector<HTMLButtonElement>('[data-attach]')!,ask=host.querySelector<HTMLButtonElement>('[data-ask]');
@@ -239,7 +391,20 @@ export class TrainingPanel {
   }
   private drawLibrary(body:HTMLElement) {
     if(!this.collections.size){
-      body.innerHTML=`<div class="training-library-empty"><h3>No reviewed examples yet</h3><p>${this.seed?'Label your selected passage or compare it with another passage to start a collection.':'Choose a passage, give it a label or compare it with another passage, then save it to a collection.'}</p><button type="button" class="secondary">${icon('menu_book')}${this.seed?'Use selected passage':'Choose a passage'}</button></div>`;
+      renderInto(body,
+        h.div.class('training-library-empty').children(
+          h.h3('No reviewed examples yet'),
+          h.p(
+            this.seed
+              ? 'Label your selected passage or compare it with another passage to start a collection.'
+              : 'Choose a passage, give it a label or compare it with another passage, then save it to a collection.',
+          ),
+          h.button
+            .class('secondary')
+            .attrs({type: 'button'})
+            .children(icon('menu_book'), this.seed ? 'Use selected passage' : 'Choose a passage'),
+        ),
+      );
       body.querySelector('button')!.onclick=()=>{
         this.library=false;this.draw();
         if(this.seed)this.node.querySelector<HTMLInputElement>('[name="training-mode"]:checked')?.focus();
@@ -253,17 +418,83 @@ export class TrainingPanel {
     const labels=new Map<string,number>();
     for(const record of rows)labels.set(record.label,(labels.get(record.label)??0)+1);
     if(!labels.has(this.libraryLabel))this.libraryLabel='';
-    body.innerHTML=`<div class="training-library-filters"><label>Saved collection<select name="saved-collection">${[...this.collections.keys()].map(n=>`<option ${n===this.libraryName?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
-      <label>Filter by label<select name="saved-label"><option value="">All labels (${counts.examples})</option>
-        ${[...labels.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([name,n])=>`<option value="${esc(name)}">${esc(name)} (${n})</option>`).join('')}
-      </select></label></div>
-      <details class="training-collection-info"><summary>Collection details</summary>
-        <p class="training-counts">${counts.examples} reviewed · ${counts.utterances} identified utterance${counts.utterances===1?'':'s'} · ${counts.speakers} document-scoped speaker ID${counts.speakers===1?'':'s'}</p>
-        ${counts.unknownSpeakers||counts.unknownUtterances?`<small>${counts.unknownSpeakers} without speaker attribution · ${counts.unknownUtterances} unsegmented passage${counts.unknownUtterances===1?'':'s'}</small>`:''}
-        ${this.view.snapshot.config.rights?`<p class="muted"><strong>Corpus use</strong><br>${esc(this.view.snapshot.config.rights)}</p>`:''}
-      </details>
-      <div class="training-export"><button type="button" class="secondary" data-export aria-describedby="training-export-scope">${icon('download')}Export reviewed JSONL</button><small id="training-export-scope">Full collection · ${counts.examples} example${counts.examples===1?'':'s'}</small></div>
-      <section class="training-records" aria-labelledby="training-records-heading"><h3 id="training-records-heading">Reviewed examples</h3><p data-result-count role="status"></p><div data-records></div></section>`;
+    renderInto(body,
+      h.div.class('training-library-filters').children(
+        h.label(
+          'Saved collection',
+          h.select
+            .attrs({name: 'saved-collection'})
+            .children(
+              [...this.collections.keys()].map((n) =>
+                h.option.attrs({selected: n === this.libraryName ? '' : undefined}).children(n),
+              ),
+            ),
+        ),
+        h.label(
+          'Filter by label',
+          h.select.attrs({name: 'saved-label'}).children(
+            h.option.attrs({value: ''}).children('All labels (', String(counts.examples), ')'),
+            [...labels.entries()]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([name, n]) => h.option.attrs({value: name}).children(name, ' (', String(n), ')')),
+          ),
+        ),
+      ),
+      h.details
+      .class('training-collection-info')
+      .children(
+        h.summary('Collection details'),
+        h.p
+          .class('training-counts')
+          .children(
+            String(counts.examples),
+            ' reviewed · ',
+            String(counts.utterances),
+            ' identified utterance',
+            counts.utterances === 1 ? '' : 's',
+            ' · ',
+            String(counts.speakers),
+            ' document-scoped speaker ID',
+            counts.speakers === 1 ? '' : 's',
+          ),
+        counts.unknownSpeakers || counts.unknownUtterances
+          ? h.small(
+              String(counts.unknownSpeakers),
+              ' without speaker attribution · ',
+              String(counts.unknownUtterances),
+              ' unsegmented passage',
+              counts.unknownUtterances === 1 ? '' : 's',
+            )
+          : '',
+        this.view.snapshot.config.rights
+          ? h.p.class('muted').children(h.strong('Corpus use'), h.br, this.view.snapshot.config.rights)
+          : '',
+      ),
+      h.div
+      .class('training-export')
+      .children(
+        h.button
+          .class('secondary')
+          .attrs({type: 'button', 'data-export': '', 'aria-describedby': 'training-export-scope'})
+          .children(icon('download'), 'Export reviewed JSONL'),
+        h.small
+          .id('training-export-scope')
+          .children(
+            'Full collection · ',
+            String(counts.examples),
+            ' example',
+            counts.examples === 1 ? '' : 's',
+          ),
+      ),
+      h.section
+      .class('training-records')
+      .attrs({'aria-labelledby': 'training-records-heading'})
+      .children(
+        h.h3.id('training-records-heading').children('Reviewed examples'),
+        h.p.attrs({'data-result-count': '', role: 'status'}),
+        h.div.attrs({'data-records': ''}),
+      ),
+    );
     const select=body.querySelector('select')!;
     select.onchange=()=>{this.libraryName=select.value;this.libraryLabel='';this.draw();this.node.querySelector<HTMLSelectElement>('[name="saved-collection"]')?.focus();};
     body.querySelector<HTMLButtonElement>('[data-export]')!.onclick=()=>{
@@ -284,8 +515,26 @@ export class TrainingPanel {
   }
   private appendRecord(body:HTMLElement,record:TrainingRecord) {
     const row=document.createElement('details');row.className='training-record';
-    const preview=(passage:Passage)=>`<span class="training-record-excerpt"><small>${esc(passage.title||passage.document)}${passage.utterance?' · '+esc(passage.utterance):''}</small><span class="training-record-quote">${esc(passage.quote)}</span></span>`;
-    row.innerHTML=`<summary><span class="training-record-label"><strong>${esc(record.label)}</strong><small>${record.candidate?'Pair':'Passage'}</small>${icon('expand_more')}</span><span class="training-record-excerpts">${preview(record.seed)}${record.candidate?preview(record.candidate):''}</span></summary>`;
+    const preview=(passage:Passage)=>h.span
+      .class('training-record-excerpt')
+      .children(
+        h.small(passage.title || passage.document, passage.utterance ? ' · ' + passage.utterance : ''),
+        h.span.class('training-record-quote').children(passage.quote),
+      );
+    renderInto(row,
+      h.summary(
+        h.span
+          .class('training-record-label')
+          .children(
+            h.strong(record.label),
+            h.small(record.candidate ? 'Pair' : 'Passage'),
+            icon('expand_more'),
+          ),
+        h.span
+          .class('training-record-excerpts')
+          .children(preview(record.seed), record.candidate ? preview(record.candidate) : ''),
+      ),
+    );
     body.append(row);
     row.ontoggle=()=>{
       if(!row.open){row.querySelectorAll('.training-source').forEach(n=>n.dispatchEvent(new Event('training-stop')));return;}
@@ -294,7 +543,11 @@ export class TrainingPanel {
       if(record.candidate)row.append(sourceCard(record.candidate,'Comparison passage',this.view));
       const note=document.createElement('p');note.textContent=record.note;row.append(note);
       const provenance=document.createElement('small');provenance.textContent=`${record.reviewer} · ${record.discovery} · R${record.seed.revision}`;row.append(provenance);
-      if(record.assistance){const model=document.createElement('details');model.innerHTML='<summary>Model second reading</summary><p></p><pre></pre>';
+      if(record.assistance){const model=document.createElement('details');renderInto(model,
+        h.summary('Model second reading'),
+        h.p,
+        h.pre,
+      );
         model.querySelector('p')!.textContent=record.assistance.model+' · '+record.assistance.reply;
         model.querySelector('pre')!.textContent=record.assistance.prompt;row.append(model);}
     };

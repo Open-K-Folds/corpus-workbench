@@ -14,7 +14,7 @@ export interface TrainingInput {
   label: string;
   note?: string;
   discovery?: string;
-  assistance?: TrainingAssistance;
+  assistance?: TrainingAssistance | undefined;
 }
 
 export interface TrainingRecord {

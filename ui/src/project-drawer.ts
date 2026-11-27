@@ -1,23 +1,54 @@
+import type {WorkspaceSummary} from './workbench-view';
+import {h} from './effect-view';
 import {icon} from './icons';
+import {buttonGroup} from './controls';
+import type {FileNavigation, ProjectFileSnapshot, mountProjectFiles} from './project-files';
 import './project-drawer.css';
 
-export function projectDrawerBody() {
-  return `<div class="project-drawer-body">
-    <div class="project-identity">
-      <span class="project-mark">${icon('library_books')}</span>
-      <div><h2 id="drawer-project-title"></h2><span id="package-count"></span></div>
-    </div>
-    <div id="local-project-actions"></div>
-    <nav class="navigation-modes project-tabs" aria-label="Corpus sections">
-      <button type="button" id="navigate-documents" aria-controls="document-list" aria-pressed="true">${icon('book_2')}Documents</button>
-      <button type="button" id="navigate-sources" aria-controls="source-list" aria-pressed="false">${icon('folder_open')}Sources</button>
-    </nav>
-    <div class="project-filter">
-      <label class="sr-only" for="navigation-query">Find documents or sources</label>${icon('search')}
-      <input id="navigation-query" type="search" autocomplete="off" placeholder="Filter files">
-      <button type="button" id="clear-navigation" aria-label="Clear filter" title="Clear filter" hidden>${icon('close')}</button>
-    </div>
-    <div id="document-list"></div><div id="source-list" hidden></div>
-    <details class="project-preservation"><summary>${icon('fact_check')}Package preservation${icon('expand_more')}</summary><div id="package-report"></div></details>
-  </div>`;
+export function projectDrawerBody(summary: WorkspaceSummary) {
+  return h.div
+    .class('project-drawer-body')
+    .children(
+      h.div
+        .class('project-identity')
+        .children(
+          h.span.class('project-mark').children(icon('library_books')),
+          h.div(h.h2.id('drawer-project-title').children(summary.project), h.span.id('package-count').children(String(summary.documents), summary.documents === 1 ? ' document' : ' documents')),
+        ),
+      h.div.id('local-project-actions'),
+      h.div.id('project-files'),
+      h.details
+        .class('project-preservation')
+        .children(
+          h.summary(icon('fact_check'), 'Package preservation', icon('expand_more')),
+          h.div.id('package-report').children(h.p(String(summary.files), ' preserved files'), h.p(summary.indexStatus), h.p(summary.rights), h.p('Unknown structures: ', summary.unknown)),
+        ),
+    );
+}
+
+export function bindProjectFiles(container: HTMLElement, signal: AbortSignal,
+  snapshot: () => ProjectFileSnapshot, onNavigate: (event: FileNavigation) => void) {
+  let update: ReturnType<typeof mountProjectFiles> | undefined;
+  let started = false;
+  const refresh = () => update?.(snapshot());
+
+  async function open() {
+    if (started) return;
+    started = true;
+    container.setAttribute('aria-busy', 'true');
+    try {
+      const {mountProjectFiles} = await import('./project-files');
+      if (signal.aborted) return;
+      update = mountProjectFiles(container, signal, snapshot(), onNavigate);
+      buttonGroup(container.querySelector('nav')!);
+    } catch {
+      if (!signal.aborted) {
+        container.setAttribute('role', 'alert');
+        container.textContent = 'Project files could not load. Refresh the workbench to try again.';
+      }
+    } finally {
+      container.removeAttribute('aria-busy');
+    }
+  }
+  return {open, refresh};
 }

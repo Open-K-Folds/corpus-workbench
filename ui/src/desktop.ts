@@ -1,6 +1,6 @@
-import {esc} from './dom';
+import {h, renderInto} from './effect-view';
 import {icon} from './icons';
-import {windowBar} from './studio-shell';
+import {mountLauncher, type LauncherAction} from './desktop-launcher';
 import {initializeNativeDrafts,nativeDraftsReady} from './draft-storage';
 import './desktop.css';
 import {openPreparation,type PreparationBridge} from './preparation';
@@ -52,32 +52,41 @@ export const desktop=window.workbenchDesktop;
 let latest:DesktopState|null=null;
 export const desktopProjectKey=()=>latest?.project?.id;
 
-export function desktopScreen(host:HTMLElement,state:DesktopState){
-  latest=state;
+let launcher: ReturnType<typeof mountLauncher> | undefined;
+let retryRecovery: (() => Promise<void>) | undefined;
+
+async function launcherAction(action: LauncherAction) {
+  switch (action._tag) {
+    case 'Prepare': return openPreparation(desktop!);
+    case 'Import': return desktop!.importPackage();
+    case 'Open': return desktop!.chooseOpen();
+    case 'Demo': return desktop!.createDemo();
+    case 'OpenRecent': return desktop!.openRecent(action.id);
+    case 'Retry': return retryRecovery ? retryRecovery() : desktop!.retry();
+  }
+}
+
+function desktopScreen(host: HTMLElement, state: DesktopState, recovery?: () => Promise<void>) {
+  latest = state;
+  retryRecovery = recovery;
+  const data = {...state, recovery: !!recovery};
+  if (launcher && !launcher.signal.aborted) {
+    launcher.update(data);
+    return;
+  }
   document.documentElement.classList.add('desktop-app');
-  let theme = 'dark';
+  let theme: 'dark'|'light' = 'dark';
   try { if (localStorage.getItem('wb-theme') === 'light') theme = 'light'; } catch { /* Storage is optional. */ }
   document.documentElement.dataset.theme = theme;
-  desktop?.reportAppearance(document.documentElement.dataset.theme==='dark'?'dark':'light');
-  const busy=state.status==='loading';
-  const disabled = busy ? 'disabled' : '';
-  host.innerHTML = `${windowBar(false)}<main class="desktop-welcome">
-    <h1 class="welcome-heading">Open a project</h1>
-    <p class="welcome-intro">Choose your source materials or return to a saved workbench.</p>
-    ${state.recent.length?`<section class="welcome-recent"><h2>Recent projects</h2>${recentButtons(state,state.recent.slice(0,3))}${state.recent.length>3?`<details><summary>Show ${state.recent.length-3} more</summary>${recentButtons(state,state.recent.slice(3))}</details>`:''}</section>`:''}
-    <div class="welcome-actions">
-      <button id="desktop-prepare" ${disabled}>${icon('graphic_eq')}<span>Recording + transcript</span><small>Pair audio with UTF-8 text or Omnilingual JSON.</small></button>
-      <button id="desktop-import" class="secondary" ${disabled}>${icon('folder_open')}<span>Import TEITOK package</span><small>Create a working copy of a complete corpus folder.</small></button>
-      <button id="desktop-open" class="secondary" ${disabled}>${icon('history')}<span>Open existing workbench</span><small>Choose the folder containing your saved workbench.</small></button>
-      <button id="desktop-demo" class="secondary" ${disabled}>${icon('notes')}<span>Start a new practice copy</span><small>Try the workflow with generated text and a tone.</small></button>
-    </div>
-    <div id="desktop-status" role="status" class="${state.status==='error'?'notice error':'desktop-status'}">${busy?'Opening your corpus…':esc(state.error??'')}</div>
-    ${state.status==='error'?'<button id="desktop-retry" class="secondary">Try again</button>':''}
-    <footer><span>Version ${esc(state.version)}</span></footer>
-  </main>`;
-  bindActions(host);
+  desktop?.reportAppearance(theme);
+  launcher = mountLauncher(host, data, launcherAction);
 }
-function recentButtons(state:DesktopState,entries=state.recent){return entries.map(p=>`<button class="desktop-recent secondary" data-desktop-project="${esc(p.id)}" ${state.status==='loading'?'disabled':''}><strong>${esc(p.title)}</strong><span>${esc(p.project)}</span>${icon('chevron_right')}</button>`).join('')}
+function recentButtons(state:DesktopState,entries=state.recent){return entries.map((p) =>
+  h.button
+    .class('desktop-recent secondary')
+    .attrs({'data-desktop-project': p.id, disabled: state.status === 'loading' ? '' : undefined})
+    .children(h.strong(p.title), h.span(p.project), icon('chevron_right')),
+)}
 function bindActions(host:HTMLElement){
   const action=(selector:string,run:()=>Promise<unknown>)=>{const button=host.querySelector<HTMLButtonElement>(selector);if(button)button.onclick=()=>void run().catch(error=>{const status=document.getElementById('desktop-status')??document.getElementById('message');if(status){status.textContent=String(error);status.className='notice error'}})};
   action('#desktop-open',()=>desktop!.chooseOpen());action('#desktop-import',()=>desktop!.importPackage());action('#desktop-demo',()=>desktop!.createDemo());action('#desktop-retry',()=>desktop!.retry());
@@ -88,7 +97,19 @@ export function desktopNavigation(host:HTMLElement){
   if(!desktop||!latest)return;
   document.documentElement.classList.add('desktop-app');
   const region=document.createElement('section');region.className='desktop-project-switcher';region.setAttribute('aria-label','Local projects');
-  region.innerHTML=`<details><summary>${icon('folder_open')}<span>${esc(latest.project?.title??'Local projects')}</span>${icon('expand_more')}</summary><div class="desktop-project-actions"><button id="desktop-import" class="secondary">Import package</button><button id="desktop-open" class="secondary">Open workbench</button><button id="desktop-backup" class="secondary">Save authority backup</button></div>${recentButtons(latest)}</details>`;
+  renderInto(region,
+    h.details(
+      h.summary(icon('folder_open'), h.span(latest.project?.title ?? 'Local projects'), icon('expand_more')),
+      h.div
+        .class('desktop-project-actions')
+        .children(
+          h.button.id('desktop-import').class('secondary').children('Import package'),
+          h.button.id('desktop-open').class('secondary').children('Open workbench'),
+          h.button.id('desktop-backup').class('secondary').children('Save authority backup'),
+        ),
+      recentButtons(latest),
+    ),
+  );
   host.prepend(region);bindActions(region);
   const prepare=document.createElement('button');prepare.id='desktop-prepare';prepare.className='secondary';prepare.textContent='Recording + transcript';prepare.onclick=()=>openPreparation(desktop!);region.querySelector('.desktop-project-actions')!.prepend(prepare);
   region.querySelector<HTMLButtonElement>('#desktop-backup')!.onclick=async()=>{const status=document.getElementById('message')!;try{status.className='notice';status.textContent='Preparing a verified authority backup…';const result=await desktop.backup();status.textContent=result?.cancelled?'Backup cancelled.':'Verified authority backup saved.'}catch(error){status.className='notice error';status.textContent=String(error)}};
@@ -100,8 +121,7 @@ export async function initializeDesktop(host:HTMLElement,start:()=>Promise<void>
   const render=async(state:DesktopState)=>{latest=state;if(state.status==='ready'){if(booting)return;booting=true;try{
     if(!nativeDraftsReady())recoveryWarning=await initializeNativeDrafts();
     if(!nativeDraftsReady()){
-      desktopScreen(host,{...state,status:'error',error:recoveryWarning});
-      const retry=host.querySelector<HTMLButtonElement>('#desktop-retry');if(retry){retry.textContent='Retry draft recovery';retry.onclick=()=>void render(state)}
+      desktopScreen(host,{...state,status:'error',error:recoveryWarning}, () => render(state));
       return;
     }
     await start();if(recoveryWarning){const notice=host.querySelector<HTMLElement>('#message');if(notice){notice.textContent=recoveryWarning;notice.className='notice error'}}

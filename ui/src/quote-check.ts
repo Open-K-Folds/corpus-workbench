@@ -1,3 +1,4 @@
+import {h, renderInto} from './effect-view';
 import type {preparePassage} from '../../desktop/coanalysis-prompt.mjs';
 
 type Groups = ReturnType<typeof preparePassage>['groups'];
@@ -29,12 +30,14 @@ function anchorLabel(match: Match) {
 
 export function quoteCheck(groups: Groups): HTMLDetailsElement {
   const details = document.createElement('details');
-  details.innerHTML = `<summary>Check a quoted phrase</summary>
-    <label>Quoted phrase<textarea rows="2" spellcheck="false"></textarea></label>
-    <small>Enter complete tokens from the pinned passage. Keep their spacing, case and punctuation.</small>
-    <button type="button" class="secondary" disabled>Check quote</button>
-    <label hidden>Matching occurrence<select></select></label>
-    <p role="status"></p>`;
+  renderInto(details,
+    h.summary('Check a quoted phrase'),
+    h.label('Quoted phrase', h.textarea.attrs({rows: '2', spellcheck: 'false'})),
+    h.small('Enter complete tokens from the pinned passage. Keep their spacing, case and punctuation.'),
+    h.button.class('secondary').attrs({type: 'button', disabled: ''}).children('Check quote'),
+    h.label.attrs({hidden: ''}).children('Matching occurrence', h.select),
+    h.p.attrs({role: 'status'}),
+  );
   const input = details.querySelector('textarea')!, check = details.querySelector('button')!;
   const choices = details.querySelector('select')!, choose = choices.closest('label')!;
   const status = details.querySelector('p')!;

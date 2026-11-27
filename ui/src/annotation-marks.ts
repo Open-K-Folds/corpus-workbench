@@ -1,3 +1,4 @@
+import {h, renderInto} from './effect-view';
 import type {Document, Span} from './contracts';
 import {annotationDetail} from './annotation-detail';
 import {icon} from './icons';
@@ -22,8 +23,8 @@ export class AnnotationMarks {
   private observer:ResizeObserver;
   private events?:AbortController;
   private frame = 0;
-  private highlighted?:Highlight;
-  private activeHighlight?:Highlight;
+  private highlighted: Highlight | undefined;
+  private activeHighlight: Highlight | undefined;
   private bright:HTMLElement[]=[];
   constructor(private surface:HTMLElement, private pane:HTMLElement,
     private position:(card:HTMLElement,anchor:DOMRect)=>void, private inspect:(span:Span)=>void) {
@@ -35,11 +36,41 @@ export class AnnotationMarks {
     this.card.id='saved-annotation-detail';
     this.card.setAttribute('role','dialog');
     this.card.setAttribute('aria-labelledby','saved-mark-title');
-    this.card.innerHTML=`<header class="saved-detail-header"><span data-kind></span><button type="button" aria-label="Close annotation detail" data-close>${icon('close')}</button></header>
-      <div class="saved-detail-body" role="region" aria-label="Annotation text"><h3 id="saved-mark-title"></h3><blockquote dir="auto"></blockquote><p dir="auto" class="saved-mark-note"></p>
-      <small class="saved-mark-source"></small></div><footer><button type="button" data-inspect>Open in annotations ${icon('chevron_right')}</button>
-      <span class="saved-mark-switch"><button type="button" aria-label="Previous annotation here" data-prev>${icon('chevron_right')}</button>
-      <small class="saved-mark-index"></small><button type="button" aria-label="Next annotation here" data-next>${icon('chevron_right')}</button></span></footer>`;
+    renderInto(this.card,
+      h.header
+      .class('saved-detail-header')
+      .children(
+        h.span.attrs({'data-kind': ''}),
+        h.button
+          .attrs({type: 'button', 'aria-label': 'Close annotation detail', 'data-close': ''})
+          .children(icon('close')),
+      ),
+      h.div
+      .class('saved-detail-body')
+      .attrs({role: 'region', 'aria-label': 'Annotation text'})
+      .children(
+        h.h3.id('saved-mark-title'),
+        h.blockquote.attrs({dir: 'auto'}),
+        h.p.class('saved-mark-note').attrs({dir: 'auto'}),
+        h.small.class('saved-mark-source'),
+      ),
+      h.footer(
+        h.button
+          .attrs({type: 'button', 'data-inspect': ''})
+          .children('Open in annotations ', icon('chevron_right')),
+        h.span
+          .class('saved-mark-switch')
+          .children(
+            h.button
+              .attrs({type: 'button', 'aria-label': 'Previous annotation here', 'data-prev': ''})
+              .children(icon('chevron_right')),
+            h.small.class('saved-mark-index'),
+            h.button
+              .attrs({type: 'button', 'aria-label': 'Next annotation here', 'data-next': ''})
+              .children(icon('chevron_right')),
+          ),
+      ),
+    );
     this.card.querySelector<HTMLButtonElement>('[data-close]')!.onclick=()=>this.close(true);
     this.card.querySelector<HTMLButtonElement>('[data-inspect]')!.onclick=()=>{
       const span=this.open?.span;

@@ -1,3 +1,4 @@
+import {group, h, renderInto, viewFragment} from './effect-view';
 import type {View} from './contracts';
 import {MAX_ANALYSIS_BYTES,MAX_ANALYSIS_DURATION,MAX_DECODED_SAMPLES,type AudioAnalysis} from './audio-analysis';
 
@@ -26,8 +27,47 @@ export class AudioView {
   private reduced=matchMedia('(prefers-reduced-motion: reduce)');
   constructor(private panel:HTMLElement,private audio:HTMLAudioElement,private summary:HTMLElement){
     try{const saved=localStorage.getItem('wb-recording-view');if(modes.includes(saved as Mode))this.mode=saved as Mode}catch{/* Optional preference. */}
-    panel.querySelector('.recording-heading strong')!.insertAdjacentHTML('afterend',`<fieldset class="segmented-radio audio-views"><legend class="sr-only">Audio view</legend>${modes.map(mode=>`<label><input type="radio" name="audio-view" value="${mode}" aria-label="${mode[0].toUpperCase()+mode.slice(1)}"><span>${mode[0].toUpperCase()+mode.slice(1)}</span></label>`).join('')}</fieldset>`);
-    panel.querySelector('#recording-waveform')!.outerHTML='<div class="recording-visual"><canvas id="recording-waveform" aria-describedby="recording-analysis-caption recording-analysis-status"></canvas><div class="recording-frequency-axis" aria-hidden="true"></div><div class="recording-time-axis" aria-hidden="true"></div></div><div class="recording-analysis-info"><span id="recording-analysis-caption"></span><span id="recording-analysis-status" role="status"></span></div>';
+    panel.querySelector('.recording-heading strong')!.after(
+      viewFragment(
+        h.fieldset.class('segmented-radio audio-views').children(
+          h.legend.class('sr-only').children('Audio view'),
+          modes.map((mode) =>
+            h.label(
+              h.input.attrs({
+                type: 'radio',
+                name: 'audio-view',
+                value: mode,
+                'aria-label': mode[0].toUpperCase() + mode.slice(1),
+              }),
+              h.span(mode[0].toUpperCase() + mode.slice(1)),
+            ),
+          ),
+        ),
+      ),
+    );
+    panel
+      .querySelector('#recording-waveform')!
+      .replaceWith(
+        viewFragment(
+          group(
+            h.div
+              .class('recording-visual')
+              .children(
+                h.canvas
+                  .id('recording-waveform')
+                  .attrs({'aria-describedby': 'recording-analysis-caption recording-analysis-status'}),
+                h.div.class('recording-frequency-axis').attrs({'aria-hidden': 'true'}),
+                h.div.class('recording-time-axis').attrs({'aria-hidden': 'true'}),
+              ),
+            h.div
+              .class('recording-analysis-info')
+              .children(
+                h.span.id('recording-analysis-caption'),
+                h.span.id('recording-analysis-status').attrs({role: 'status'}),
+              ),
+          ),
+        ),
+      );
     this.canvas=panel.querySelector('canvas')!;this.status=panel.querySelector('#recording-analysis-status')!;this.caption=panel.querySelector('#recording-analysis-caption')!;this.axes=panel.querySelector('.recording-frequency-axis')!;this.ruler=panel.querySelector('.recording-time-axis')!;
     for(const input of panel.querySelectorAll<HTMLInputElement>('input[name=audio-view]')){input.checked=input.value===this.mode;input.onchange=()=>{if(!input.checked)return;this.mode=input.value as Mode;try{localStorage.setItem('wb-recording-view',this.mode)}catch{/* Optional preference. */}if(this.mode==='spectrum')void this.startLive();this.draw();this.animate()}}
     const seek=(value:number)=>{if(this.mode==='spectrum'||!this.available())return;audio.currentTime=Math.max(0,Math.min(audio.duration,value));this.draw()};
@@ -116,8 +156,20 @@ export class AudioView {
     if(this.labelKey===labelKey)return;this.labelKey=labelKey;
     this.caption.textContent=this.mode==='waveform'?'Amplitude · recording time':this.mode==='spectrogram'?'Sampled overview · log Hz · dBFS −90 to 0':'Live output · log Hz · FFT dB −90 to 0 · seek with player';
     const max=spectrum?Math.min(20000,(this.context?.sampleRate??48000)/2):a?.maxFrequency??8000,min=a?.minFrequency??20;
-    this.axes.hidden=this.mode==='waveform';this.axes.innerHTML=spectrum?'<span>0 dB</span><span>−90 dB</span>':`<span>${hz(max)} Hz</span><span>${hz(Math.sqrt(min*max))} Hz</span><span>${hz(min)} Hz</span>`;
-    this.ruler.innerHTML=spectrum?`<span>20 Hz</span><span>${hz(Math.sqrt(20*max))} Hz</span><span>${hz(max)} Hz</span>`:`<span>0 s</span><span>${available?seconds(this.audio.duration/2):'Recording time'}</span><span>${available?seconds(this.audio.duration):'—'}</span>`;
+    this.axes.hidden=this.mode==='waveform';renderInto(this.axes,
+      spectrum
+      ? group(h.span('0 dB'), h.span('−90 dB'))
+      : group(h.span(hz(max), ' Hz'), h.span(hz(Math.sqrt(min * max)), ' Hz'), h.span(hz(min), ' Hz')),
+    );
+    renderInto(this.ruler,
+      spectrum
+      ? group(h.span('20 Hz'), h.span(hz(Math.sqrt(20 * max)), ' Hz'), h.span(hz(max), ' Hz'))
+      : group(
+          h.span('0 s'),
+          h.span(available ? seconds(this.audio.duration / 2) : 'Recording time'),
+          h.span(available ? seconds(this.audio.duration) : '—'),
+        ),
+    );
   }
   draw(){
     this.labels();const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height)return;

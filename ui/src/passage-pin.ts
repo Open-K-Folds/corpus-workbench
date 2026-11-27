@@ -9,7 +9,7 @@ export class PassagePin {
   private painted: HTMLElement[] = [];
   private start = 0;
   private length = 0;
-  private cancelMove?: () => void;
+  private cancelMove: (() => void) | undefined;
 
   constructor(private surface: HTMLElement,
     private select: (words: HTMLElement[], showTools: boolean) => void,

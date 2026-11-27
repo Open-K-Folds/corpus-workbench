@@ -1,3 +1,4 @@
+import {h, renderInto} from './effect-view';
 import './training-gesture.css';
 
 export type TrainingLens = 'meaning' | 'wording' | 'contrast' | 'label';
@@ -18,8 +19,8 @@ type Point = {x:number; y:number};
 
 export class TrainingGesture {
   private first: {token:string; point:Point; when:number; passage:TrainingPassage} | null = null;
-  private stopPress?: () => void;
-  private chooser?: HTMLDialogElement;
+  private stopPress: (() => void) | undefined;
+  private chooser: HTMLDialogElement | undefined;
   private suppressUntil = 0;
   private held = false;
   get blocksSelection() {return this.held || performance.now() < this.suppressUntil}
@@ -120,13 +121,39 @@ export class TrainingGesture {
     const dialog=document.createElement('dialog');
     dialog.className='training-chooser';
     dialog.setAttribute('aria-label','Training lenses');
-    dialog.innerHTML=`<form method="dialog"><h2>Training lenses</h2>
-      <label>Lens<select name="lens">${lenses.map(([id,name])=>`<option value="${id}">${name}</option>`).join('')}</select></label>
-      <label data-reach>Search reach<select name="limit">${reachLevels.map(limit=>`<option value="${limit}">Up to ${limit} candidates</option>`).join('')}</select></label>
-      <p data-label hidden>Classify the selected passage.</p>
-      <p>Hold a word in your selection. Drag toward a lens. Drag farther for more candidates, or return to the start to cancel.</p>
-      <div><button value="cancel" type="submit" class="secondary">Cancel</button><button value="apply" type="submit">Use lens</button></div>
-    </form>`;
+    renderInto(dialog,
+      h.form
+      .attrs({method: 'dialog'})
+      .children(
+        h.h2('Training lenses'),
+        h.label(
+          'Lens',
+          h.select
+            .attrs({name: 'lens'})
+            .children(lenses.map(([id, name]) => h.option.attrs({value: id}).children(name))),
+        ),
+        h.label
+          .attrs({'data-reach': ''})
+          .children(
+            'Search reach',
+            h.select
+              .attrs({name: 'limit'})
+              .children(
+                reachLevels.map((limit) =>
+                  h.option.attrs({value: String(limit)}).children('Up to ', String(limit), ' candidates'),
+                ),
+              ),
+          ),
+        h.p.attrs({'data-label': '', hidden: ''}).children('Classify the selected passage.'),
+        h.p(
+          'Hold a word in your selection. Drag toward a lens. Drag farther for more candidates, or return to the start to cancel.',
+        ),
+        h.div(
+          h.button.class('secondary').attrs({value: 'cancel', type: 'submit'}).children('Cancel'),
+          h.button.attrs({value: 'apply', type: 'submit'}).children('Use lens'),
+        ),
+      ),
+    );
     const lens=dialog.querySelector<HTMLSelectElement>('[name=lens]')!;
     const reach=dialog.querySelector<HTMLSelectElement>('[name=limit]')!;
     lens.onchange=()=>{

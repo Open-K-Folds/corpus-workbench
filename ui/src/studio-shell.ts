@@ -1,51 +1,121 @@
+import {group, h} from './effect-view';
 import {icon, type SymbolName} from './icons';
 
-export function windowBar(projectOpen:boolean) {
-  return `<header class="window-bar workbench-header">
-    <div class="window-identity"><span class="window-mark">${icon('orbit')}</span>${projectOpen ? '<h1>Corpus Workbench</h1>' : '<span class="window-name">Corpus Workbench</span>'}</div>
-    ${projectOpen ? `<span class="window-divider" aria-hidden="true">/</span><button type="button" id="window-library" aria-controls="projects-pane" aria-expanded="false" title="Browse project files"><span id="project-title"></span><span class="sr-only"> — Browse project files</span>${icon('expand_more')}</button><span id="save-state" role="status"></span>` : ''}
-  </header>`;
+export function windowBar(projectOpen:boolean, project = '') {
+  return h.header
+    .class('window-bar workbench-header')
+    .children(
+      h.div
+        .class('window-identity')
+        .children(
+          h.span.class('window-mark').children(icon('orbit')),
+          projectOpen ? h.h1('Corpus Workbench') : h.span.class('window-name').children('Corpus Workbench'),
+        ),
+      projectOpen
+        ? group(
+            h.span.class('window-divider').attrs({'aria-hidden': 'true'}).children('/'),
+            h.button
+              .id('window-library')
+              .attrs({
+                type: 'button',
+                'aria-controls': 'projects-pane',
+                'aria-expanded': 'false',
+                title: 'Browse project files',
+              })
+              .children(
+                h.span.id('project-title').children(project),
+                h.span.class('sr-only').children(' — Browse project files'),
+                icon('expand_more'),
+              ),
+            h.span.id('save-state').attrs({role: 'status'}),
+          )
+        : '',
+    );
 }
 
-function railButton(id:string, symbol:SymbolName, label:string, attributes='') {
+function railButton(id:string, symbol:SymbolName, label:string, attributes: Record<string, string> = {}) {
   const visibleLabel = label.replace(/^Open (.)/, (_, first:string) => first.toUpperCase());
-  return `<button type="button" class="rail-button" id="${id}" aria-label="${label}" title="${label}" ${attributes}>${icon(symbol)}<span class="rail-label" aria-hidden="true">${visibleLabel}</span></button>`;
+  return h.button
+    .class('rail-button')
+    .id(id)
+    .attrs({type: 'button', 'aria-label': label, title: label, ...attributes})
+    .children(icon(symbol), h.span.class('rail-label').attrs({'aria-hidden': 'true'}).children(visibleLabel));
 }
 
 export function activityRail() {
-  return `<nav class="studio-rail" aria-label="Workspace tools">
-    <button type="button" class="rail-button" id="rail-toggle" aria-label="Expand sidebar" title="Expand sidebar" aria-expanded="false" aria-controls="rail-commands">
-      ${icon('left_panel_open')}<span class="rail-label" aria-hidden="true">Collapse sidebar</span>
-    </button>
-    <div id="rail-commands">
-      <div class="rail-destinations">
-        ${railButton('rail-reading','menu_book','Transcript','aria-pressed="true"')}
-        ${railButton('toggle-navigation','folder_open','Projects','aria-controls="projects-pane" aria-expanded="false"')}
-        ${railButton('rail-search','search','Open corpus search','data-inspect="search"')}
-        <hr>
-        ${railButton('rail-coanalysis','auto_awesome','Open co-analysis','data-inspect="coanalysis"')}
-        ${railButton('rail-training','library_books','Open training collections','data-inspect="training"')}
-        ${railButton('toggle-properties','tune','Tools','aria-controls="properties-pane" aria-expanded="false"')}
-        ${railButton('rail-review','fact_check','Open revision review','data-inspect="review"')}
-        ${railButton('rail-history','history','Open revision history','data-inspect="history"')}
-        <hr>
-        ${railButton('open-overview','graphic_eq','Research overview')}
-        ${railButton('open-research','link','Research handoff')}
-      </div>
-      <div class="rail-utilities">
-        ${railButton('export-package','download','Export complete package')}
-        ${railButton('toggle-theme','light_mode','Dark appearance','aria-pressed="true"')}
-        ${railButton('workspace-options','settings','Workspace settings','aria-haspopup="dialog"')}
-      </div>
-    </div>
-  </nav>`;
+  return h.nav
+    .class('studio-rail')
+    .attrs({'aria-label': 'Workspace tools'})
+    .children(
+      h.button
+        .class('rail-button')
+        .id('rail-toggle')
+        .attrs({
+          type: 'button',
+          'aria-label': 'Expand sidebar',
+          title: 'Expand sidebar',
+          'aria-expanded': 'false',
+          'aria-controls': 'rail-commands',
+        })
+        .children(
+          icon('left_panel_open'),
+          h.span.class('rail-label').attrs({'aria-hidden': 'true'}).children('Collapse sidebar'),
+        ),
+      h.div
+        .id('rail-commands')
+        .children(
+          h.div
+            .class('rail-destinations')
+            .children(
+              railButton('rail-reading', 'menu_book', 'Transcript', {'aria-pressed': 'true'}),
+              railButton(
+                'toggle-navigation',
+                'folder_open',
+                'Projects',
+                {'aria-controls': 'projects-pane', 'aria-expanded': 'false'},
+              ),
+              railButton('rail-search', 'search', 'Open corpus search', {'data-inspect': 'search'}),
+              h.hr,
+              railButton('rail-coanalysis', 'auto_awesome', 'Open co-analysis', {'data-inspect': 'coanalysis'}),
+              railButton(
+                'rail-training',
+                'library_books',
+                'Open training collections',
+                {'data-inspect': 'training'},
+              ),
+              railButton(
+                'toggle-properties',
+                'tune',
+                'Tools',
+                {'aria-controls': 'properties-pane', 'aria-expanded': 'false'},
+              ),
+              railButton('rail-review', 'fact_check', 'Open revision review', {'data-inspect': 'review'}),
+              railButton('rail-history', 'history', 'Open revision history', {'data-inspect': 'history'}),
+              h.hr,
+              railButton('open-overview', 'graphic_eq', 'Research overview'),
+              railButton('open-research', 'link', 'Research handoff'),
+            ),
+          h.div
+            .class('rail-utilities')
+            .children(
+              railButton('export-package', 'download', 'Export complete package'),
+              railButton('toggle-theme', 'light_mode', 'Dark appearance', {'aria-pressed': 'true'}),
+              railButton('workspace-options', 'settings', 'Workspace settings', {'aria-haspopup': 'dialog'}),
+            ),
+        ),
+    );
 }
 
 export function drawerClose(side:'navigation'|'properties') {
   const label=side==='navigation'?'Close project files':'Close inspector';
-  return `<button type="button" class="drawer-close pane-return" data-close-drawer="${side}" title="${label}">
-    ${icon('close')}<span class="sr-only drawer-desktop-name">${label}</span><span class="sr-only drawer-phone-name">Back to transcript</span>
-  </button>`;
+  return h.button
+    .class('drawer-close pane-return')
+    .attrs({type: 'button', 'data-close-drawer': side, title: label})
+    .children(
+      icon('close'),
+      h.span.class('sr-only drawer-desktop-name').children(label),
+      h.span.class('sr-only drawer-phone-name').children('Back to transcript'),
+    );
 }
 
 /** Pin labels beside a wide workspace. On smaller screens the same rail overlays it. */
@@ -95,16 +165,37 @@ export function bindActivityRail(app:HTMLElement, signal:AbortSignal) {
 }
 
 export function workspaceSettings() {
-  return `<dialog id="workspace-settings" class="studio-settings" aria-labelledby="workspace-settings-title">
-    <div class="studio-dialog-heading"><h2 id="workspace-settings-title">Workspace settings</h2><form method="dialog"><button class="secondary" aria-label="Close workspace settings">Close</button></form></div>
-    <fieldset><legend>Workspace layout</legend>
-      <label><input type="radio" name="studio-layout" value="stage"> Transcript stage</label>
-      <label><input type="radio" name="studio-layout" value="editing"> Transcript with library and tools</label>
-    </fieldset>
-    <h3>Keyboard</h3>
-    <dl><div><dt>Find in transcript</dt><dd><kbd>Ctrl / ⌘ K</kbd></dd></div><div><dt>Next match</dt><dd><kbd>F3</kbd></dd></div><div><dt>Inspector tools</dt><dd><kbd>Alt 1–9</kbd></dd></div></dl>
-    <footer>Interaction design inspired by Chuanqi Sun’s Spaceship IDE, MIT Media Lab. <span>2026</span></footer>
-  </dialog>`;
+  return h.dialog
+    .id('workspace-settings')
+    .class('studio-settings')
+    .attrs({'aria-labelledby': 'workspace-settings-title'})
+    .children(
+      h.div
+        .class('studio-dialog-heading')
+        .children(
+          h.h2.id('workspace-settings-title').children('Workspace settings'),
+          h.form
+            .attrs({method: 'dialog'})
+            .children(
+              h.button.class('secondary').attrs({'aria-label': 'Close workspace settings'}).children('Close'),
+            ),
+        ),
+      h.fieldset(
+        h.legend('Workspace layout'),
+        h.label(h.input.attrs({type: 'radio', name: 'studio-layout', value: 'stage'}), ' Transcript stage'),
+        h.label(
+          h.input.attrs({type: 'radio', name: 'studio-layout', value: 'editing'}),
+          ' Transcript with library and tools',
+        ),
+      ),
+      h.h3('Keyboard'),
+      h.dl(
+        h.div(h.dt('Find in transcript'), h.dd(h.kbd('Ctrl / ⌘ K'))),
+        h.div(h.dt('Next match'), h.dd(h.kbd('F3'))),
+        h.div(h.dt('Inspector tools'), h.dd(h.kbd('Alt 1–9'))),
+      ),
+      h.footer('Interaction design inspired by Chuanqi Sun’s Spaceship IDE, MIT Media Lab. ', h.span('2026')),
+    );
 }
 
 export function initialLayout(): 'stage'|'editing' {

@@ -1,6 +1,7 @@
+import {projectReading, type ReadingFrame, type ReadingBlock} from './reading-view';
+import {h, renderInto} from './effect-view';
 import {api,ApiError,commit,draftContext,loadView,makeCommand} from './api';
-import type {Command,Diff,Document,Revision,Span,Token,View} from './contracts';
-import {esc} from './dom';
+import type {Command,Diff,Document,Revision,Span,View} from './contracts';
 import {icon} from './icons';
 import {passageAnchor,type Listening} from './listening';
 import {reading,visibleToken,type ReadingPreferences} from './workspace';
@@ -10,11 +11,10 @@ import {PassagePin} from './passage-pin';
 import {AnnotationMarks} from './annotation-marks';
 import {TranscriptDrag} from './transcript-drag';
 
-interface Block {source_id:string|null;source_kind:string;anchor_token:string|null;sections:{id:string;kind:string;number:string|null}[];runs:{token:string|null;text:string}[]}
-interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:Block[]}
+interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:ReadingBlock[]}
 interface SelectionBasis {view:View;document:string;ids:string[];start:number;end:number;quote:string;layer:string;range:Range|null;backward?:boolean}
 interface Draft {id:string;basis:SelectionBasis;before:string;prefix:string;suffix:string;replacement:string;command:Command|null;phase:'editing'|'saving'|'unknown'|'conflict';latest:View|null;compared:boolean;epoch?:number;unlock?:()=>void}
-interface Host {openAnnotation?:(span:Span)=>void;view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;training?:(lens:TrainingLens,ids:string[],limit:number)=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
+interface Host {present:(frame:ReadingFrame)=>Promise<void>;signal:AbortSignal;openAnnotation?:(span:Span)=>void;view:()=>View;doc:()=>Document;preferences:ReadingPreferences;selected:()=>string[];select:(ids:string[])=>void;openDocument:(path:string)=>void;tool:(name:string,anchor?:{start:number;end:number;quote:string})=>void;training?:(lens:TrainingLens,ids:string[],limit:number)=>void;status:(s:string)=>void;message:(s:string,error?:boolean)=>void;accepted:(view:View)=>void;busy:()=>boolean;otherDraft:()=>boolean;listening:Listening;projection:(unsupportedBase:boolean)=>void}
 export class Transcript {
   private projection:Projection|null=null;private epoch=0;private selection:SelectionBasis|null=null;
   private draft:Draft|null=null;private composing=false;private settling=false;
@@ -226,36 +226,24 @@ export class Transcript {
   async render(){
     if(this.draft)return;
     this.annotationMarks.clear();this.cancelRange(false);
-    this.drag.cancel();this.pin.clear();this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;this.surface.textContent='Loading exact saved transcript…';this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
+    this.drag.cancel();this.pin.clear();this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;void this.host.present({_tag: 'Loading'});this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
     try{
       const p=await api<Projection>(`/api/reading?path=${encodeURIComponent(doc.path)}&revision=${view.revision.id}`);
-      if(epoch!==this.epoch||this.draft||this.host.view().revision.snapshot_hash!==view.revision.snapshot_hash||this.host.doc().path!==doc.path)return;
+      if(this.host.signal.aborted||epoch!==this.epoch||this.draft||this.host.view().revision.snapshot_hash!==view.revision.snapshot_hash||this.host.doc().path!==doc.path)return;
       if(p.schema!==1||p.project!==view.snapshot.project||p.revision!==view.revision.id||p.snapshot_hash!==view.revision.snapshot_hash||p.document!==doc.path||p.artifact_hash!==view.snapshot.files[doc.path]?.sha256)throw new Error('Reading projection does not match the exact saved artifact');
       this.projection=p;this.surface.inert=false;this.host.projection(p.media_base_unsupported);
       try{const saved=JSON.parse(localStorage.getItem('wb-reading:'+view.snapshot.project)??'{}');if(saved.layout==='lines'||saved.layout==='paragraphs')this.layout=saved.layout;this.interlinear=saved.interlinear===true}catch{/* Ignore invalid preferences. */}
       this.surface.dataset.layout=this.layout;this.surface.dataset.interlinear=String(this.interlinear);this.surface.setAttribute('aria-label',`${doc.title}, ${this.host.preferences.layer} transcript`);
       document.querySelectorAll<HTMLInputElement>('#transcript-layout input').forEach(input=>input.checked=input.value===this.layout);(document.getElementById('show-interlinear') as HTMLInputElement).checked=this.interlinear;
-      let ordinal=0;const tokens=new Map(doc.tokens.map(t=>[t.id,t]));
-      this.surface.innerHTML=p.blocks.map(block=>{
-        const hasToken=block.runs.some(r=>r.token!==null);if(hasToken)ordinal++;
-        const source=block.source_id??block.anchor_token;const segment=doc.segments.find(s=>s.id===block.source_id);
-        // A paragraph nested in a timed utterance has a different source ID.
-        const owner=!segment&&block.anchor_token?tokens.get(block.anchor_token)?.utterance:null;
-        const playbackOwner=owner&&block.runs.every(run=>run.token===null||tokens.get(run.token)?.utterance===owner)?owner:null;
-        const separator=!hasToken&&block.runs.every(run=>!run.text.trim());
-        return `<section class="reading-block utterance ${hasToken?'':separator?'literal-block turn-separator':'literal-block'}" ${segment?`data-utterance="${esc(segment.id)}"`:''} ${playbackOwner?`data-playback-utterance="${esc(playbackOwner)}"`:''} ${source?`data-location="${esc(source)}"`:''}><span class="source-number" aria-hidden="true" title="Display number ${ordinal}; source ${esc(source??'unanchored literal text')}">${hasToken?ordinal:''}</span><span class="reading-content">${block.runs.map(r=>{
-          if(r.token===null)return `<span class="reading-text separator">${esc(r.text)}</span>`;
-          const t=tokens.get(r.token);if(!t)throw new Error('Unknown token in reading projection');
-          const shown=visibleToken(t,this.host.preferences);return `<span class="lexeme ${shown?'':'filtered'} ${this.host.selected().includes(t.id)?'selected':''}" ${shown?'data-token':'data-filtered-token'}="${esc(t.id)}" tabindex="-1" title="${esc(t.id)} · ${esc(t.language_effective??'Unknown language')}"><span class="reading-text">${esc(reading(t,this.host.preferences.layer))}</span>${this.interlinear?`<span class="interlinear" aria-hidden="true"><span>Raw ${esc(t.original)}</span><span>Normalized ${esc(t.normalized??'—')}${t.attrs.wb_normalized_status==='unresolved'?' · unresolved':''}</span><span>${esc(t.language_effective??'Unknown language')}</span></span>`:''}</span>`;
-        }).join('')}</span></section>`;
-      }).join('');
+      const frame = projectReading(p.blocks, doc, this.host.preferences, this.host.selected(), this.interlinear, epoch);
+      await this.host.present(frame);
+      if (this.host.signal.aborted || this.epoch !== epoch || this.draft) return;
       this.annotationMarks.render(doc,view.snapshot.project);
       const shown=doc.tokens.filter(t=>visibleToken(t,this.host.preferences));this.updateCount(shown.length);
       (document.getElementById('next-match') as HTMLButtonElement).disabled=!shown.length;
-      if(!shown.length)this.surface.insertAdjacentHTML('afterbegin','<p class="empty-state">No matching tokens. Clear the filter to return to the transcript.</p>');
       this.offerRecovery();try{await this.markHistory(view,doc,epoch)}catch{if(epoch===this.epoch)this.host.message('Transcript loaded. Correction history decoration is unavailable; inspect History to retry.')}
-    }catch(e){if(epoch===this.epoch&&!this.draft&&this.host.doc().path===doc.path&&this.host.view().revision.id===view.revision.id){this.surface.textContent='Could not load faithful transcript. Preserved XML remains available in Tools.';this.host.message(String(e),true);this.offerRecovery()}}
+    }catch(e){if(epoch===this.epoch&&!this.draft&&this.host.doc().path===doc.path&&this.host.view().revision.id===view.revision.id){void this.host.present({_tag: 'Failed'});this.host.message(String(e),true);this.offerRecovery()}}
   }
   private async markHistory(view:View,doc:Document,epoch:number){
     if(!view.revision.parent)return;
@@ -277,7 +265,26 @@ export class Transcript {
   private showHistory(span:HTMLElement,change:Diff['changes'][number],view:View,record:Revision){
     if(this.drag.active||this.draft||!this.menu.hidden||this.host.busy()||this.host.view().revision.id!==view.revision.id)return;
     const token=this.host.doc().tokens.find(t=>t.id===change.target)!;
-    this.details.innerHTML=`<strong>Recorded correction · R${record.id}</strong><dl><dt>Previous corrected</dt><dd>${esc(change.before??token.original)}</dd><dt>Saved corrected</dt><dd>${esc(change.after??token.original)}</dd><dt>Immutable source</dt><dd>${esc(token.original)}</dd></dl><p>${esc(record.label)} · current R${view.revision.id} ${view.approved?'Reviewed':'Unreviewed'}</p><button data-history>Open full revision history</button><button data-close>Close</button>`;
+    renderInto(this.details,
+      h.strong('Recorded correction · R', String(record.id)),
+      h.dl(
+        h.dt('Previous corrected'),
+        h.dd(change.before ?? token.original),
+        h.dt('Saved corrected'),
+        h.dd(change.after ?? token.original),
+        h.dt('Immutable source'),
+        h.dd(token.original),
+      ),
+      h.p(
+        record.label,
+        ' · current R',
+        String(view.revision.id),
+        ' ',
+        view.approved ? 'Reviewed' : 'Unreviewed',
+      ),
+      h.button.attrs({'data-history': ''}).children('Open full revision history'),
+      h.button.attrs({'data-close': ''}).children('Close'),
+    );
     this.details.querySelector<HTMLButtonElement>('[data-history]')!.onclick=()=>{if(this.host.busy())return;this.details.hidden=true;this.host.tool('history')};this.details.querySelector<HTMLButtonElement>('[data-close]')!.onclick=()=>this.details.hidden=true;
     this.position(this.details,span.getBoundingClientRect());this.details.hidden=false;
   }
@@ -393,7 +400,10 @@ export class Transcript {
     if(!ids.length||this.draft||this.surface.querySelector('.selected[data-filtered-token]')){
       status.textContent=prefix+label;return;
     }
-    this.selectionButton.innerHTML=label+icon('expand_less');
+    renderInto(this.selectionButton,
+      label,
+      icon('expand_less'),
+    );
     this.selectionButton.setAttribute('aria-label',`Open tools for ${ids.length} selected ${ids.length===1?'word':'words'}`);
     this.selectionButton.title='Open passage tools';
     if(this.rangeStart){
@@ -477,7 +487,35 @@ export class Transcript {
   private showMenu(rect:DOMRect,followsRange=false){
     this.menuFollowsRange=followsRange;
     if(!this.selection)return;this.details.hidden=true;const s=this.selection;
-    this.menu.innerHTML=`<div class="tool-primary"><button data-action="correct">Correct</button><button data-action="language">Language</button><button data-action="annotations">Annotate</button><button data-action="structure">Tokenize</button></div><div class="tool-secondary"><button data-action="definitions">Definitions</button><button data-action="references">References</button><button data-action="coanalysis" aria-label="Co-analyse selected tokens">Co-analyse</button><button data-action="listen">Listen</button></div><small>${s.ids.length} token${s.ids.length===1?'':'s'} · ${esc(s.layer)} · R${s.view.revision.id}</small>`;
+    renderInto(this.menu,
+      h.div
+      .class('tool-primary')
+      .children(
+        h.button.attrs({'data-action': 'correct'}).children('Correct'),
+        h.button.attrs({'data-action': 'language'}).children('Language'),
+        h.button.attrs({'data-action': 'annotations'}).children('Annotate'),
+        h.button.attrs({'data-action': 'structure'}).children('Tokenize'),
+      ),
+      h.div
+      .class('tool-secondary')
+      .children(
+        h.button.attrs({'data-action': 'definitions'}).children('Definitions'),
+        h.button.attrs({'data-action': 'references'}).children('References'),
+        h.button
+          .attrs({'data-action': 'coanalysis', 'aria-label': 'Co-analyse selected tokens'})
+          .children('Co-analyse'),
+        h.button.attrs({'data-action': 'listen'}).children('Listen'),
+      ),
+      h.small(
+        String(s.ids.length),
+        ' token',
+        s.ids.length === 1 ? '' : 's',
+        ' · ',
+        s.layer,
+        ' · R',
+        String(s.view.revision.id),
+      ),
+    );
     this.menu.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b=>{if(b.dataset.action==='correct'&&s.ids.length>1&&!s.range)b.disabled=true;if(['definitions','references'].includes(b.dataset.action!))b.setAttribute('aria-label',`${b.textContent} for selection`);b.onclick=()=>{if(b.dataset.action==='correct')this.begin(this.selection?.quote??'');else if(b.dataset.action==='listen')void this.host.listening.play(passageAnchor(s.view,s.document,s.ids));else{this.menu.hidden=true;const token=this.host.doc().tokens.find(t=>t.id===s.ids[0]);const partial=b.dataset.action==='annotations'&&s.layer==='corrected'&&s.ids.length===1&&token&&(s.start>0||s.end<Array.from(token.corrected??token.original).length);this.host.tool(b.dataset.action==='language'?'token':b.dataset.action!,partial?{start:s.start,end:s.end,quote:s.quote}:undefined);if(b.dataset.action==='language'&&s.ids.length>1)this.host.message('Language properties currently edit the first selected token; other selected identities remain unchanged.')}}});
     if(this.training){
       const button=document.createElement('button');
@@ -544,7 +582,36 @@ export class Transcript {
     this.annotationMarks.clear();
     this.selectionButton.replaceWith(`${this.host.selected().length} selected`);
     const d=this.draft!;const span=this.surface.querySelector<HTMLElement>(`[data-token="${CSS.escape(d.basis.ids[0])}"]`)!;
-    span.innerHTML=`<span class="draft-prefix reading-text">${esc(d.prefix)}</span><s class="draft-ghost" aria-hidden="true">${esc(d.basis.quote)}</s><input id="inline-replacement" aria-label="Proposed correction" autocomplete="off" spellcheck="false" value="${esc(d.replacement)}"><span class="draft-suffix reading-text">${esc(d.suffix)}</span><span class="draft-actions"><button id="undo-draft" type="button">Undo draft</button><button id="accept-draft" type="button">Accept ↵</button><button id="retry-draft" type="button" hidden>Resolve save outcome</button><button id="compare-draft" type="button" hidden>Compare current revision</button><button id="reapply-draft" type="button" hidden>Reapply after comparison</button><small id="draft-explanation" role="status"></small><pre id="draft-comparison" hidden></pre></span>`;
+    renderInto(span,
+      h.span.class('draft-prefix reading-text').children(d.prefix),
+      h.s.class('draft-ghost').attrs({'aria-hidden': 'true'}).children(d.basis.quote),
+      h.input
+      .id('inline-replacement')
+      .attrs({
+        'aria-label': 'Proposed correction',
+        autocomplete: 'off',
+        spellcheck: 'false',
+        value: d.replacement,
+      }),
+      h.span.class('draft-suffix reading-text').children(d.suffix),
+      h.span
+      .class('draft-actions')
+      .children(
+        h.button.id('undo-draft').attrs({type: 'button'}).children('Undo draft'),
+        h.button.id('accept-draft').attrs({type: 'button'}).children('Accept ↵'),
+        h.button.id('retry-draft').attrs({type: 'button', hidden: ''}).children('Resolve save outcome'),
+        h.button
+          .id('compare-draft')
+          .attrs({type: 'button', hidden: ''})
+          .children('Compare current revision'),
+        h.button
+          .id('reapply-draft')
+          .attrs({type: 'button', hidden: ''})
+          .children('Reapply after comparison'),
+        h.small.id('draft-explanation').attrs({role: 'status'}),
+        h.pre.id('draft-comparison').attrs({hidden: ''}),
+      ),
+    );
     const input=span.querySelector<HTMLInputElement>('input')!;
     const revealEditor = () => {
       const pane = this.surface.closest<HTMLElement>('.transcript');
@@ -627,7 +694,7 @@ export class Transcript {
     if(!d.unlock)d.unlock=this.lock();
     d.phase='saving';this.updateDraft();let confirmed:Revision|null=null;
     try{confirmed=await commit(d.command);const latest=await loadView();if(latest.revision.id<confirmed.id)throw new Error('Committed revision has not been reconciled');await this.reconcileReading(latest,d.basis.document);const record=this.stored;if(record)await this.forget(record);this.stored=null;d.unlock?.();this.draft=null;this.selection=null;this.host.accepted(latest);this.host.message(`Correction saved in R${confirmed.id}. Current head R${latest.revision.id} · ${latest.approved?'Reviewed':'Unreviewed'}.`)}
-    catch(e){if(!confirmed&&e instanceof ApiError&&e.status===409){d.phase='conflict';d.command=null}else if(!confirmed&&e instanceof ApiError&&e.status>=400&&e.status<500){d.phase='editing';d.command=null}else d.phase='unknown';this.persist();if(d.phase!=='unknown'){d.unlock?.();d.unlock=undefined}this.host.message(confirmed?`Committed R${confirmed.id}; view refresh pending. Resolve the same command. ${String(e)}`:String(e),true);this.updateDraft()}
+    catch(e){if(!confirmed&&e instanceof ApiError&&e.status===409){d.phase='conflict';d.command=null}else if(!confirmed&&e instanceof ApiError&&e.status>=400&&e.status<500){d.phase='editing';d.command=null}else d.phase='unknown';this.persist();if(d.phase!=='unknown'){d.unlock?.();delete d.unlock}this.host.message(confirmed?`Committed R${confirmed.id}; view refresh pending. Resolve the same command. ${String(e)}`:String(e),true);this.updateDraft()}
   }
   location(id:string){const block=this.projection?.blocks.find(b=>b.source_id===id||b.anchor_token===id||b.sections.some(s=>s.id===id)||b.runs.some(r=>r.token===id));if(!block)return false;const target=this.surface.querySelector<HTMLElement>(`[data-location="${CSS.escape(block.source_id??block.anchor_token??'')}"]`);target?.scrollIntoView({block:'center'});if(target){target.tabIndex=-1;target.focus();document.getElementById('source-location-status')!.textContent=`${this.host.doc().title} · ${block.sections.map(s=>`${s.kind} ${s.number??s.id}`).join(' / ')} ${block.source_id??block.anchor_token??id} · R${this.host.view().revision.id} · source reference`}return !!target}
   revealPassage(ids:string[]) {

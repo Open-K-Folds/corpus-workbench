@@ -1,37 +1,122 @@
+import {h} from './effect-view';
 import {el} from './dom';
 import {icon} from './icons';
 import './reading-canvas.css';
 import './reading-dock.css';
 
 export function stageControls() {
-  return `<nav id="canvas-tools" class="canvas-tools" aria-label="Reading canvas controls">
-    <div id="canvas-passage-context" class="canvas-passage-context" role="group" aria-label="Selected passage" hidden>
-      ${icon('notes')}<span class="canvas-passage-excerpt" dir="auto"></span>
-      <button type="button" id="dock-listen-passage" aria-label="Listen to selected passage">${icon('headphones')}<span>Listen</span></button>
-      <button type="button" id="dock-analyze-passage" aria-label="Analyze selected passage">${icon('auto_awesome')}<span>Analyze</span></button>
-    </div>
-    <div class="canvas-console">
-      <div class="canvas-transport" role="group" aria-label="Source turns">
-        <div class="canvas-position">
-          <label id="canvas-position" for="canvas-scrub" aria-live="polite" aria-atomic="true">No visible source turns</label>
-          <span id="canvas-location" class="sr-only"></span>
-          <input id="canvas-scrub" type="range" min="1" max="1" step="1" value="1" aria-label="Scrub source turns">
-        </div>
-        <button type="button" id="canvas-prev" aria-label="Previous source turn" title="Previous source turn">${icon('chevron_right')}</button>
-        <button type="button" id="canvas-next" aria-label="Next source turn" title="Next source turn">${icon('chevron_right')}</button>
-      </div>
-      <div class="canvas-listening" id="canvas-listening" hidden>
-        <button type="button" id="canvas-play" aria-label="Play audio on canvas" title="Play audio on canvas">${icon('play_arrow')}</button>
-        <button type="button" id="follow-audio" aria-label="Follow audio" aria-pressed="false" aria-controls="tokens">${icon('link')}<span><span class="follow-label">Follow</span><span class="follow-context"> audio</span></span></button>
-      </div>
-      <div class="canvas-zoom" role="group" aria-label="Text size">
-        <button type="button" id="canvas-zoom-out" aria-label="Decrease text size" title="Decrease text size (Alt + minus)">${icon('remove')}</button>
-        <output id="canvas-scale" aria-label="Text size">100%</output>
-        <button type="button" id="canvas-zoom-in" aria-label="Increase text size" title="Increase text size (Alt + plus)">${icon('add')}</button>
-      </div>
-      <button type="button" id="canvas-exit" aria-label="Exit reading canvas" title="Exit focus mode (Escape)" hidden>${icon('close')}</button>
-    </div>
-  </nav>`;
+  return h.nav
+    .id('canvas-tools')
+    .class('canvas-tools')
+    .attrs({'aria-label': 'Reading canvas controls'})
+    .children(
+      h.div
+        .id('canvas-passage-context')
+        .class('canvas-passage-context')
+        .attrs({role: 'group', 'aria-label': 'Selected passage', hidden: ''})
+        .children(
+          icon('notes'),
+          h.span.class('canvas-passage-excerpt').attrs({dir: 'auto'}),
+          h.button
+            .id('dock-listen-passage')
+            .attrs({type: 'button', 'aria-label': 'Listen to selected passage'})
+            .children(icon('headphones'), h.span('Listen')),
+          h.button
+            .id('dock-analyze-passage')
+            .attrs({type: 'button', 'aria-label': 'Analyze selected passage'})
+            .children(icon('auto_awesome'), h.span('Analyze')),
+        ),
+      h.div.class('canvas-console').children(
+        h.div
+          .class('canvas-transport')
+          .attrs({role: 'group', 'aria-label': 'Source turns'})
+          .children(
+            h.div
+              .class('canvas-position')
+              .children(
+                h.label
+                  .id('canvas-position')
+                  .attrs({for: 'canvas-scrub', 'aria-live': 'polite', 'aria-atomic': 'true'})
+                  .children('No visible source turns'),
+                h.span.id('canvas-location').class('sr-only'),
+                h.input
+                  .id('canvas-scrub')
+                  .attrs({
+                    type: 'range',
+                    min: '1',
+                    max: '1',
+                    step: '1',
+                    value: '1',
+                    'aria-label': 'Scrub source turns',
+                  }),
+              ),
+            h.button
+              .id('canvas-prev')
+              .attrs({type: 'button', 'aria-label': 'Previous source turn', title: 'Previous source turn'})
+              .children(icon('chevron_right')),
+            h.button
+              .id('canvas-next')
+              .attrs({type: 'button', 'aria-label': 'Next source turn', title: 'Next source turn'})
+              .children(icon('chevron_right')),
+          ),
+        h.div
+          .class('canvas-listening')
+          .id('canvas-listening')
+          .attrs({hidden: ''})
+          .children(
+            h.button
+              .id('canvas-play')
+              .attrs({type: 'button', 'aria-label': 'Play audio on canvas', title: 'Play audio on canvas'})
+              .children(icon('play_arrow')),
+            h.button
+              .id('follow-audio')
+              .attrs({
+                type: 'button',
+                'aria-label': 'Follow audio',
+                'aria-pressed': 'false',
+                'aria-controls': 'tokens',
+              })
+              .children(
+                icon('link'),
+                h.span(
+                  h.span.class('follow-label').children('Follow'),
+                  h.span.class('follow-context').children(' audio'),
+                ),
+              ),
+          ),
+        h.div
+          .class('canvas-zoom')
+          .attrs({role: 'group', 'aria-label': 'Text size'})
+          .children(
+            h.button
+              .id('canvas-zoom-out')
+              .attrs({
+                type: 'button',
+                'aria-label': 'Decrease text size',
+                title: 'Decrease text size (Alt + minus)',
+              })
+              .children(icon('remove')),
+            h.output.id('canvas-scale').attrs({'aria-label': 'Text size'}).children('100%'),
+            h.button
+              .id('canvas-zoom-in')
+              .attrs({
+                type: 'button',
+                'aria-label': 'Increase text size',
+                title: 'Increase text size (Alt + plus)',
+              })
+              .children(icon('add')),
+          ),
+        h.button
+          .id('canvas-exit')
+          .attrs({
+            type: 'button',
+            'aria-label': 'Exit reading canvas',
+            title: 'Exit focus mode (Escape)',
+            hidden: '',
+          })
+          .children(icon('close')),
+      ),
+    );
 }
 
 export class ReadingCanvas {

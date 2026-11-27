@@ -1,7 +1,7 @@
+import {displayText, group, h, renderInto, viewFragment} from './effect-view';
 import {preparePassage, type PassageRequest} from '../../desktop/coanalysis-prompt.mjs';
 import type {Document, Operation, View} from './contracts';
 import {desktop} from './desktop';
-import {esc} from './dom';
 import {icon} from './icons';
 import {savedExcerpt, type Memo} from './coanalysis-memo';
 import {quoteCheck} from './quote-check';
@@ -31,23 +31,43 @@ function savedMemos(view: View, doc: Document, expand: boolean, actions: Actions
       (group.gap_before ? '[…] ' : '') + group.tokens.map(token => token.text).join(' ')).join('\n');
     const row = document.createElement('details');
     row.className = 'ca-saved';
-    row.innerHTML = `<summary><span class="ca-saved-quote">${esc(quote || memo.question || 'Saved interpretation')}</span>
-      <small>${esc(memo.decision)} · R${esc(memo.revision)}</small>${icon('chevron_right')}</summary>
-      <div class="ca-saved-body">
-        <strong>Researcher interpretation</strong><p>${esc(memo.interpretation)}</p>
-        <strong>Research question</strong><p>${esc(memo.question)}</p>
-        ${memo.first_reading ? `<strong>Your first reading</strong><p>${esc(memo.first_reading)}</p>` : ''}
-        <strong>Model proposal · ${esc(memo.model)}</strong><p>${esc(memo.proposal)}</p>
-        <details><summary>Original prompt and source</summary><p>${esc(memo.project)} · ${esc(memo.document)} · R${esc(memo.revision)}</p>
-          <p>${esc(span.token_ids.join(', '))}</p><code>${esc(memo.snapshot_hash)}</code><p>${esc(memo.prompt)}</p>
-          <small>${memo.method === 'llama.cpp' ? 'Local llama.cpp' : 'Manually supplied reply'}</small></details>
-      </div>`;
+    renderInto(row,
+      h.summary(
+        h.span
+          .class('ca-saved-quote')
+          .children(displayText(quote || memo.question || 'Saved interpretation')),
+        h.small(memo.decision, ' · R', displayText(memo.revision)),
+        icon('chevron_right'),
+      ),
+      h.div
+      .class('ca-saved-body')
+      .children(
+        h.strong('Researcher interpretation'),
+        h.p(memo.interpretation),
+        h.strong('Research question'),
+        h.p(memo.question),
+        memo.first_reading ? group(h.strong('Your first reading'), h.p(memo.first_reading)) : '',
+        h.strong('Model proposal · ', memo.model),
+        h.p(memo.proposal),
+        h.details(
+          h.summary('Original prompt and source'),
+          h.p(memo.project, ' · ', memo.document, ' · R', displayText(memo.revision)),
+          h.p(span.token_ids.join(', ')),
+          h.code(memo.snapshot_hash),
+          h.p(memo.prompt),
+          h.small(memo.method === 'llama.cpp' ? 'Local llama.cpp' : 'Manually supplied reply'),
+        ),
+      ),
+    );
     if (groups) {
       const action = document.createElement('button');
       action.className = 'secondary';
       action.type = 'button';
       action.hidden = true;
-      action.innerHTML = icon('menu_book') + 'Show in transcript';
+      renderInto(action,
+        icon('menu_book'),
+        'Show in transcript',
+      );
       const status = document.createElement('small');
       status.setAttribute('role', 'status');
       row.querySelector('.ca-saved-body')!.prepend(action, status);
@@ -91,71 +111,226 @@ export function coanalysisInspector(view: View, doc: Document, ids: string[], ac
     project: view.snapshot.project, revision: view.revision.id, snapshot_hash: view.revision.snapshot_hash,
     document: doc.path, token_ids: [...ids], question: lenses[0][1],
   };
-  panel.innerHTML = `<h2 id="ca-heading">${icon('tune')}Transcript co-analysis</h2>`;
-  const footer = `<p class="ca-credit">Inspired by Chuanqi Sun’s Spaceship IDE.</p>`;
+  renderInto(panel, h.h2.id('ca-heading').children(icon('tune'), 'Transcript co-analysis'));
+  const footer = h.p.class('ca-credit').children('Inspired by Chuanqi Sun’s Spaceship IDE.');
   const history = savedMemos(view, doc, !ids.length, actions);
   let passage: ReturnType<typeof preparePassage>;
   try { passage = preparePassage(view, request); }
   catch (error) {
     const reason = !ids.length ? 'Select words in the transcript and choose Co-analyse. Drag a passage or tap its first word and choose Select through…' : (error as Error).message;
-    panel.insertAdjacentHTML('beforeend', `<div class="ca-empty">${icon('notes')}<div><p>${esc(reason)}</p>
-      <button type="button" class="secondary" data-read>Choose a passage</button></div></div>${footer}`);
+    panel.append(
+      viewFragment(
+        group(
+          h.div
+            .class('ca-empty')
+            .children(
+              icon('notes'),
+              h.div(
+                h.p(reason),
+                h.button.class('secondary').attrs({type: 'button', 'data-read': ''}).children('Choose a passage'),
+              ),
+            ),
+          footer,
+        ),
+      ),
+    );
     panel.querySelector<HTMLButtonElement>('[data-read]')!.onclick = actions.read;
     if (history) panel.querySelector('.ca-empty')!.before(history);
     return panel;
   }
   const groups = passage.groups;
   request.token_ids = groups.flatMap(group => group.tokens.map(token => token.id));
-  panel.insertAdjacentHTML('beforeend', `
-    <section class="ca-source" aria-label="Passage for co-analysis">
-      <div class="ca-basis"><strong>${icon('link')}Saved passage</strong><span>R${view.revision.id} · ${ids.length} ${ids.length === 1 ? 'token' : 'tokens'}</span></div>
-      ${groups.map(group => `<div class="ca-excerpt">${group.gap_before ? '<span aria-label="omitted tokens">[…]</span>' : ''}
-        ${group.utterance ? `<small>${esc(group.utterance)}</small>` : ''}
-        <blockquote>${group.tokens.map(token => esc(token.text)).join(' ')}</blockquote></div>`).join('')}
-      <div class="ca-document">${esc(doc.title)}</div>
-      <details><summary>Source anchors</summary><p>${esc(doc.path)}</p><p>${esc(request.token_ids.join(', '))}</p><small>Human-corrected reading with original text where a correction is absent.</small></details>
-      <button type="button" class="secondary" data-listen-pinned aria-describedby="pinned-cue-basis">${icon('headphones')}Listen to pinned passage</button>
-      <small id="pinned-cue-basis"></small>
-    </section>
-    <form id="coanalysis-form" data-dirty="false" aria-labelledby="ca-heading">
-      <fieldset data-setup><legend>Ask about the passage</legend>
-        <div class="ca-private">
-          <label for="ca-first">Your first reading (optional)</label>
-          <textarea id="ca-first" data-first-reading rows="2" maxlength="4000" aria-describedby="first-reading-help"></textarea>
-          <small id="first-reading-help">Record your observations before opening the proposal. Only your annotation includes this reading.</small>
-        </div>
-        <fieldset class="ca-lenses" data-lens><legend>Analytical lens</legend>
-          <div class="ca-lens-options">${lenses.map(([label, , symbol], i) => `<div class="ca-lens-option">
-            <input type="radio" id="ca-lens-${i}" name="ca-lens" value="${i}" ${i === 0 ? 'checked' : ''}>
-            <label for="ca-lens-${i}">${icon(symbol)}<span>${esc(label)}</span></label>
-          </div>`).join('')}</div>
-        </fieldset>
-        <label>Research question<textarea data-question rows="3" maxlength="600" required></textarea></label>
-        <details data-prompt-details><summary>Prompt for a local model</summary>
-          <textarea data-prompt readonly rows="5" aria-label="Exact model prompt"></textarea>
-          <button type="button" class="secondary" data-copy>Copy prompt</button>
-        </details>
-        ${desktop?.askLocalModel ? `<div class="ca-local"><button type="button" data-run>${icon('play_arrow')}Ask local model</button><small>Uses the model loaded at 127.0.0.1:8080.</small></div>` : ''}
-        <details class="ca-manual" ${desktop?.askLocalModel ? '' : 'open'}><summary>Use a reply from your local model</summary>
-          <label>Model name or version<input data-model maxlength="256" autocomplete="off"></label>
-          <label>Model reply<textarea data-reply rows="4" maxlength="8000"></textarea></label>
-          <button type="button" class="secondary" data-use>Review this reply</button>
-        </details>
-      </fieldset>
-      <section data-review hidden>
-        <h3 data-review-heading tabindex="-1">Compare readings</h3>
-        <p class="ca-review-question" data-used-question></p>
-        <div class="ca-reading" data-initial-comparison hidden><h4>${icon('notes')}Your first reading</h4><small>Recorded before opening the proposal here.</small><blockquote data-initial-text></blockquote></div>
-        <div class="ca-reading ca-model"><h4>${icon('view_agenda')}Model proposal</h4><small data-by></small><blockquote data-proposal></blockquote></div>
-        <div class="ca-judgment">
-          <label>Your assessment<select data-decision required><option value="">Choose an assessment</option><option>Supported by the passage</option><option>Partly supported</option><option>Disagree</option><option>Needs more context</option></select></label>
-          <label>Your interpretation<textarea data-interpretation maxlength="4000" rows="4" placeholder="Which words support or challenge the proposal?" required></textarea></label>
-          <button type="submit" data-save disabled>${icon('fact_check')}Save reviewed annotation</button>
-        </div>
-      </section>
-      <p data-status role="status"></p>
-      <button type="button" class="secondary" data-discard hidden>Discard co-analysis draft</button>
-    </form>${footer}`);
+  panel.append(
+    viewFragment(
+      group(
+        h.section
+          .class('ca-source')
+          .attrs({'aria-label': 'Passage for co-analysis'})
+          .children(
+            h.div
+              .class('ca-basis')
+              .children(
+                h.strong(icon('link'), 'Saved passage'),
+                h.span(
+                  'R',
+                  String(view.revision.id),
+                  ' · ',
+                  String(ids.length),
+                  ' ',
+                  ids.length === 1 ? 'token' : 'tokens',
+                ),
+              ),
+            groups.map((group) =>
+              h.div
+                .class('ca-excerpt')
+                .children(
+                  group.gap_before ? h.span.attrs({'aria-label': 'omitted tokens'}).children('[…]') : '',
+                  group.utterance ? h.small(displayText(group.utterance)) : '',
+                  h.blockquote(String(group.tokens.map((token) => displayText(token.text)).join(' '))),
+                ),
+            ),
+            h.div.class('ca-document').children(doc.title),
+            h.details(
+              h.summary('Source anchors'),
+              h.p(doc.path),
+              h.p(displayText(request.token_ids.join(', '))),
+              h.small('Human-corrected reading with original text where a correction is absent.'),
+            ),
+            h.button
+              .class('secondary')
+              .attrs({type: 'button', 'data-listen-pinned': '', 'aria-describedby': 'pinned-cue-basis'})
+              .children(icon('headphones'), 'Listen to pinned passage'),
+            h.small.id('pinned-cue-basis'),
+          ),
+        h.form
+          .id('coanalysis-form')
+          .attrs({'data-dirty': 'false', 'aria-labelledby': 'ca-heading'})
+          .children(
+            h.fieldset.attrs({'data-setup': ''}).children(
+              h.legend('Ask about the passage'),
+              h.div
+                .class('ca-private')
+                .children(
+                  h.label.attrs({for: 'ca-first'}).children('Your first reading (optional)'),
+                  h.textarea
+                    .id('ca-first')
+                    .attrs({
+                      'data-first-reading': '',
+                      rows: '2',
+                      maxlength: '4000',
+                      'aria-describedby': 'first-reading-help',
+                    }),
+                  h.small
+                    .id('first-reading-help')
+                    .children(
+                      'Record your observations before opening the proposal. Only your annotation includes this reading.',
+                    ),
+                ),
+              h.fieldset
+                .class('ca-lenses')
+                .attrs({'data-lens': ''})
+                .children(
+                  h.legend('Analytical lens'),
+                  h.div
+                    .class('ca-lens-options')
+                    .children(
+                      lenses.map(([label, , symbol], i) =>
+                        h.div
+                          .class('ca-lens-option')
+                          .children(
+                            h.input
+                              .id('ca-lens-' + String(i))
+                              .attrs({
+                                type: 'radio',
+                                name: 'ca-lens',
+                                value: String(i),
+                                checked: i === 0 ? '' : undefined,
+                              }),
+                            h.label.attrs({for: 'ca-lens-' + String(i)}).children(icon(symbol), h.span(label)),
+                          ),
+                      ),
+                    ),
+                ),
+              h.label(
+                'Research question',
+                h.textarea.attrs({'data-question': '', rows: '3', maxlength: '600', required: ''}),
+              ),
+              h.details
+                .attrs({'data-prompt-details': ''})
+                .children(
+                  h.summary('Prompt for a local model'),
+                  h.textarea.attrs({
+                    'data-prompt': '',
+                    readonly: '',
+                    rows: '5',
+                    'aria-label': 'Exact model prompt',
+                  }),
+                  h.button.class('secondary').attrs({type: 'button', 'data-copy': ''}).children('Copy prompt'),
+                ),
+              desktop?.askLocalModel
+                ? h.div
+                    .class('ca-local')
+                    .children(
+                      h.button
+                        .attrs({type: 'button', 'data-run': ''})
+                        .children(icon('play_arrow'), 'Ask local model'),
+                      h.small('Uses the model loaded at 127.0.0.1:8080.'),
+                    )
+                : '',
+              h.details
+                .class('ca-manual')
+                .attrs({open: desktop?.askLocalModel ? undefined : ''})
+                .children(
+                  h.summary('Use a reply from your local model'),
+                  h.label(
+                    'Model name or version',
+                    h.input.attrs({'data-model': '', maxlength: '256', autocomplete: 'off'}),
+                  ),
+                  h.label('Model reply', h.textarea.attrs({'data-reply': '', rows: '4', maxlength: '8000'})),
+                  h.button
+                    .class('secondary')
+                    .attrs({type: 'button', 'data-use': ''})
+                    .children('Review this reply'),
+                ),
+            ),
+            h.section.attrs({'data-review': '', hidden: ''}).children(
+              h.h3.attrs({'data-review-heading': '', tabindex: '-1'}).children('Compare readings'),
+              h.p.class('ca-review-question').attrs({'data-used-question': ''}),
+              h.div
+                .class('ca-reading')
+                .attrs({'data-initial-comparison': '', hidden: ''})
+                .children(
+                  h.h4(icon('notes'), 'Your first reading'),
+                  h.small('Recorded before opening the proposal here.'),
+                  h.blockquote.attrs({'data-initial-text': ''}),
+                ),
+              h.div
+                .class('ca-reading ca-model')
+                .children(
+                  h.h4(icon('view_agenda'), 'Model proposal'),
+                  h.small.attrs({'data-by': ''}),
+                  h.blockquote.attrs({'data-proposal': ''}),
+                ),
+              h.div
+                .class('ca-judgment')
+                .children(
+                  h.label(
+                    'Your assessment',
+                    h.select
+                      .attrs({'data-decision': '', required: ''})
+                      .children(
+                        h.option.attrs({value: ''}).children('Choose an assessment'),
+                        h.option('Supported by the passage'),
+                        h.option('Partly supported'),
+                        h.option('Disagree'),
+                        h.option('Needs more context'),
+                      ),
+                  ),
+                  h.label(
+                    'Your interpretation',
+                    h.textarea.attrs({
+                      'data-interpretation': '',
+                      maxlength: '4000',
+                      rows: '4',
+                      placeholder: 'Which words support or challenge the proposal?',
+                      required: '',
+                    }),
+                  ),
+                  h.button
+                    .attrs({type: 'submit', 'data-save': '', disabled: ''})
+                    .children(icon('fact_check'), 'Save reviewed annotation'),
+                ),
+            ),
+            h.p.attrs({'data-status': '', role: 'status'}),
+            h.button
+              .class('secondary')
+              .attrs({type: 'button', 'data-discard': '', hidden: ''})
+              .children('Discard co-analysis draft'),
+          ),
+        footer,
+      ),
+    ),
+  );
 
   const form = panel.querySelector('form')!;
   if (history) form.before(history);

@@ -1,3 +1,4 @@
+#workbench-root, .screen-mount, .player-mount, .inspector-mount { display: contents }
 /* Shared studio surfaces and window geometry. The transcript keeps its own
    scrolling element when a library or inspector opens alongside it. */
 :root {

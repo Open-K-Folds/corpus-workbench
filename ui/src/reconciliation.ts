@@ -1,10 +1,46 @@
+import {h, renderInto} from './effect-view';
 import {api,uploadFile} from './api';
 import type {Operation,ReturnPreview,ReturnRequest,View} from './contracts';
-import {esc,field,formValues} from './dom';
+import {field,formValues} from './dom';
 
 export function reconciliationInspector(view:View,onSave:(ops:Operation[],label:string,source?:HTMLFormElement,basis?:View)=>Promise<void>,onDirty:()=>void):HTMLElement {
   const panel=document.createElement('section');panel.className='return-panel';
-  panel.innerHTML=`<h2>Return an edited copy</h2><p>Choose the complete exported package folder after editing its copy in TEITOK. Review token fields against the exported baseline and current saved work.</p><form id="return-form"><label>Edited package folder<input id="return-directory" type="file" webkitdirectory multiple></label><p class="muted">Up to 256 MiB total, 64 MiB per file. Originals, timing, IDs, media and unsupported structures must be unchanged. New TEITOK backups are retained as historical evidence. Included CWB indexes require an adapter rebuild before compatibility export.</p>${field('revision_label','Revision name','Reconcile TEITOK copy')}<button type="submit" id="preview-return" disabled>Upload and preview</button><button type="button" id="commit-return" disabled>Save reviewed changes</button></form><p id="return-status" role="status">Saved basis R${view.revision.id}. No files selected.</p><div id="return-result"></div><button type="button" id="refresh-return" class="secondary" hidden>Preview selected choices</button><details><summary>Complete reconciliation proof</summary><pre id="return-proof"></pre></details>`;
+  renderInto(panel,
+    h.h2('Return an edited copy'),
+    h.p(
+      'Choose the complete exported package folder after editing its copy in TEITOK. Review token fields against the exported baseline and current saved work.',
+    ),
+    h.form
+    .id('return-form')
+    .children(
+      h.label(
+        'Edited package folder',
+        h.input.id('return-directory').attrs({type: 'file', webkitdirectory: '', multiple: ''}),
+      ),
+      h.p
+        .class('muted')
+        .children(
+          'Up to 256 MiB total, 64 MiB per file. Originals, timing, IDs, media and unsupported structures must be unchanged. New TEITOK backups are retained as historical evidence. Included CWB indexes require an adapter rebuild before compatibility export.',
+        ),
+      field('revision_label', 'Revision name', 'Reconcile TEITOK copy'),
+      h.button.id('preview-return').attrs({type: 'submit', disabled: ''}).children('Upload and preview'),
+      h.button
+        .id('commit-return')
+        .attrs({type: 'button', disabled: ''})
+        .children('Save reviewed changes'),
+    ),
+    h.p
+    .id('return-status')
+    .attrs({role: 'status'})
+    .children('Saved basis R', String(view.revision.id), '. No files selected.'),
+    h.div.id('return-result'),
+    h.button
+    .id('refresh-return')
+    .class('secondary')
+    .attrs({type: 'button', hidden: ''})
+    .children('Preview selected choices'),
+    h.details(h.summary('Complete reconciliation proof'), h.pre.id('return-proof')),
+  );
   const find=<T extends HTMLElement>(id:string)=>panel.querySelector<T>('#'+id)!;
   const form=find<HTMLFormElement>('return-form');const chooser=find<HTMLInputElement>('return-directory');const previewButton=find<HTMLButtonElement>('preview-return');const commitButton=find<HTMLButtonElement>('commit-return');const refresh=find<HTMLButtonElement>('refresh-return');const status=find('return-status');
   let epoch=0;let pending:ReturnPreview|null=null;let request:ReturnRequest|null=null;let busy=false;
@@ -16,7 +52,63 @@ export function reconciliationInspector(view:View,onSave:(ops:Operation[],label:
   form.querySelector<HTMLInputElement>('[name="revision_label"]')!.oninput=dirty;
   const render=(result:ReturnPreview)=>{
     const p=result.preview;find('return-proof').textContent=JSON.stringify(result,null,2);
-    find('return-result').innerHTML=`<div class="revision-basis"><strong>Exported R${p.exported_base.id} → saved R${view.revision.id}</strong><span>${p.package_files} files · ${p.changes.length} changed fields</span></div>${p.blockers.length?`<ul class="return-blockers">${p.blockers.map(b=>`<li>${esc(b)}</li>`).join('')}</ul>`:''}${p.changes.map(c=>`<article class="return-change"><strong>${esc(c.token)} · ${esc(c.field)}</strong><small>${esc(c.document)}</small><dl><dt>Exported</dt><dd>${esc(c.base??'(absent)')}</dd><dt>Saved</dt><dd>${esc(c.current??'(absent)')}</dd><dt>External</dt><dd>${esc(c.external??'(absent)')}</dd></dl>${c.state==='conflict'?`<label>Resolve this field<select data-return-choice="${esc(c.key)}"><option value="">Choose a value</option><option value="current" ${c.choice==='current'?'selected':''}>Keep saved value</option><option value="external" ${c.choice==='external'?'selected':''}>Use external value</option></select></label>`:`<p class="muted">${c.state==='already_current'?'Already saved':'Use external value'}</p>`}</article>`).join('')}<p class="muted">${p.retained_backups.length} TEITOK backups retained. ${p.issues.filter(i=>i.blocking).length} approval blockers after reconciliation.</p>${p.issues.length?`<details><summary>Validation after changes</summary><ul>${p.issues.map(i=>`<li>${esc(i.target)}: ${esc(i.message)}</li>`).join('')}</ul></details>`:''}`;
+    renderInto(find('return-result'),
+      h.div
+      .class('revision-basis')
+      .children(
+        h.strong('Exported R', String(p.exported_base.id), ' → saved R', String(view.revision.id)),
+        h.span(String(p.package_files), ' files · ', String(p.changes.length), ' changed fields'),
+      ),
+      p.blockers.length ? h.ul.class('return-blockers').children(p.blockers.map((b) => h.li(b))) : '',
+      p.changes.map((c) =>
+        h.article
+          .class('return-change')
+          .children(
+            h.strong(c.token, ' · ', c.field),
+            h.small(c.document),
+            h.dl(
+              h.dt('Exported'),
+              h.dd(c.base ?? '(absent)'),
+              h.dt('Saved'),
+              h.dd(c.current ?? '(absent)'),
+              h.dt('External'),
+              h.dd(c.external ?? '(absent)'),
+            ),
+            c.state === 'conflict'
+              ? h.label(
+                  'Resolve this field',
+                  h.select
+                    .attrs({'data-return-choice': c.key})
+                    .children(
+                      h.option.attrs({value: ''}).children('Choose a value'),
+                      h.option
+                        .attrs({value: 'current', selected: c.choice === 'current' ? '' : undefined})
+                        .children('Keep saved value'),
+                      h.option
+                        .attrs({value: 'external', selected: c.choice === 'external' ? '' : undefined})
+                        .children('Use external value'),
+                    ),
+                )
+              : h.p
+                  .class('muted')
+                  .children(c.state === 'already_current' ? 'Already saved' : 'Use external value'),
+          ),
+      ),
+      h.p
+      .class('muted')
+      .children(
+        String(p.retained_backups.length),
+        ' TEITOK backups retained. ',
+        String(p.issues.filter((i) => i.blocking).length),
+        ' approval blockers after reconciliation.',
+      ),
+      p.issues.length
+      ? h.details(
+          h.summary('Validation after changes'),
+          h.ul(p.issues.map((i) => h.li(i.target, ': ', i.message))),
+        )
+      : '',
+    );
     panel.querySelectorAll<HTMLSelectElement>('[data-return-choice]').forEach(select=>select.onchange=()=>{invalidate();const key=select.dataset.returnChoice!;if(select.value)request!.resolutions[key]=select.value as 'current'|'external';else delete request!.resolutions[key];refresh.hidden=false;status.textContent='Choices changed; preview again before saving.';});
     refresh.hidden=!p.changes.some(c=>c.state==='conflict');commitButton.disabled=!p.ready;
     status.textContent=p.ready?'Reviewed candidate is ready to save as one new, unreviewed revision.':'Return is blocked. Resolve conflicts or correct the separate copy and select it again.';

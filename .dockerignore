@@ -15,6 +15,7 @@ assets/**
 ui/**
 !ui/package.json
 !ui/package-lock.json
+!ui/.npmrc
 !ui/index.html
 !ui/tsconfig.json
 !ui/vite.config.ts
@@ -26,6 +27,8 @@ ui/**
 !ui/src/**
 !ui/public/
 !ui/public/third-party/
+!ui/public/third-party/effect/
+!ui/public/third-party/effect/LICENSE.txt
 !ui/public/third-party/material-symbols/
 !ui/public/third-party/material-symbols/**
 !ui/public/third-party/jetbrains-mono/

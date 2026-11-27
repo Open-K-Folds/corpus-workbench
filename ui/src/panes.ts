@@ -1,5 +1,5 @@
+import {group, h, renderInto, viewFragment} from './effect-view';
 import type {Document,View} from './contracts';
-import {esc} from './dom';
 import {icon} from './icons';
 import {AudioPlayer} from './player';
 import {AudioView} from './audio-view';
@@ -98,12 +98,35 @@ export class RecordingPanel {
       this.syncTimelineToggle();
     }
   }
-  constructor(private panel:HTMLElement,private audio:HTMLAudioElement){
-    panel.insertAdjacentHTML('afterbegin',`<div id="timeline-resizer" class="pane-resizer" aria-label="Resize recording panel"><span class="resize-grip" aria-hidden="true"></span></div><div class="recording-heading"><strong>${icon("graphic_eq")}Recording</strong><span id="recording-summary"></span><button id="timeline-toggle" class="secondary" aria-label="Cycle recording detail">${icon("unfold_more")}</button></div><canvas id="recording-waveform" aria-label="Recorded audio waveform"></canvas><div id="recording-layers"></div>`);
+  constructor(private panel:HTMLElement,private audio:HTMLAudioElement, signal: AbortSignal){
+    panel.prepend(
+      viewFragment(
+        group(
+          h.div
+            .id('timeline-resizer')
+            .class('pane-resizer')
+            .attrs({'aria-label': 'Resize recording panel'})
+            .children(h.span.class('resize-grip').attrs({'aria-hidden': 'true'})),
+          h.div
+            .class('recording-heading')
+            .children(
+              h.strong(icon('graphic_eq'), 'Recording'),
+              h.span.id('recording-summary'),
+              h.button
+                .id('timeline-toggle')
+                .class('secondary')
+                .attrs({'aria-label': 'Cycle recording detail'})
+                .children(icon('unfold_more')),
+            ),
+          h.canvas.id('recording-waveform').attrs({'aria-label': 'Recorded audio waveform'}),
+          h.div.id('recording-layers'),
+        ),
+      ),
+    );
     const availability = panel.querySelector<HTMLElement>('#audio-availability')!;
     availability.textContent = 'No audio linked';
     panel.querySelector('#timeline-toggle')!.before(availability);
-    const player=new AudioPlayer(audio);
+    const player=new AudioPlayer(audio, signal);
     const actions = panel.querySelector<HTMLElement>('.actions')!;
     player.element.querySelector('.player-status')!.before(actions);
     this.lanes=panel.querySelector('#recording-layers')!;
@@ -200,17 +223,56 @@ export class RecordingPanel {
     toggle.setAttribute('aria-label', label);
     toggle.title = label;
     const visibleLabel=expanded?'Controls':'Recording controls';
-    toggle.innerHTML = (short ? `<span class="short-recording-label">${visibleLabel}</span>` : '') + icon(expanded ? 'expand_more' : 'expand_less');
+    renderInto(toggle,
+      short ? h.span.class('short-recording-label').children(visibleLabel) : '',
+      icon(expanded ? 'expand_more' : 'expand_less'),
+    );
   }
   private renderLanes(){if(!this.lanes||!this.doc||!this.view)return;const duration=this.audio.duration;const timed=this.doc.segments.filter(s=>s.start_us!==null&&s.end_us!==null&&s.start_us>=0&&s.end_us>s.start_us);
-    const lane=(label:string,items:{id:string;start:number;end:number;className?:string;title:string}[])=>`<div class="timeline-lane"><span class="lane-label">${label}</span><div class="lane-track">${items.map(i=>`<span class="interval ${i.className??''}" data-start="${i.start}" data-end="${i.end}" title="${esc(i.title)}">${esc(i.id)}</span>`).join('')}</div></div>`;
+    const lane=(label:string,items:{id:string;start:number;end:number;className?:string;title:string}[])=>h.div.class('timeline-lane').children(
+      h.span.class('lane-label').children(label),
+      h.div.class('lane-track').children(
+        items.map((i) =>
+          h.span
+            .class('interval ' + (i.className ?? ''))
+            .attrs({'data-start': String(i.start), 'data-end': String(i.end), title: i.title})
+            .children(i.id),
+        ),
+      ),
+    );
     const segments=timed.map(s=>({id:s.id,start:s.start_us!/1e6,end:s.end_us!/1e6,title:`${s.id} · supplied utterance bounds ${s.start_us!/1e6}–${s.end_us!/1e6} s`}));
     const words=this.doc.tokens.filter(t=>t.start_us!==null&&t.end_us!==null&&t.end_us>t.start_us).map(t=>({id:t.id,start:t.start_us!/1e6,end:t.end_us!/1e6,title:`${t.id} · supplied word bounds`}));
     const lastSegment = segments.reduce((latest, segment) => Math.max(latest, segment.end), 0);
     const extent = this.panel.dataset.recordingSource === 'linked' && Number.isFinite(duration) && duration > 0
       ? duration : words.reduce((latest, word) => Math.max(latest, word.end), lastSegment);
     const changes=this.doc.tokens.filter(t=>t.corrected!==null);const groups=timed.filter(s=>changes.some(t=>t.utterance===s.id)).map(s=>({id:`${s.id} corrections`,start:s.start_us!/1e6,end:s.end_us!/1e6,className:'association',title:'Corrected tokens associated with this utterance. Exact word time may be unavailable; correction revision is inspected in History.'}));
-    this.lanes.innerHTML=`<div class="timeline-ruler"><span>0 s</span><span>${extent?extent.toFixed(1)+' s':'No observed time axis'}</span></div>${extent?lane('Utterances',segments):'<p>No supplied utterance intervals</p>'}${words.length&&extent?lane('Word timing',words):'<div class="timeline-lane"><span class="lane-label">Word timing</span><small>No complete word times · no inference</small></div>'}${extent?lane('Corrections',groups):''}<div class="text-only-tray">Text-only / unresolved: ${this.doc.spans.filter(s=>s.fields.wb_status==='unresolved').map(s=>esc(s.id)).join(', ')||'none marked'} · ${this.view.issues.filter(i=>i.blocking).length} blocking / ${this.view.issues.filter(i=>!i.blocking).length} advisory package issues</div>`;
+    renderInto(this.lanes,
+      h.div
+      .class('timeline-ruler')
+      .children(h.span('0 s'), h.span(extent ? extent.toFixed(1) + ' s' : 'No observed time axis')),
+      extent ? lane('Utterances', segments) : h.p('No supplied utterance intervals'),
+      words.length && extent
+      ? lane('Word timing', words)
+      : h.div
+          .class('timeline-lane')
+          .children(
+            h.span.class('lane-label').children('Word timing'),
+            h.small('No complete word times · no inference'),
+          ),
+      extent ? lane('Corrections', groups) : '',
+      h.div.class('text-only-tray').children(
+        'Text-only / unresolved: ',
+        this.doc.spans
+          .filter((s) => s.fields.wb_status === 'unresolved')
+          .map((s) => s.id)
+          .join(', ') || 'none marked',
+        ' · ',
+        String(this.view.issues.filter((i) => i.blocking).length),
+        ' blocking / ',
+        String(this.view.issues.filter((i) => !i.blocking).length),
+        ' advisory package issues',
+      ),
+    );
     for(const track of this.lanes.querySelectorAll<HTMLElement>('.lane-track')){
       const ends:number[]=[];
       for(const element of track.querySelectorAll<HTMLElement>('.interval')){

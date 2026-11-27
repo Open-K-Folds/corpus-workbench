@@ -589,6 +589,14 @@
     },
     {
       "ecosystem": "npm",
+      "name": "@effect/ui",
+      "version": "0.0.0",
+      "resolved": "https://pkg.pr.new/Effect-TS/ui/@effect/ui@859a30f",
+      "reported_license": "MIT",
+      "integrity": "sha512-jiCKwNyfV/aKT5cfDL/8rFYwi4KXSuf/qCBtQz6ttwOw1aES81hk74noMKlDslAJ0ndQvd3Yv3EE+xWlkijH8A=="
+    },
+    {
+      "ecosystem": "npm",
       "name": "@esbuild/aix-ppc64",
       "version": "0.28.2",
       "reported_license": "MIT",
@@ -782,6 +790,13 @@
       "version": "1.0.9",
       "reported_license": "MIT",
       "integrity": "sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg=="
+    },
+    {
+      "ecosystem": "npm",
+      "name": "effect",
+      "version": "4.1.6",
+      "reported_license": "MIT",
+      "integrity": "sha512-P3CxMsdcSCle/7/FnPILd9GJkNqGtduKam2LX9Xsb8LoOjmeQ9Kmsuh16JwtIthaxLyiTCOzUUt+PZsXIohl+A=="
     },
     {
       "ecosystem": "npm",

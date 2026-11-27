@@ -4,7 +4,7 @@ ARG NODE_IMAGE=node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527
 ARG RUNTIME_IMAGE=debian:trixie-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
 FROM ${NODE_IMAGE} AS ui-build
 WORKDIR /source/ui
-COPY ui/package.json ui/package-lock.json ./
+COPY ui/package.json ui/package-lock.json ui/.npmrc ./
 RUN npm ci --ignore-scripts && npm rebuild esbuild
 COPY ui/ ./
 COPY desktop/coanalysis-prompt.mjs desktop/coanalysis-prompt.d.mts /source/desktop/

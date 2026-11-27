@@ -1,5 +1,4 @@
-import {esc} from './dom';
-
+import {h, renderInto} from './effect-view';
 export type PreparationFormat='utf8-text'|'omnilingual-json';
 export interface PreparationPreview {
   token:string;duplicate:boolean;key:string;
@@ -18,7 +17,81 @@ export function openPreparation(bridge:PreparationBridge){
   const previous=document.activeElement as HTMLElement|null;
   const dialog=document.createElement('dialog');dialog.id='preparation-dialog';dialog.className='preparation-dialog';
   dialog.setAttribute('aria-labelledby','preparation-heading');dialog.setAttribute('aria-describedby','preparation-intro');
-  dialog.innerHTML=`<div class="preparation-heading"><h2 id="preparation-heading">Recording + transcript</h2><p id="preparation-intro">Choose a recording and its transcript, then review the files together.</p></div><div class="preparation-body"><div class="preparation-fields"><label for="preparation-format">Transcript format<select id="preparation-format" aria-describedby="preparation-format-help"><option value="utf8-text">Plain text · UTF-8</option><option value="omnilingual-json">Omnilingual JSON</option></select></label><label for="preparation-title">Project title <span class="preparation-optional">(optional)</span><input id="preparation-title" maxlength="160" placeholder="Uses the transcript filename" autocomplete="off"></label></div><p class="preparation-help" id="preparation-format-help">Exact text and spacing are preserved. Word times remain unknown.</p><details class="preparation-input-help"><summary>Supported inputs and limits</summary><p>Recording: up to 64 MiB, in WAV, MP3, FLAC, OGG, M4A, AAC, OPUS or WEBM. Playback depends on local codec support.</p><p>Transcript: up to 2 MiB of UTF-8. Plain text is kept exactly. Omnilingual accepts <code>{"text":"supplied words"}</code> or the local batch wrapper with <code>request_endpoint</code>, <code>response_format</code>, matching <code>source_sha256</code>, <code>decoded_duration_seconds</code> and successful ordered <code>chunks</code>. Other schemas and word-alignment formats need a separate adapter.</p><p>Preparation supports up to 50,000 mechanical tokens and 10,000 supplied chunks. It retains source bytes and never runs recognition.</p></details><button id="preparation-choose" class="secondary">Choose recording and transcript</button><div id="preparation-preview" hidden></div><p id="preparation-status" role="status" aria-live="polite"></p></div><footer class="preparation-footer"><p>Import creates a separate working copy.</p><div><button id="preparation-cancel" class="secondary">Cancel</button><button id="preparation-confirm" disabled>Import for review</button></div></footer>`;
+  renderInto(dialog,
+    h.div
+    .class('preparation-heading')
+    .children(
+      h.h2.id('preparation-heading').children('Recording + transcript'),
+      h.p
+        .id('preparation-intro')
+        .children('Choose a recording and its transcript, then review the files together.'),
+    ),
+    h.div.class('preparation-body').children(
+      h.div.class('preparation-fields').children(
+        h.label.attrs({for: 'preparation-format'}).children(
+          'Transcript format',
+          h.select
+            .id('preparation-format')
+            .attrs({'aria-describedby': 'preparation-format-help'})
+            .children(
+              h.option.attrs({value: 'utf8-text'}).children('Plain text · UTF-8'),
+              h.option.attrs({value: 'omnilingual-json'}).children('Omnilingual JSON'),
+            ),
+        ),
+        h.label
+          .attrs({for: 'preparation-title'})
+          .children(
+            'Project title ',
+            h.span.class('preparation-optional').children('(optional)'),
+            h.input
+              .id('preparation-title')
+              .attrs({maxlength: '160', placeholder: 'Uses the transcript filename', autocomplete: 'off'}),
+          ),
+      ),
+      h.p
+        .class('preparation-help')
+        .id('preparation-format-help')
+        .children('Exact text and spacing are preserved. Word times remain unknown.'),
+      h.details
+        .class('preparation-input-help')
+        .children(
+          h.summary('Supported inputs and limits'),
+          h.p(
+            'Recording: up to 64 MiB, in WAV, MP3, FLAC, OGG, M4A, AAC, OPUS or WEBM. Playback depends on local codec support.',
+          ),
+          h.p(
+            'Transcript: up to 2 MiB of UTF-8. Plain text is kept exactly. Omnilingual accepts ',
+            h.code('{"text":"supplied words"}'),
+            ' or the local batch wrapper with ',
+            h.code('request_endpoint'),
+            ', ',
+            h.code('response_format'),
+            ', matching ',
+            h.code('source_sha256'),
+            ', ',
+            h.code('decoded_duration_seconds'),
+            ' and successful ordered ',
+            h.code('chunks'),
+            '. Other schemas and word-alignment formats need a separate adapter.',
+          ),
+          h.p(
+            'Preparation supports up to 50,000 mechanical tokens and 10,000 supplied chunks. It retains source bytes and never runs recognition.',
+          ),
+        ),
+      h.button.id('preparation-choose').class('secondary').children('Choose recording and transcript'),
+      h.div.id('preparation-preview').attrs({hidden: ''}),
+      h.p.id('preparation-status').attrs({role: 'status', 'aria-live': 'polite'}),
+    ),
+    h.footer
+    .class('preparation-footer')
+    .children(
+      h.p('Import creates a separate working copy.'),
+      h.div(
+        h.button.id('preparation-cancel').class('secondary').children('Cancel'),
+        h.button.id('preparation-confirm').attrs({disabled: ''}).children('Import for review'),
+      ),
+    ),
+  );
   document.body.append(dialog);dialog.showModal();
   // Keep workspace shortcuts from changing the background selection or drafts.
   // Native dialog defaults (Tab, Escape and editing shortcuts) still apply.
@@ -44,7 +117,49 @@ export function openPreparation(bridge:PreparationBridge){
       if(!selected){message('File selection cancelled. No project was imported.');return}
       valid=true;
       const {sources,summary}=selected;
-      preview.innerHTML=`<div class="preparation-summary"><h3>${selected.duplicate?'Existing working copy found':'Preview before import'}</h3><span>${summary.segments?`${summary.segments} chunk${summary.segments===1?'':'s'}`:'Untimed text'} · ${summary.tokens} token${summary.tokens===1?'':'s'}</span></div><dl class="preparation-sources">${(['audio','transcript'] as const).map(key=>`<div><dt>${key==='audio'?'Recording':'Raw transcript'}</dt><dd><strong>${esc(sources[key].name)}</strong><span>${size(sources[key].bytes)} · SHA-256 <code title="${esc(sources[key].sha256)}">${esc(sources[key].sha256.slice(0,12))}…</code></span></dd></div>`).join('')}</dl><p class="preparation-timing">${esc(summary.timing)}</p><pre class="preparation-excerpt" aria-label="Transcript excerpt"></pre>${(summary.warnings??[]).map(w=>`<p class="preparation-help">${esc(w)}</p>`).join('')}<p class="preparation-policy">${selected.duplicate?'The same source bytes and preparation version already have a working copy. Opening it preserves every correction and review.':'A new unreviewed working copy will retain both original files and source hashes. Correct and annotate it, then explicitly review the saved revision before a research handoff.'}</p>`;
+      renderInto(preview,
+        h.div
+        .class('preparation-summary')
+        .children(
+          h.h3(selected.duplicate ? 'Existing working copy found' : 'Preview before import'),
+          h.span(
+            summary.segments
+              ? `${summary.segments} chunk${summary.segments === 1 ? '' : 's'}`
+              : 'Untimed text',
+            ' · ',
+            String(summary.tokens),
+            ' token',
+            summary.tokens === 1 ? '' : 's',
+          ),
+        ),
+        h.dl
+        .class('preparation-sources')
+        .children(
+          (['audio', 'transcript'] as const).map((key) =>
+            h.div(
+              h.dt(key === 'audio' ? 'Recording' : 'Raw transcript'),
+              h.dd(
+                h.strong(sources[key].name),
+                h.span(
+                  size(sources[key].bytes),
+                  ' · SHA-256 ',
+                  h.code.attrs({title: sources[key].sha256}).children(sources[key].sha256.slice(0, 12), '…'),
+                ),
+              ),
+            ),
+          ),
+        ),
+        h.p.class('preparation-timing').children(summary.timing),
+        h.pre.class('preparation-excerpt').attrs({'aria-label': 'Transcript excerpt'}),
+        (summary.warnings ?? []).map((w) => h.p.class('preparation-help').children(w)),
+        h.p
+        .class('preparation-policy')
+        .children(
+          selected.duplicate
+            ? 'The same source bytes and preparation version already have a working copy. Opening it preserves every correction and review.'
+            : 'A new unreviewed working copy will retain both original files and source hashes. Correct and annotate it, then explicitly review the saved revision before a research handoff.',
+        ),
+      );
       preview.querySelector('.preparation-excerpt')!.textContent=summary.text;
       preview.hidden=false;confirm.textContent=selected.duplicate?'Open existing copy':'Import for review';
       message('Preview ready. Review the files before importing.');

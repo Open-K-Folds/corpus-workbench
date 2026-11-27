@@ -20,5 +20,9 @@
     "typescript": "5.9.3",
     "vite": "7.3.7",
     "@playwright/test": "1.56.1"
+  },
+  "dependencies": {
+    "@effect/ui": "https://pkg.pr.new/Effect-TS/ui/@effect/ui@859a30f",
+    "effect": "4.1.6"
   }
 }
