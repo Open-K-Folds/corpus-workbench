@@ -68,6 +68,36 @@
   align-content:center;
 }
 
+.spoken-languages > p {margin-block-end:4px}
+#inspector-content #open-meanings {
+  padding-inline:0;border:0;background:transparent;color:var(--accent);font-weight:600;
+}
+#open-meanings .material-symbol {font-size:16px}
+#definition-form,.saved-languages {
+  display:grid;gap:10px;margin:12px 0 16px;padding-block:14px;border-block:1px solid var(--border);
+}
+#definition-form label,.saved-languages :is(h3,dl,dd) {margin:0}
+#definition-form button,.return-panel #preview-return {justify-self:start}
+.saved-languages {border-block-start:0;padding-block-start:0}
+.saved-languages dl {display:grid;gap:8px}
+.saved-languages dt {font-weight:600}
+.saved-languages dd {color:var(--muted)}
+.spoken-languages > details,.reader-package {border-block-start:1px solid var(--border);margin-block-start:14px}
+.spoken-languages > details > summary,.reader-package > summary {margin:0;padding-block:8px;font-weight:600}
+#return-form {display:grid;gap:12px;margin-block:14px}
+#return-form label,.return-panel .package-requirements summary {margin:0}
+#return-form input::file-selector-button {
+  margin-inline-end:9px;padding:4px 8px;border:1px solid var(--control-edge);border-radius:4px;
+  background:var(--rail);color:var(--ink);font:inherit;cursor:pointer;
+}
+.return-panel .package-requirements {color:var(--muted)}
+.return-review-actions {display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#inspector-content .return-review-actions button {margin:0}
+.return-panel [hidden],.return-review-actions:not(:has(> :not([hidden]))) {display:none}
+.reference-pages {display:flex;gap:6px;margin-block:0 10px}
+.reference-pages[hidden] {display:none}
+#reference-list > details {border-block-end:1px solid var(--border)}
+#reference-list > details > summary {margin:0;padding-block:6px}
 
 @media (pointer:coarse) {
   #properties-pane #inspector-content :where(button, summary, select, textarea,

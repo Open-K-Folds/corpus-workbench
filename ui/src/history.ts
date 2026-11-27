@@ -75,7 +75,7 @@ const History = Html.component({name: 'RevisionHistory', props: Props, model: Mo
       model.diff ? comparison(h, model.diff, head, model.queryChanges) : h.div.id('diff').attr('aria-live','polite').children(model.pending ? 'Loading exact revision comparison.' : model.failure),
       h.h3('Revision timeline'), h.label('Find revisions', h.input.id('history-query').attrs({type: 'search', placeholder: 'Name, revision or actor', autocomplete: 'off'})
         .value(model.query).on('input', ({value}) => Message.FindRevisions({text: value}))),
-      h.p.id('history-count').class('muted').attr('role','status').children(found.length + ' of ' + rows.length + ' revisions'),
+      h.p.id('history-count').class('muted').attr('role','status').children(found.length + ' of ' + rows.length + (rows.length === 1 ? ' revision' : ' revisions')),
       h.ol.class('history').id('history-list').children(found.length ? found.map(r => h.li.key(String(r.id)).children(
         h.span.class('revision-number').children('R' + r.id), h.div(h.strong(r.label), h.p(r.created_at + ' · ' + r.actor), h.code(r.snapshot_hash.slice(0,16)),
           r.id === head && h.span.class('current-label').children('Current state')))) : h.li.class('empty-state').children('No matching revisions.')),

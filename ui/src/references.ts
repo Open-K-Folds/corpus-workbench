@@ -19,7 +19,7 @@ export async function referenceInspector(view:View,documentPath:string,selected:
       ' qualified IDs',
     ),
     h.p(
-      'General converters and this discovery-only preflight stay blocked. The Split / merge tab offers a separate closed-dialect proof; syntactic ID resolution alone never authorizes a rewrite.',
+      'Browse the references in this revision and check which files a proposed edit touches. Use Split / merge for supported transcript edits.',
     ),
     h.button.id('download-inventory').class('secondary').children('Download inventory evidence'),
     h.details(
@@ -44,11 +44,15 @@ export async function referenceInspector(view:View,documentPath:string,selected:
         [...new Set(inv.carriers.map((c) => c.resolution))].sort().map((v) => h.option(v)),
       ),
     ),
-    h.p.id('reference-count'),
+    h.p.id('reference-count').attrs({role:'status'}),
+    h.div.id('reference-pages').class('reference-pages').attrs({role:'group','aria-label':'Reference pages'}).children(
+      h.button.id('previous-references').class('secondary').attrs({type:'button','aria-label':'Previous references'}).children('Previous'),
+      h.button.id('next-references').class('secondary').attrs({type:'button','aria-label':'Next references'}).children('Next'),
+    ),
     h.div.id('reference-list'),
     h.h3('Inspect structural impact'),
     h.p(
-      'No edit is made. Results include unknown carriers, immutable authority dependencies and remaining execution gates.',
+      'This read-only check lists affected references, dependencies and conditions that still block the edit.',
     ),
     h.form
     .id('preflight-form')
@@ -100,8 +104,24 @@ export async function referenceInspector(view:View,documentPath:string,selected:
     h.ul(c.targets.map((t) => h.li(t.artifact, ' · ', t.id, ' · element byte ', String(t.element_start)))),
     h.small(c.note),
   );
-  const render=()=>{const carriers=inv.carriers.filter(c=>(!artifact.value||c.artifact===artifact.value)&&(!resolution.value||c.resolution===resolution.value));panel.querySelector('#reference-count')!.textContent=`${carriers.length} matching carriers; showing ${Math.min(carriers.length,200)}. Download contains all evidence.`;renderInto(panel
-    .querySelector('#reference-list')!, carriers.slice(0, 200).map(card));};artifact.onchange=render;resolution.onchange=render;render();
+  const pageSize=8;
+  const pages=panel.querySelector<HTMLElement>('#reference-pages')!;
+  const previous=pages.querySelector<HTMLButtonElement>('#previous-references')!, next=pages.querySelector<HTMLButtonElement>('#next-references')!;
+  let first=0;
+  function renderPage() {
+    const carriers=inv.carriers.filter(c=>(!artifact.value||c.artifact===artifact.value)&&(!resolution.value||c.resolution===resolution.value));
+    const total=carriers.length, end=Math.min(first+pageSize,total);
+    const count=total+' matching '+(total===1?'carrier':'carriers');
+    panel.querySelector('#reference-count')!.textContent=total>pageSize ? `Showing ${first+1}–${end} of ${count}.` : count+'.';
+    pages.hidden=total<=pageSize;
+    previous.disabled=first===0; next.disabled=end>=total;
+    renderInto(panel.querySelector('#reference-list')!,carriers.slice(first,end).map(card));
+  }
+  function resetPage() { first=0; renderPage(); }
+  artifact.onchange=resolution.onchange=resetPage;
+  previous.onclick=()=>{first-=pageSize;renderPage()};
+  next.onclick=()=>{first+=pageSize;renderPage()};
+  resetPage();
   panel.querySelector<HTMLButtonElement>('#download-inventory')!.onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`reference-inventory-r${inv.revision}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
   panel.querySelector<HTMLFormElement>('#preflight-form')!.onsubmit=async e=>{e.preventDefault();const values=new FormData(e.currentTarget as HTMLFormElement);const status=panel.querySelector('#preflight-status')!;try{const r=await api<{execution_enabled:boolean;decision:string;affected_carriers:Carrier[]}>('/api/preflight',{schema:1,project:inv.project,revision:inv.revision,snapshot_hash:inv.snapshot_hash,config_hash:inv.config_hash,inventory_hash:result.inventory_hash,operation:values.get('operation'),targets:[inv.ids[Number(values.get('target'))]]});status.textContent=`${r.decision}; ${r.affected_carriers.length} known affected carriers.`;panel.querySelector('#preflight-evidence')!.textContent=JSON.stringify(r,null,2);}catch(e){status.textContent=String(e);}};
   return panel;

@@ -1,12 +1,13 @@
 import {h, renderInto} from './effect-view';
 import {api} from './api';
 import type {Operation,ReaderPreview,View} from './contracts';
-export async function teitokReaderInspector(view:View,onSave:(operations:Operation[],label:string)=>Promise<void>):Promise<HTMLElement>{
+export async function teitokReaderInspector(view:View,onSave:(operations:Operation[],label:string)=>Promise<void>):Promise<HTMLDetailsElement>{
   const result=await api<ReaderPreview>(`/api/teitok-reader?revision=${view.revision.id}`);
   if(result.revision!==view.revision.id||result.snapshot_hash!==view.revision.snapshot_hash)throw new Error('Reader configuration revision mismatch');
-  const panel=document.createElement('section');
+  const panel=document.createElement('details');
+  panel.className='reader-package';
   renderInto(panel,
-    h.h2('TEITOK reader package'),
+    h.summary('TEITOK reader package'),
     h.p(
       'Package the original, corrected and optional normalized reading controls and research span definitions. Installation is a named revision and requires new review. Custom settings and definitions are preserved and block installation.',
     ),

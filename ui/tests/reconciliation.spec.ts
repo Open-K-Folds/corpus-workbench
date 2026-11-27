@@ -32,12 +32,18 @@ test('explains an unreadable file or a lost connection and lets the reader retry
   const chooser = page.getByLabel('Edited package folder');
   const preview = page.getByRole('button', {name:'Upload and preview'});
   const status = page.locator('#return-status');
+  await expect(page.locator('#discard-return')).toBeHidden();
+  await expect(page.locator('#commit-return')).toBeHidden();
+  await expect(page.locator('#return-proof-details')).toBeHidden();
   await chooser.setInputFiles(returned);
+  await expect(page.locator('#discard-return')).toBeVisible();
   const file = resolve(returned,'Raw/draft.json'), moved = resolve(runtime,'moved-draft.json');
   renameSync(file,moved);
   try {
     await preview.click();
     await expect(status).toContainText('Your browser could not read “Raw/draft.json”');
+    await expect(chooser).toBeEmpty();
+    await expect(preview).toBeDisabled();
     await expect(page.locator('#commit-return')).toBeDisabled();
   } finally { renameSync(moved,file); }
 

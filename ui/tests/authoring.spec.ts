@@ -139,8 +139,13 @@ test('reference inventory and structural prerequisites remain revision bound and
   const before=await page.evaluate(async()=> (await fetch('/api/view')).json());
   const original=await page.evaluate(async()=> (await fetch('/api/inventory?revision=23')).json());
   await page.locator('[data-token="w-1"]').click();await page.getByRole('button',{name:'References',exact:true}).click();await expect(page.getByRole('heading',{name:'Package reference inventory · R23'})).toBeVisible();
+  await expect(page.locator('#reference-list > details')).toHaveCount(8);
+  await page.getByRole('button',{name:'Next references'}).click();
+  await expect(page.locator('#reference-count')).toContainText('Showing 9–');
+  await page.getByRole('button',{name:'Previous references'}).click();
+  await expect(page.locator('#reference-count')).toContainText('Showing 1–8');
   await page.getByLabel('Artifact filter').selectOption('Other/links.psdx');await expect(page.locator('#reference-list')).toContainText('resolved');await expect(page.locator('#reference-list')).toContainText('unresolved');
-  await page.getByLabel('Resolution filter').selectOption('unresolved');await expect(page.locator('#reference-count')).toContainText('1 matching carriers');
+  await page.getByLabel('Resolution filter').selectOption('unresolved');await expect(page.locator('#reference-count')).toHaveText('1 matching carrier.');await expect(page.locator('#reference-pages')).toBeHidden();
   const [download]=await Promise.all([page.waitForEvent('download'),page.getByRole('button',{name:'Download inventory evidence',exact:true}).click()]);const file=resolve(runtime,'reference-inventory.json');await download.saveAs(file);expect(JSON.parse(readFileSync(file,'utf8'))).toEqual(original);
   await page.getByRole('button',{name:'Check prerequisites',exact:true}).click();await expect(page.locator('#preflight-status')).toContainText('blocked');await expect(page.locator('#preflight-evidence')).toContainText('"execution_enabled": false');await expect(page.locator('#preflight-evidence')).toContainText('Other/opaque.bin');
   expect((await page.evaluate(async()=> (await fetch('/api/view')).json())).revision).toEqual(before.revision);

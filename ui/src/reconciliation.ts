@@ -1,5 +1,5 @@
 import {h, renderInto} from './effect-view';
-import {api,uploadFile} from './api';
+import {api,UnreadableUploadFile,uploadFile} from './api';
 import type {Operation,ReturnPreview,ReturnRequest,View} from './contracts';
 import {field,formValues} from './dom';
 
@@ -8,7 +8,7 @@ export function reconciliationInspector(view:View,onSave:(ops:Operation[],label:
   renderInto(panel,
     h.h2('Return an edited copy'),
     h.p(
-      'Choose the complete exported package folder after editing its copy in TEITOK. Review token fields against the exported baseline and current saved work.',
+      'Choose the folder you edited in TEITOK to compare it with the exported and currently saved versions.',
     ),
     h.form
     .id('return-form')
@@ -17,41 +17,49 @@ export function reconciliationInspector(view:View,onSave:(ops:Operation[],label:
         'Edited package folder',
         h.input.id('return-directory').attrs({type: 'file', webkitdirectory: '', multiple: ''}),
       ),
-      h.p
-        .class('muted')
-        .children(
-          'Up to 256 MiB total, 64 MiB per file. Originals, timing, IDs, media and unsupported structures must be unchanged. New TEITOK backups are retained as historical evidence. Included CWB indexes require an adapter rebuild before compatibility export.',
-        ),
+      h.details.class('package-requirements').children(
+        h.summary('Folder requirements'),
+        h.p('Choose the complete exported folder. The limit is 256 MiB per folder and 64 MiB per file.'),
+        h.p('Keep the original text, timing, IDs, media and unsupported structures intact. The Workbench retains new TEITOK backups. Included CWB indexes require an adapter rebuild before compatibility export.'),
+      ),
       field('revision_label', 'Revision name', 'Reconcile TEITOK copy'),
       h.button.id('preview-return').attrs({type: 'submit', disabled: ''}).children('Upload and preview'),
-      h.button
-        .id('commit-return')
-        .attrs({type: 'button', disabled: ''})
-        .children('Save reviewed changes'),
     ),
     h.p
     .id('return-status')
     .attrs({role: 'status'})
     .children('Saved basis R', String(view.revision.id), '. No files selected.'),
     h.div.id('return-result'),
-    h.button
-    .id('refresh-return')
-    .class('secondary')
-    .attrs({type: 'button', hidden: ''})
-    .children('Preview selected choices'),
-    h.details(h.summary('Complete reconciliation proof'), h.pre.id('return-proof')),
+    h.div.class('return-review-actions').children(
+      h.button.id('refresh-return').class('secondary').attrs({type:'button', hidden:''}).children('Preview selected choices'),
+      h.button.id('commit-return').attrs({type:'button', disabled:'', hidden:''}).children('Save reviewed changes'),
+      h.button.id('discard-return').class('secondary').attrs({type:'button', hidden:''}).children('Discard proposal'),
+    ),
+    h.details.id('return-proof-details').attrs({hidden:''}).children(h.summary('Complete reconciliation proof'), h.pre.id('return-proof')),
   );
   const find=<T extends HTMLElement>(id:string)=>panel.querySelector<T>('#'+id)!;
   const form=find<HTMLFormElement>('return-form');const chooser=find<HTMLInputElement>('return-directory');const previewButton=find<HTMLButtonElement>('preview-return');const commitButton=find<HTMLButtonElement>('commit-return');const refresh=find<HTMLButtonElement>('refresh-return');const status=find('return-status');
   let epoch=0;let pending:ReturnPreview|null=null;let request:ReturnRequest|null=null;let busy=false;
   panel.addEventListener('wb-discard',()=>{++epoch;pending=null;request=null;});
-  const dirty=()=>{form.dataset.dirty='true';onDirty()};
+  const proofDetails=find<HTMLDetailsElement>('return-proof-details');
+  const dirty=()=>{form.dataset.dirty='true';find('discard-return').hidden=false;onDirty()};
   const invalidate=()=>{++epoch;pending=null;commitButton.disabled=true;dirty()};
-  chooser.onchange=()=>{invalidate();request=null;refresh.hidden=true;previewButton.disabled=!chooser.files?.length;status.textContent=`${chooser.files?.length??0} files selected. Upload the complete folder to preview.`;find('return-result').replaceChildren();};
+  function clearPreview() {
+    pending=null; request=null; commitButton.hidden=true; refresh.hidden=true;
+    proofDetails.hidden=true; proofDetails.open=false;
+    find('return-result').replaceChildren(); find('return-proof').textContent='';
+  }
+  chooser.onchange=()=>{
+    invalidate(); clearPreview();
+    const count=chooser.files?.length??0;
+    previewButton.disabled=count===0;
+    status.textContent=count ? `${count} ${count===1?'file':'files'} selected. Upload the folder to preview its changes.` : 'No folder selected.';
+  };
   // Naming a revision does not change the proved candidate.
   form.querySelector<HTMLInputElement>('[name="revision_label"]')!.oninput=dirty;
   const render=(result:ReturnPreview)=>{
     const p=result.preview;find('return-proof').textContent=JSON.stringify(result,null,2);
+    commitButton.hidden=false;proofDetails.hidden=false;
     renderInto(find('return-result'),
       h.div
       .class('revision-basis')
@@ -115,11 +123,16 @@ export function reconciliationInspector(view:View,onSave:(ops:Operation[],label:
   };
   const prove=async(turn:number)=>{const result=await api<ReturnPreview>('/api/return/preview',request);if(turn!==epoch)return;pending=result;render(result)};
   const lock=(value:boolean)=>{busy=value;chooser.disabled=value;previewButton.disabled=value||!chooser.files?.length;refresh.disabled=value;commitButton.disabled=value||!pending?.preview.ready;};
-  form.onsubmit=async e=>{e.preventDefault();if(busy||!chooser.files?.length)return;const turn=++epoch;pending=null;request=null;lock(true);dirty();let upload:string|null=null;
+  form.onsubmit=async e=>{e.preventDefault();if(busy||!chooser.files?.length)return;const turn=++epoch;clearPreview();lock(true);dirty();let upload:string|null=null;
     try{const files=[...chooser.files].map(file=>{const relative=file.webkitRelativePath;const slash=relative.indexOf('/');if(slash<0)throw new Error('Choose one complete package folder.');return {file,path:relative.slice(slash+1)}});const started=await api<{upload:string}>('/api/return/start',{project:view.snapshot.project,revision:view.revision.id,snapshot_hash:view.revision.snapshot_hash,files:files.map(({file,path})=>({path,bytes:file.size}))});upload=started.upload;
       for(let i=0;i<files.length;i++){if(turn!==epoch)throw new Error('Proposal discarded.');status.textContent=`Uploading ${i+1}/${files.length}: ${files[i].path}`;await uploadFile(upload,files[i].path,files[i].file)}
       status.textContent='Checking the frozen package and exact revision.';const staged=await api<{stage:string}>('/api/return/finish',{upload});upload=null;if(turn!==epoch)return;request={schema:1,project:view.snapshot.project,revision:view.revision.id,snapshot_hash:view.revision.snapshot_hash,stage:staged.stage,resolutions:{}};await prove(turn);
-    }catch(error){if(turn===epoch)status.textContent=error instanceof Error ? error.message : String(error);}finally{if(upload)await api('/api/return/cancel',{upload}).catch(()=>{});lock(false)}
+    } catch(error) {
+      if(turn===epoch) {
+        if(error instanceof UnreadableUploadFile) chooser.value='';
+        status.textContent=error instanceof Error ? error.message : String(error);
+      }
+    } finally {if(upload)await api('/api/return/cancel',{upload}).catch(()=>{});lock(false)}
   };
   refresh.onclick=async()=>{if(busy||!request)return;const turn=++epoch;pending=null;lock(true);try{await prove(turn)}catch(error){if(turn===epoch)status.textContent=String(error)}finally{lock(false)}};
   commitButton.onclick=async()=>{if(busy||!pending?.preview.ready||!request)return;const proof=pending;pending=null;commitButton.disabled=true;await onSave([{kind:'reconcile_package',request:proof.preview.request,preview_hash:proof.preview_hash}],formValues(form).revision_label||'Reconcile TEITOK copy',form,view);};

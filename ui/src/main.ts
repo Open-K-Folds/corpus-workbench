@@ -569,6 +569,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   const panelSignal = AbortSignal.any([workspaceUi.signal, inspectorLifetime.signal]);
   if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}workspaceUi.inspector(tab);
   const content=el('inspector-content'); const doc=currentDoc();
+  const readerPackageOpen = tab === 'definitions' && content.querySelector<HTMLDetailsElement>('.reader-package')?.open === true;
   const submittedMeaning = committedRender && tab === 'meanings'
     ? content.querySelector<HTMLFormElement>('#meaning-form')?.dataset.submittedMeaning : undefined;
   content.replaceChildren();
@@ -711,33 +712,52 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
       }
     } catch (error) { if (!panelSignal.aborted) message(String(error), true); }
   }
-  if(tab==='definitions'){renderInto(content,
+  if(tab==='definitions'){
+    const languages = Object.entries(view.snapshot.config.language_values);
+    renderInto(content, h.section.class('spoken-languages').children(
     h.h2('Spoken languages'),
     h.p
     .class('muted')
     .children('Add the languages and varieties people speak, such as isiXhosa or English.'),
-    h.button.id('open-meanings').class('secondary').attrs({type:'button'}).children('Open meaning labels'),
+    h.button.id('open-meanings').class('secondary').attrs({type:'button'}).children('Open meaning labels', icon('arrow_forward')),
     h.form
     .id('definition-form')
-    .children(field('value', 'Language or variety', '', 'e.g. isiXhosa'), field('description', 'Description (optional)'), h.button('Save language')),
-    h.ul(Object.entries(view.snapshot.config.language_values).map(([v, d]) => h.li(h.strong(v), d ? ' — ' + d : ''))),
+    .children(h.label('Language or variety', h.input.attrs({name:'value', placeholder:'e.g. isiXhosa', required:'', autocomplete:'off'})),
+      field('description', 'Description (optional)'), h.button.attrs({type:'submit'}).children('Save language')),
+    languages.length > 0 && h.section.class('saved-languages').children(h.h3('Project languages'),
+      h.dl(languages.map(([name, description]) => h.div(h.dt(name), h.dd(description))))),
     h.label(
       'Spoken language for otherwise unlabelled words',
       h.select.id('language-default').children(
         h.option.attrs({value: ''}).children('Unknown / no default'),
-        Object.keys(view.snapshot.config.language_values).map(v =>
+        languages.map(([v]) =>
           h.option
             .attrs({value: v, selected: v === view.snapshot.config.language_default ? '' : undefined})
             .children(v),
         ),
       ),
     ),
-    h.button.id('save-default').class('secondary').children('Save default'),
+    h.button.id('save-default').class('secondary').attrs({type:'button', disabled:''}).children('Save default'),
     h.details(
       h.summary('Layer constraints and schema'),
       h.pre(JSON.stringify(view.snapshot.config.layers, null, 2)),
     ),
-  );el('open-meanings').onclick=()=>void openPassageTool('meanings');el<HTMLFormElement>('definition-form').onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await save([{kind:'define_language',value:v.value,description:v.description}],`Define language: ${v.value}`)};el('save-default').onclick=()=>void save([{kind:'set_language_default',value:el<HTMLSelectElement>('language-default').value||null}],'Set project language default');try{const panel=await teitokReaderInspector(view,save);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
+    ));
+    el('open-meanings').onclick=()=>void openPassageTool('meanings');
+    el<HTMLFormElement>('definition-form').onsubmit=async e=>{
+      e.preventDefault();
+      const v=formValues(e.currentTarget as HTMLFormElement);
+      await save([{kind:'define_language',value:v.value,description:v.description}],`Define language: ${v.value}`);
+    };
+    const defaultLanguage = el<HTMLSelectElement>('language-default'), saveDefault = el<HTMLButtonElement>('save-default');
+    defaultLanguage.onchange=()=>{saveDefault.disabled=defaultLanguage.value===(view.snapshot.config.language_default??'')};
+    saveDefault.onclick=()=>void save([{kind:'set_language_default',value:defaultLanguage.value||null}],'Set project language default');
+    try {
+      const panel=await teitokReaderInspector(view,save);
+      if(epoch!==inspectorEpoch)return;
+      panel.open=readerPackageOpen; content.append(panel);
+    } catch(error) { if(epoch===inspectorEpoch)message(String(error),true); }
+  }
   if(tab==='review'){content.append(reviewInspector(view, panelSignal));el<HTMLFormElement>('review-form').onsubmit=async e=>{e.preventDefault();if(saving||pendingWrite)return;if(transcript.dirty()||draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'))){message('Save or discard annotation drafts and structural drafts before recording review. Token drafts must also be saved or reset.',true);return;}const basis=view;const v=formValues(e.currentTarget as HTMLFormElement);saving=true;++inspectorEpoch;const unlock=lockAuthoring();try{await api('/api/review',{revision:basis.revision.id,snapshot_hash:basis.revision.snapshot_hash,decision:v.decision,note:v.note});view=await loadView();message(`Review recorded for R${basis.revision.id}.`);render()}catch(e){message(String(e),true)}finally{saving=false;unlock()}};el('compiler-contract').onclick=async()=>{try{el('contract-preview').textContent=JSON.stringify(await api('/api/contract'),null,2)}catch(e){message(String(e),true)}};}
   if(tab==='research')content.append(researchInspector(view,{dirty:()=>{const state=departure();return state.dirty||state.saving||transcript.busy()},perform:performResearch,go:(next,source)=>{tab=next;if(next==='source'){sourcePath=source??doc.path;projectFiles.refresh()}showProperties();void renderInspector()}}));
   if(tab==='structure'){
@@ -747,7 +767,9 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   }
   if(tab==='return'){
     let panel=returnDrafts.get(view.revision.id);if(!panel){panel=reconciliationInspector(view,save,()=>{el('save-state').textContent='Unsaved returned package proposal - saved head R'+view.revision.id});returnDrafts.set(view.revision.id,panel)}
-    const discard=document.createElement('button');discard.id='discard-return';discard.className='secondary';discard.textContent='Discard proposal and reload saved state';discard.onclick=async()=>{if([...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]'))){message('Save or discard other drafts before reloading.',true);return;}if(transcript.dirty()){message('Finish or undo the in-place correction draft before reloading.',true);return;}returnDrafts.forEach(panel=>panel.dispatchEvent(new Event('wb-discard')));returnDrafts.clear();view=await loadView();render();};content.append(discard,panel);
+    const discard=panel.querySelector<HTMLButtonElement>('#discard-return')!;
+    discard.hidden=![...returnDrafts.values()].some(draft=>draft.querySelector('form[data-dirty="true"]'));
+    discard.onclick=async()=>{if([...tokenDrafts.values(),...annotationDrafts.values(),...structuralDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]'))){message('Save or discard other drafts before reloading.',true);return;}if(transcript.dirty()){message('Finish or undo the in-place correction draft before reloading.',true);return;}returnDrafts.forEach(panel=>panel.dispatchEvent(new Event('wb-discard')));returnDrafts.clear();view=await loadView();render();};content.append(panel);
   }
   if(tab==='references'){try{const basis=view;const panel=await referenceInspector(basis,doc.path,selected);if(epoch!==inspectorEpoch)return;if(epoch===inspectorEpoch&&tab==='references'&&view.revision.id===basis.revision.id&&docPath===doc.path)content.append(panel)}catch(e){if(epoch!==inspectorEpoch)return;message(String(e),true)}}
 

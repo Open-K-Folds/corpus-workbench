@@ -8,6 +8,7 @@ export const draftContext=()=>context;
 let preview = false;
 export const isRemotePreview = () => preview;
 export class ApiError extends Error { constructor(message:string,public status:number){super(message)} }
+export class UnreadableUploadFile extends Error {}
 export async function api<T>(path:string,body?:unknown,signal?:AbortSignal):Promise<T> {
   const response=await fetch(path,body===undefined ? {signal:signal??null} : {
     method:'POST',headers:{'Content-Type':'application/json','X-WB-CSRF':csrf},body:JSON.stringify(body),signal:signal??null,
@@ -27,7 +28,7 @@ export async function uploadFile(upload:string,path:string,file:File):Promise<vo
       const sample = file.size ? file.slice(0, 1) : file;
       await sample.arrayBuffer();
     } catch {
-      throw new Error(`Your browser could not read “${path}”. Check that the file exists and choose the folder again. For a long Windows path, move the exported folder closer to the top of the drive.`);
+      throw new UnreadableUploadFile(`Your browser could not read “${path}”. Check that the file exists and choose the folder again. For a long Windows path, move the exported folder closer to the top of the drive.`);
     }
     throw new Error(`The upload stopped at “${path}”. Check your connection and try again.`);
   }
