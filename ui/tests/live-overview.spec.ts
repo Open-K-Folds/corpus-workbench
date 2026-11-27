@@ -111,7 +111,12 @@ test('overview reports the actual snapshot, bounded artifact identities and sele
   await page.getByRole('button',{name:'Tools',exact:true}).click();
   await page.locator('[data-token="w2"]').click();await page.getByLabel('Reviewer note',{exact:true}).fill('SYNTHETIC retained listening note');
   const dialog=await overview(page);await expect(dialog).toHaveJSProperty('open',true);
-  await expect(page.locator('#overview-basis')).toContainText(`Saved R${before.revision.id}`);await expect(page.locator('#overview-basis')).toContainText(before.revision.snapshot_hash);
+  await expect(page.locator('#overview-basis')).toContainText(`Saved R${before.revision.id}`);
+  const snapshot=page.locator('#overview-snapshot-id');
+  await expect(snapshot).toBeHidden();
+  await page.locator('#overview-basis summary').click();
+  await expect(snapshot).toBeVisible();await expect(snapshot).toHaveText(before.revision.snapshot_hash);
+  await page.locator('#overview-basis summary').click();
   await expect(page.locator('#overview-selection-count')).toContainText(/\b1\b/);await expect(page.locator('#overview-selection-text')).toContainText('habari?');
   await expect(page.locator('#overview-selection-timing')).toContainText(/word.*(unknown|unavailable|absent)|no.*word|chunk|utterance/i);
   await expect(page.locator('#overview-review')).toContainText(/unreviewed|awaiting/i);await expect(dialog).toContainText('Desktop runtime unavailable');

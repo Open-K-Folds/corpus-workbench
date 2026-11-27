@@ -53,7 +53,10 @@ export class ResearchOverview {
             h.button.id('overview-close').children('Return to transcript'),
           ),
       ),
-      h.div.id('overview-basis').class('overview-basis'),
+      h.div.id('overview-basis').class('overview-basis').children(
+        h.span.id('overview-revision'),
+        h.details(h.summary('Snapshot ID'), h.code.id('overview-snapshot-id')),
+      ),
       h.div.class('overview-stage').children(
         h.section
           .class('overview-evidence')
@@ -272,7 +275,8 @@ export class ResearchOverview {
     this.dialog.toggleAttribute('data-no-recording', !this.media);
     const priority=(path:string)=>path===d.path?0:path===this.media?1:2;
     const entries=Object.entries(v.snapshot.files).sort(([a],[b])=>priority(a)-priority(b)||a.localeCompare(b));
-    this.find('overview-basis').textContent=`Saved R${v.revision.id} · ${v.revision.snapshot_hash} · ${v.documents.length} document${v.documents.length===1?'':'s'}`;
+    this.find('overview-revision').textContent=`Saved R${v.revision.id} · ${v.documents.length} document${v.documents.length===1?'':'s'}`;
+    this.find('overview-snapshot-id').textContent=v.revision.snapshot_hash;
     this.dialog.querySelector('.overview-project')!.textContent=d.title;
     this.find('overview-file-count').textContent=String(entries.length);this.find('overview-file-bytes').textContent=`${bytes(entries.reduce((sum,[,file])=>sum+file.bytes,0))} retained in this snapshot`;
     this.find('overview-selection-count').textContent=String(tokens.length);this.find('overview-token-total').textContent=`of ${d.tokens.length} saved tokens in this document`;

@@ -102,15 +102,25 @@
 #research-overview .overview-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 #research-overview #overview-close { background: var(--ov-focus); color: var(--ov-bg); border-color: var(--ov-focus); font-weight: 650; }
 #research-overview .overview-basis {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:4px 14px;
   margin: 0;
-  padding: 11px 28px;
+  padding: 4px 28px;
   border-bottom: 1px solid var(--ov-line);
   background: var(--ov-panel);
   color: var(--ov-muted);
-  font: 10px/1.65 var(--ov-mono);
+  font: 12px/1.5 var(--ov-mono);
   overflow-wrap: anywhere;
 }
-#research-overview .overview-basis strong { color: var(--ov-ink); font-weight: 500; }
+#research-overview .overview-basis summary {min-height:32px;margin:0;align-content:center;color:var(--ov-focus);font:600 12px/1.5 system-ui,sans-serif}
+#research-overview .overview-basis details[open] {flex-basis:100%}
+#research-overview .overview-basis code {display:block;margin-block-end:8px;font-size:12px;user-select:all}
+@media (pointer:coarse) {
+  #research-overview .overview-basis summary {min-height:44px}
+}
 
 #research-overview .overview-stage { display: grid; grid-template-columns: minmax(0, 48fr) minmax(0, 52fr); }
 #research-overview .overview-evidence, #research-overview .overview-signal { min-width: 0; padding: 24px 28px 18px; }

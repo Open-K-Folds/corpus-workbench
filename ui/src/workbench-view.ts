@@ -149,7 +149,10 @@ const Workbench = Html.component({
       h.footer
         .class('studio-status')
         .children(
-          h.span.id('stage-file').children(summary.path),
+          h.span.id('stage-file').attr('title',summary.path).children(
+            h.span.class('stage-directory').children(summary.path.slice(0,summary.path.lastIndexOf('/')+1)),
+            summary.path.slice(summary.path.lastIndexOf('/')+1),
+          ),
           h.button.id('stage-metadata').attrs({type: 'button', title: 'Open annotations'})
             .onMount(activate(Actions.ClickedAnnotations())).children(summary.annotations),
           h.span.id('token-count').attrs({role: 'status'}),

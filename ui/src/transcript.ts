@@ -427,9 +427,12 @@ export class Transcript {
     const status=document.getElementById('token-count');
     if(!status)return;
     const ids=this.host.selected();
-    const prefix=`${visible} of ${this.host.doc().tokens.length} tokens · `;
+    const total=this.host.doc().tokens.length;
+    const countText=(visible===total ? String(total) : `${visible} of ${total}`)+(total===1?' token':' tokens');
+    if(!ids.length){status.textContent=countText;return}
+    const prefix=countText+' · ';
     const label=`${ids.length} selected`;
-    if(!ids.length||this.draft||this.surface.querySelector('.selected[data-filtered-token]')){
+    if(this.draft||this.surface.querySelector('.selected[data-filtered-token]')){
       status.textContent=prefix+label;return;
     }
     renderInto(this.selectionButton,
