@@ -28,13 +28,15 @@ Label a passage, compare different accounts or collect a difficult negative. Reo
 collection and export its labels, source readings and optional model proposals as JSONL.
 The [training exercise](docs/CO-ANALYSIS.md#collect-training-examples) uses two fictional interviews.
 
-The latest public prerelease is
-[v0.2.0-dev.11](https://github.com/Open-K-Folds/corpus-workbench/releases/tag/v0.2.0-dev.11),
-with Windows CLI/browser and Linux container packages. Those assets do not include
-the Electron desktop preview. The desktop workflow uses a source build or the
-separately supplied unsigned local Windows delivery. The
-[first-session qualification](docs/FIRST-SESSION-QUALIFICATION.md) identifies the
-installed build tested; later source changes do not update that package.
+Download the Windows x64 desktop engineering preview, extract the ZIP and open
+`Open-K-Folds Workbench.exe`. Windows shows **Unknown publisher**. The release
+includes GitHub build provenance for the desktop and source ZIPs, checksums and
+the independent review. [Get v0.2.0-dev.12](https://github.com/Open-K-Folds/corpus-workbench/releases/tag/v0.2.0-dev.12)
+
+The previous prerelease contains the Windows CLI/browser and Linux container
+packages. [Get v0.2.0-dev.11](https://github.com/Open-K-Folds/corpus-workbench/releases/tag/v0.2.0-dev.11)
+The earlier local desktop build is documented in the
+[first-session qualification](docs/FIRST-SESSION-QUALIFICATION.md).
 
 For a first recording-and-transcript session, follow the
 [first research session guide](docs/FIRST-RESEARCH-SESSION.md): import a copy,

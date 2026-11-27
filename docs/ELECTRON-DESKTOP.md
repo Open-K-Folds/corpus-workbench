@@ -7,11 +7,14 @@ There is no new corpus schema, destructive conversion or parallel authoring stor
 
 ## Run and build
 
-The local portable Windows package runs by opening `Open-K-Folds Workbench.exe`.
-Keep the complete package folder together. Base corpus authoring needs no
-separate server, Python, Docker, Node or Rust installation. Optional local
-Semantica handoff needs the separately supplied Python/runtime and compatible
-compiler described in [SEMANTIC-HANDOFF.md](SEMANTIC-HANDOFF.md). This preview is unsigned.
+Download the Windows x64 ZIP from the engineering preview release, extract the
+entire folder and open `Open-K-Folds Workbench.exe`. The release includes
+checksums and GitHub build provenance. Windows shows **Unknown publisher** for the
+executable. [Download v0.2.0-dev.12](https://github.com/Open-K-Folds/corpus-workbench/releases/tag/v0.2.0-dev.12)
+
+Base corpus authoring needs no separate server, Python, Docker, Node or Rust
+installation. Optional local Semantica handoff requires a separately supplied
+Python runtime and compatible compiler. [Semantica setup](SEMANTIC-HANDOFF.md)
 
 For source development, install the existing Rust/MSVC and Node toolchains, then:
 
