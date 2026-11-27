@@ -4,6 +4,8 @@ import {readTrainingRecord} from './training-store';
 
 type CharacterAnchor = {token:string; start:number; end:number; quote:string};
 const indexes = new WeakMap<Document, Map<string, number>>();
+export const isMeaningSpan = (span: Span) =>
+  /^meaning-[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/.test(span.id);
 
 function tokenPositions(doc: Document) {
   let positions = indexes.get(doc);
@@ -49,9 +51,9 @@ function reviewedEvidence(span: Span) {
   } catch {return null;}
 }
 
-export function annotationDetail(doc: Document, span: Span, project?: string) {
+export function anchoredReading(doc: Document, tokenIds: string[]) {
   const index = tokenPositions(doc);
-  const positions = span.token_ids.map(id => index.get(id) ?? -1).sort((a,b) => a-b);
+  const positions = tokenIds.map(id => index.get(id) ?? -1).sort((a,b) => a-b);
   const known = positions.length > 0 && positions[0] >= 0 && new Set(positions).size === positions.length;
   const tokens = known ? positions.map(position => doc.tokens[position]) : [];
   const ids = tokens.map(token => token.id);
@@ -62,6 +64,11 @@ export function annotationDetail(doc: Document, span: Span, project?: string) {
     gaps.push(i);
     return '… ' + text;
   }).join(' ');
+  return {known, tokens, ids, gaps, currentQuote};
+}
+
+export function annotationDetail(doc: Document, span: Span, project?: string) {
+  const {known, tokens, ids, gaps, currentQuote} = anchoredReading(doc, span.token_ids);
   const {fields} = span;
   let reason = known ? '' : 'Source anchors unavailable';
   let character:CharacterAnchor|null = null;
@@ -98,7 +105,8 @@ export function annotationDetail(doc: Document, span: Span, project?: string) {
     record?.model && 'Model: '+record.model, reason].filter(Boolean).join(' · ');
   return {
     title:record?.title || fields.label || fields.type || 'Untitled annotation',
-    kind:record?.kind ?? (unsupported ? 'Saved record' : 'Annotation'), quote, note:unsupported ? '' : record?.note ?? fields.note ?? '', source,
+    kind:record?.kind ?? (unsupported ? 'Saved record' : isMeaningSpan(span) ? 'English meaning' : 'Annotation'),
+    quote, note:unsupported ? '' : record?.note ?? fields.note ?? '', source,
     tokenIds:reason ? [] : ids, character:reason ? null : character,
   };
 }

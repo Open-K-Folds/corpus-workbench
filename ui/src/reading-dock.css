@@ -165,7 +165,7 @@
   white-space: nowrap;
 }
 .canvas-tools .canvas-passage-context button .material-symbol { font-size: 16px }
-.canvas-passage-context #dock-analyze-passage { color: var(--dock-on) }
+.canvas-passage-context :is(#dock-label-meaning,#dock-analyze-passage) { color: var(--dock-on) }
 .canvas-tools .canvas-passage-context button:hover:not(:disabled) { color: var(--ink); background: var(--control-hover) }
 .canvas-tools .canvas-passage-context button:focus-visible { outline: 2px solid var(--dock-key); outline-offset: 1px }
 .canvas-tools #canvas-scrub {
@@ -251,6 +251,7 @@
 }
 @container steering-dock (max-width: 320px) {
   .canvas-passage-context { gap: 3px; padding-inline: 7px 4px }
+  .canvas-passage-context button .material-symbol {display:none}
   .canvas-tools .canvas-passage-context button { padding-inline: 4px }
   .canvas-console { gap: 1px 3px; padding: 5px 6px }
   .canvas-console #follow-audio { padding-inline: 2px; gap: 3px }

@@ -3,7 +3,7 @@ import type {Token} from './contracts';
 // Trusted, compiled view registry. Corpus configuration supplies data, never code.
 export const inspectorViews = [
   {id:'token',label:'Token',group:'Transcript'}, {id:'annotations',label:'Annotations',group:'Transcript'},
-  {id:'definitions',label:'Definitions',group:'Transcript'}, {id:'history',label:'History',group:'Package'},
+  {id:'definitions',label:'Spoken languages',group:'Transcript'}, {id:'history',label:'History',group:'Package'},
   {id:'review',label:'Review',group:'Package'}, {id:'references',label:'References',group:'Package'},
   {id:'structure',label:'Split / merge',group:'Transcript'}, {id:'xml',label:'XML',group:'Package'},
   {id:'return',label:'Return copy',group:'Package'},
@@ -11,6 +11,7 @@ export const inspectorViews = [
   {id:'research',label:'Research handoff',group:'Research'},
   {id:'coanalysis',label:'Co-analysis',group:'Research'},
   {id:'training',label:'Training collections',group:'Research'},
+  {id:'meanings',label:'Meaning labels',group:'Transcript'},
 ] as const;
 export type InspectorView = typeof inspectorViews[number]['id'];
 // The registry order also defines Alt+1 through Alt+9. Group the visible

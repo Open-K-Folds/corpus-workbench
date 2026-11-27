@@ -9,6 +9,7 @@ import {matchesDraft,removeDraft,scopedDrafts,writeDraft,type LocalDraft} from '
 import {TrainingGesture,type TrainingLens,type TrainingPassage} from './training-gesture';
 import {PassagePin} from './passage-pin';
 import {AnnotationMarks} from './annotation-marks';
+import type {MeaningRange} from './meanings';
 import {TranscriptDrag} from './transcript-drag';
 
 interface Projection {schema:1;project:string;revision:number;snapshot_hash:string;document:string;artifact_hash:string;media_base_unsupported:boolean;blocks:ReadingBlock[]}
@@ -30,6 +31,7 @@ export class Transcript {
   private pin:PassagePin;
   private drag:TranscriptDrag;
   private annotationMarks:AnnotationMarks;
+  private passageLoaded = Promise.resolve();
   private menuFollowsRange=false;
   private popoverGeometry=new WeakMap<HTMLElement,string>();
   private layout:'lines'|'paragraphs'='paragraphs';private interlinear=false;
@@ -110,7 +112,7 @@ export class Transcript {
       if(event.type!=='pointerdown'||target.closest('dialog[open]'))return;
       if(interactingWithSelection&&target.closest('.lexeme[data-token],button,input'))return;
       // Keep the passage available throughout a command or form interaction.
-      const command=target.closest('button,input,select,textarea,summary,label,a,form,[role=slider],[contenteditable=true],.side-resizer,#timeline-resizer,#canvas-passage-context');
+      const command=target.closest('button,input,select,textarea,summary,label,a,form,[role=slider],[contenteditable=true],.side-resizer,#timeline-resizer,#canvas-passage-context,.saved-meanings');
       if(command)return;
       if(this.draft) {
         if((event as PointerEvent).button===0&&!this.composing)void this.dismissDraft();
@@ -162,7 +164,21 @@ export class Transcript {
       if(this.clearSelection()){e.preventDefault();e.stopImmediatePropagation()}
     },{capture:true});
   }
+  get passageReady() { return this.passageLoaded; }
   revealAnnotation(span:Span){return this.currentProjection() && !this.draft && !this.host.busy() && this.annotationMarks.reveal(span)}
+  meaningRange(): MeaningRange {
+    const selection = this.selection;
+    if (!selection?.range || selection.view !== this.host.view() || selection.document !== this.host.doc().path) return null;
+    const ids = this.host.selected();
+    if (ids.length !== selection.ids.length || !ids.every((id,i) => id === selection.ids[i])) return null;
+    const last = this.host.doc().tokens.find(token => token.id === ids.at(-1));
+    if (!last) return null;
+    const shown = reading(last, this.host.preferences.layer);
+    if (selection.start === 0 && selection.end === Array.from(shown).length) return null;
+    if (ids.length !== 1) return {reason:'Select whole words, or highlight part of a single word to label it.'};
+    if (shown !== (last.corrected ?? last.original)) return {reason:'Select this part of the word in the corrected reading to label it.'};
+    return {token:last.id, start:selection.start, end:selection.end, quote:selection.quote, coordinate:'unicode-codepoint', layer:'corrected'};
+  }
   private clearSelection(){
     if(!this.surface.isConnected)return false;
     const native=window.getSelection();
@@ -228,6 +244,8 @@ export class Transcript {
     this.annotationMarks.clear();this.cancelRange(false);
     this.drag.cancel();this.pin.clear();this.training?.cancel();this.selection=null;this.projection=null;this.surface.inert=true;void this.host.present({_tag: 'Loading'});this.offerRecovery();const view=this.host.view(),doc=this.host.doc(),epoch=++this.epoch;
     this.menu.hidden=true;this.details.hidden=true;
+    let finishPassage!: () => void;
+    this.passageLoaded = new Promise<void>(resolve => { finishPassage = resolve; });
     try{
       const p=await api<Projection>(`/api/reading?path=${encodeURIComponent(doc.path)}&revision=${view.revision.id}`);
       if(this.host.signal.aborted||epoch!==this.epoch||this.draft||this.host.view().revision.snapshot_hash!==view.revision.snapshot_hash||this.host.doc().path!==doc.path)return;
@@ -242,8 +260,22 @@ export class Transcript {
       this.annotationMarks.render(doc,view.snapshot.project);
       const shown=doc.tokens.filter(t=>visibleToken(t,this.host.preferences));this.updateCount(shown.length);
       (document.getElementById('next-match') as HTMLButtonElement).disabled=!shown.length;
-      this.offerRecovery();try{await this.markHistory(view,doc,epoch)}catch{if(epoch===this.epoch)this.host.message('Transcript loaded. Correction history decoration is unavailable; inspect History to retry.')}
-    }catch(e){if(epoch===this.epoch&&!this.draft&&this.host.doc().path===doc.path&&this.host.view().revision.id===view.revision.id){void this.host.present({_tag: 'Failed'});this.host.message(String(e),true);this.offerRecovery()}}
+      this.offerRecovery();
+    } catch (error) {
+      if (epoch === this.epoch && !this.draft && this.host.doc().path === doc.path && this.host.view().revision.id === view.revision.id) {
+        void this.host.present({_tag:'Failed'});
+        this.host.message(String(error),true);
+        this.offerRecovery();
+      }
+      return;
+    } finally {
+      finishPassage();
+    }
+    try {
+      await this.markHistory(view,doc,epoch);
+    } catch {
+      if (epoch === this.epoch) this.host.message('Transcript loaded. Correction history decoration is unavailable; inspect History to retry.');
+    }
   }
   private async markHistory(view:View,doc:Document,epoch:number){
     if(!view.revision.parent)return;
@@ -333,8 +365,8 @@ export class Transcript {
     }
     this.menu.hidden=true;this.details.hidden=true;
     if(!this.pin.matches(ids))this.pin.clear();
-    this.host.select(ids);if(!ids.length){this.selection=null;this.menu.hidden=true;this.paintSelection();return}
-    this.selection=this.tokenBasis(ids);
+    this.selection=ids.length?this.tokenBasis(ids):null;
+    this.host.select(ids);
     this.paintSelection();
   }
   private tokenBasis(ids:string[]):SelectionBasis{
@@ -492,14 +524,14 @@ export class Transcript {
       .class('tool-primary')
       .children(
         h.button.attrs({'data-action': 'correct'}).children('Correct'),
+        h.button.attrs({'data-action': 'meanings'}).children('Label meaning'),
         h.button.attrs({'data-action': 'language'}).children('Language'),
         h.button.attrs({'data-action': 'annotations'}).children('Annotate'),
-        h.button.attrs({'data-action': 'structure'}).children('Tokenize'),
       ),
       h.div
       .class('tool-secondary')
       .children(
-        h.button.attrs({'data-action': 'definitions'}).children('Definitions'),
+        h.button.attrs({'data-action': 'structure'}).children('Tokenize'),
         h.button.attrs({'data-action': 'references'}).children('References'),
         h.button
           .attrs({'data-action': 'coanalysis', 'aria-label': 'Co-analyse selected tokens'})
@@ -516,7 +548,21 @@ export class Transcript {
         String(s.view.revision.id),
       ),
     );
-    this.menu.querySelectorAll<HTMLButtonElement>('[data-action]').forEach(b=>{if(b.dataset.action==='correct'&&s.ids.length>1&&!s.range)b.disabled=true;if(['definitions','references'].includes(b.dataset.action!))b.setAttribute('aria-label',`${b.textContent} for selection`);b.onclick=()=>{if(b.dataset.action==='correct')this.begin(this.selection?.quote??'');else if(b.dataset.action==='listen')void this.host.listening.play(passageAnchor(s.view,s.document,s.ids));else{this.menu.hidden=true;const token=this.host.doc().tokens.find(t=>t.id===s.ids[0]);const partial=b.dataset.action==='annotations'&&s.layer==='corrected'&&s.ids.length===1&&token&&(s.start>0||s.end<Array.from(token.corrected??token.original).length);this.host.tool(b.dataset.action==='language'?'token':b.dataset.action!,partial?{start:s.start,end:s.end,quote:s.quote}:undefined);if(b.dataset.action==='language'&&s.ids.length>1)this.host.message('Language properties currently edit the first selected token; other selected identities remain unchanged.')}}});
+    for (const button of this.menu.querySelectorAll<HTMLButtonElement>('[data-action]')) {
+      const action = button.dataset.action!;
+      if (action === 'correct' && s.ids.length > 1 && !s.range) button.disabled = true;
+      if (action === 'references') button.setAttribute('aria-label', 'References for selection');
+      button.onclick = () => {
+        if (action === 'correct') { this.begin(this.selection?.quote ?? ''); return; }
+        if (action === 'listen') { void this.host.listening.play(passageAnchor(s.view,s.document,s.ids)); return; }
+        this.menu.hidden = true;
+        const token = this.host.doc().tokens.find(t => t.id === s.ids[0]);
+        const partial = action === 'annotations' && s.layer === 'corrected' && s.ids.length === 1 && token &&
+          (s.start > 0 || s.end < Array.from(token.corrected ?? token.original).length);
+        this.host.tool(action === 'language' ? 'token' : action, partial ? {start:s.start, end:s.end, quote:s.quote} : undefined);
+        if (action === 'language' && s.ids.length > 1) this.host.message('Language properties edit the first selected word.');
+      };
+    }
     if(this.training){
       const button=document.createElement('button');
       button.type='button';button.textContent='Training lenses';button.setAttribute('aria-haspopup','dialog');

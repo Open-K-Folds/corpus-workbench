@@ -610,7 +610,7 @@ async function b28ObserveSearch(page){
 async function b28Search(page,total){
   const count=await page.evaluate(()=>window.__b28Searches.length);await page.getByRole('button',{name:'Search corpus',exact:true}).click();
   await expect.poll(()=>page.evaluate(()=>window.__b28Searches.length)).toBe(count+1);
-  const envelope=await page.evaluate(()=>window.__b28Searches.at(-1));expect(envelope.result.total).toBe(total);await expect(page.locator('#corpus-search-status')).toContainText(`${total} hits`);return envelope;
+  const envelope=await page.evaluate(()=>window.__b28Searches.at(-1));expect(envelope.result.total).toBe(total);await expect(page.locator('#corpus-search-status')).toContainText(total === 1 ? '1 match' : total + ' matches');return envelope;
 }
 
 test('packaged per-term language search preserves literal bindings, native downloads, audio and tab state',async()=>{
@@ -664,7 +664,7 @@ test('packaged per-term language search preserves literal bindings, native downl
     for(const name of Object.keys(zipHashes))expect(zipHashes[name]).toBe(createHash('sha256').update(readFileSync(join(source,name))).digest('hex'));
     await page.getByLabel('Exact token sequence',{exact:true}).fill('molo\nsawubona');await b28ChooseExact(page,1,'xh');await b28ChooseExact(page,2,'zu');const greeting=await b28Search(page,1);
     expect(greeting.result.query.terms).toEqual([{text:'molo',language:'xh'},{text:'sawubona',language:'zu'}]);expect(greeting.result.hits[0].token_ids).toEqual(['greeting1','greeting2']);
-    await page.getByRole('button',{name:'Open matched tokens',exact:true}).click();await expect(page.locator('[data-token="greeting1"]')).toHaveClass(/selected/);await expect(page.locator('[data-token="greeting2"]')).toHaveClass(/selected/);await page.getByRole('button',{name:'Corpus search',exact:true}).click();
+    await page.getByRole('button',{name:'Show in transcript',exact:true}).click();await expect(page.locator('[data-token="greeting1"]')).toHaveClass(/selected/);await expect(page.locator('[data-token="greeting2"]')).toHaveClass(/selected/);await page.getByRole('button',{name:'Corpus search',exact:true}).click();
     await application.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].setContentSize(1440,1000));await settleLayout(page);const currentProperties=(await paneGeometry(application,page)).properties.width;
     if(Math.abs(currentProperties-304)>1)await dragSplitter(page,'#properties-resizer',currentProperties-304,0);nearPixels((await paneGeometry(application,page)).properties.width,304);
     // Inspector changes rebuild the reading surface. Manually return to the

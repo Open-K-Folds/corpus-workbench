@@ -61,6 +61,9 @@ fixed_files = {'index.html', 'third-party/material-symbols/LICENSE.txt', 'third-
                'third-party/jetbrains-mono/README.md', 'third-party/effect/LICENSE.txt'}
 for subset in ('latin', 'latin-ext', 'cyrillic', 'cyrillic-ext', 'greek', 'vietnamese'):
     fixed_files.add(f'third-party/jetbrains-mono/jetbrains-mono-{subset}-wght-normal.woff2')
+wordnet_dir = 'third-party/english-wordnet-2025'
+fixed_files.update(f'{wordnet_dir}/{name}' for name in ('README.md', 'LICENSE.md', 'WNDB_License.txt'))
+fixed_files.update(f'{wordnet_dir}/{letter}.json.gz' for letter in [*'abcdefghijklmnopqrstuvwxyz', 'other'])
 ui_names = {p.relative_to(ui).as_posix() for p in ui_files}
 bundles = (
     r'assets/index-[A-Za-z0-9_-]+\.js', r'assets/index-[A-Za-z0-9_-]+\.css',

@@ -23,6 +23,12 @@ pin to see the words it covers, then open it to read the quote, note and source.
 The evidence-card interaction draws on Beyond Chat’s [Story Pilot](https://beyondchat.design/lab/story-pilot/),
 which adapts the margin pins and attention boxes from Chuanqi Sun’s Spaceship IDE.
 
+Select words and choose **Label meaning** to say what they refer to in English.
+Save a word or phrase, or attach a sense from the built-in English dictionary.
+The saved label appears beside the original wording. **Show in transcript**
+returns to those words. **Find a meaning** searches labelled passages across
+transcripts. **Spoken languages** sets the language or variety people speak.
+
 **Training collections** turns selected words into reviewed examples for machine learning.
 Label a passage, compare different accounts or collect a difficult negative. Reopen the
 collection and export its labels, source readings and optional model proposals as JSONL.

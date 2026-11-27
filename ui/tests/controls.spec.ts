@@ -106,10 +106,10 @@ test('forced colors restores system scrollbars and controls, and reduced motion 
 
 test('a new search cannot replay the prior hit through retained custom controls',async({page})=>{
   await open(page);await page.getByRole('button',{name:'Corpus search',exact:true}).click();
-  await page.getByLabel('Exact token sequence',{exact:true}).fill('SYNTHETIC0');await page.getByRole('button',{name:'Search corpus',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText('1 hits');
+  await page.getByLabel('Exact token sequence',{exact:true}).fill('SYNTHETIC0');await page.getByRole('button',{name:'Search corpus',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText('1 match');
   await page.getByRole('button',{name:'Play utterance',exact:true}).click();await expect.poll(()=>page.locator('#search-audio').evaluate((a:HTMLAudioElement)=>a.currentTime)).toBeGreaterThan(.1);await expect(page.locator('#search-audio-play')).toBeVisible();
   await page.getByLabel('Exact token sequence',{exact:true}).fill('ABSENT-SYNTHETIC');await expect(page.locator('#search-audio-play')).toBeHidden();
-  await page.getByRole('button',{name:'Search corpus',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText('0 hits');await expect(page.locator('#search-audio-play')).toBeHidden();await expect(page.locator('#search-audio-basis')).toBeEmpty();
+  await page.getByRole('button',{name:'Search corpus',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText('0 matches');await expect(page.locator('#search-audio-play')).toBeHidden();await expect(page.locator('#search-audio-basis')).toBeEmpty();
   expect(await page.locator('#search-audio').getAttribute('src')).toBeNull();expect(await page.locator('#search-audio').evaluate((a:HTMLAudioElement)=>a.paused)).toBe(true);
 });
 

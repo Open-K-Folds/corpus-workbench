@@ -22,6 +22,7 @@ import {inspectorViews,isInspectorView,reading,visibleToken,type InspectorView,t
 import {mountSource} from './source';
 import {Transcript} from './transcript';
 import {annotationDetail} from './annotation-detail';
+import {meaningInspector} from './meanings';
 import {RecordingPanel,resizeWorkbenchSides} from './panes';
 import './style.css';
 import './editor.css';
@@ -213,7 +214,7 @@ function shell(){
     if(saving||pendingWrite||transcript.busy()||transcript.activeDraft())return;
     selected=[...ids];tab='training';app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;showProperties();training.update(view,currentDoc(),ids,{mode,limit});
     void renderInspector().then(()=>{const heading=training.node.querySelector<HTMLElement>('h2');if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true})}});
-  },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;if(findingTokens())refreshFindControls();void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:(name,anchor)=>{if(saving||pendingWrite||transcript.busy())return;if(isInspectorView(name)){tab=name;showProperties();const basis=view.revision.id,scope=docPath;void renderInspector().then(()=>{if(!anchor||name!=='annotations'||basis!==view.revision.id||scope!==docPath)return;const form=document.querySelector<HTMLFormElement>('#span-form');if(!form||form.dataset.dirty==='true'){message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.',true);return}for(const key of ['start','end','quote'] as const)(form.elements.namedItem(key) as HTMLInputElement).value=String(anchor[key]);const details=form.querySelector('details');if(details)details.open=true;form.dispatchEvent(new Event('input',{bubbles:true}))})}},status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
+  },view:()=>view,doc:currentDoc,preferences:readingPreferences,selected:()=>selected,select:ids=>{selected=ids;if(findingTokens())refreshFindControls();void renderInspector()},openDocument:path=>{el<HTMLAudioElement>('audio').pause();docPath=path;selected=[];render()},tool:openPassageTool,status:text=>el('save-state').textContent=text,message,accepted:latest=>{view=latest;render()},busy:()=>saving||pendingWrite!==null,otherDraft:()=>draftPanels().some(e=>e.querySelector('form[data-dirty="true"]')),listening:{check:checkCue,play:listen},projection:unsupported=>configureMedia(unsupported)});
   recording=new RecordingPanel(audioPane,el<HTMLAudioElement>('audio'),signal);
   playbackSync=new PlaybackSync(el<HTMLAudioElement>('audio'),el('tokens'),turn=>readingCanvas?.setPlaybackTurn(turn));
   overview=new ResearchOverview({view:()=>view,doc:currentDoc,selected:()=>selected,audio:el<HTMLAudioElement>('audio'),analysis:()=>recording.overview(),busy:()=>saving||!!pendingWrite,go:openInspectorActivity});
@@ -310,6 +311,7 @@ function shell(){
   el('next-match').onclick=nextMatch;
   el('listen-selected').onclick=()=>void listen(currentAnchor());
   el('dock-listen-passage').onclick=()=>void listen(currentAnchor(),true);
+  el('dock-label-meaning').onclick=()=>{if(selected.length && !transcript.activeDraft())void openPassageTool('meanings')};
   el('dock-analyze-passage').onclick=()=>{
     if(!selected.length||saving||pendingWrite||transcript.busy())return;
     if(transcript.activeDraft()){message('Finish the current correction before analyzing the passage.',true);return}
@@ -357,7 +359,9 @@ function render(){searchPanel?.update(view);const doc=currentDoc();docPath=doc.p
   checks.title=`Package validation · ${blocking} blocking / ${view.issues.length-blocking} advisory`;
   checks.setAttribute('aria-label',checksLabel+'. '+checks.title);
   projectFiles.refresh();
-  renderTokens();void renderInspector(true);
+  const reading = renderTokens();
+  void renderInspector(true);
+  return reading;
 }
 function findingTokens(){return !!readingPreferences.query.trim()||readingPreferences.filter!=='all';}
 let findOrigin:{document:string;scroll:number;controlsOpen:boolean}|null=null;
@@ -387,7 +391,13 @@ async function nextMatch(){
   word?.focus({preventScroll:true});word?.scrollIntoView({block:'nearest'});
 }
 function draftStatus(){const dirty=draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));el('save-state').textContent=dirty?'Unsaved draft - saved head R'+view.revision.id:`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;}
-function renderTokens(){refreshFindControls();refreshListenControls();void transcript.render()}
+function updateAnnotationDiscard(button: HTMLButtonElement) {
+  const count = [...annotationDrafts.values()].reduce((n, panel) => n + panel.querySelectorAll('form[data-dirty="true"]').length, 0);
+  button.hidden = button.disabled = count === 0;
+  button.textContent = tab === 'meanings' && count === 1 ? 'Discard draft' : 'Discard annotation drafts';
+  return count > 0;
+}
+function renderTokens(){refreshFindControls();refreshListenControls();return transcript.render()}
 function currentAnchor(){return passageAnchor(view,docPath,selected)}
 function currentBasis(anchor:PassageAnchor){
   return anchor.document===docPath && anchor.project===view.snapshot.project && anchor.revision===view.revision.id && anchor.snapshot_hash===view.revision.snapshot_hash;
@@ -559,6 +569,8 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   const panelSignal = AbortSignal.any([workspaceUi.signal, inspectorLifetime.signal]);
   if(annotationRevision!==view.revision.id){tokenDrafts.clear();annotationDrafts.clear();structuralDrafts.clear();returnDrafts.clear();annotationRevision=view.revision.id;}workspaceUi.inspector(tab);
   const content=el('inspector-content'); const doc=currentDoc();
+  const submittedMeaning = committedRender && tab === 'meanings'
+    ? content.querySelector<HTMLFormElement>('#meaning-form')?.dataset.submittedMeaning : undefined;
   content.replaceChildren();
   if(tab==='token'){const token=doc.tokens.find(t=>t.id===selected[0]);if(token){const key=JSON.stringify([doc.path,token.id]);let panel=tokenDrafts.get(key);if(!panel){panel=tokenInspector(view,doc,token,save,draftStatus);tokenDrafts.set(key,panel)}content.append(panel)}else content.append(emptyTokenInspector());}
   training.stopAudio();
@@ -606,10 +618,33 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
   if(tab!=='search')searchPanel?.pause();
   if(tab==='search'){
     searchPanel?.pause();
-    if(!searchPanel)searchPanel=corpusSearch(view,(binding,hit,reading)=>{
+    if(!searchPanel)searchPanel=corpusSearch(view,async (binding,hit,reading)=>{
       if(binding.revision!==view.revision.id||binding.snapshot_hash!==view.revision.snapshot_hash){message('Search result is stale against this authoring view. Search again.',true);return;}
-      if(transcript.dirty()){message('Finish or undo the in-place correction draft before opening a search result.',true);return;}docPath=hit.document;selected=hit.token_ids;readingPreferences.query='';readingPreferences.filter='all';readingPreferences.layer=reading;el<HTMLInputElement>('token-query').value='';el<HTMLSelectElement>('token-filter').value='all';el<HTMLSelectElement>('reading-layer').value=reading;tab='token';render();
-      document.querySelector<HTMLButtonElement>(`[data-token="${CSS.escape(selected[0])}"]`)?.scrollIntoView({block:'nearest'});
+      if (saving || pendingWrite || transcript.busy() || transcript.dirty()) {
+        message('Finish the current edit before opening a search result.',true);
+        return;
+      }
+      findOrigin = null;
+      readingPreferences.query = el<HTMLInputElement>('token-query').value = '';
+      readingPreferences.filter = 'all';
+      el<HTMLSelectElement>('token-filter').value = 'all';
+      readingPreferences.layer = reading;
+      el<HTMLSelectElement>('reading-layer').value = reading;
+      tab = 'token';
+      if (docPath === hit.document) {
+        selected = hit.token_ids;
+        void render();
+        showTranscript();
+      } else {
+        void switchDocument(hit.document,hit.token_ids);
+      }
+      const navigation = inspectorEpoch;
+      const focusBeforeLoading = document.activeElement;
+      await transcript.passageReady;
+      const focusMoved = document.activeElement !== focusBeforeLoading && document.activeElement !== document.body;
+      if (navigation !== inspectorEpoch || docPath !== hit.document || focusMoved) return;
+      if (el('tokens').closest<HTMLElement>('.transcript')!.inert || app.querySelector('dialog[open]')) return;
+      if (!transcript.revealPassage(hit.token_ids)) message('The matching words could not be shown in this transcript.',true);
     },async()=>{
       const expectedEpoch=inspectorEpoch;
       const dirty=()=>draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'));
@@ -620,24 +655,44 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
     }, workspaceUi.signal);
     searchPanel.update(view);content.append(searchPanel.element);
   }
-  if(tab==='annotations'){
-    const key=JSON.stringify([doc.path,selected]);let draft=annotationDrafts.get(key);
+  if(tab==='annotations' || tab==='meanings'){
+    const range = tab === 'meanings' ? transcript.meaningRange() : null;
+    const key=JSON.stringify([tab,doc.path,selected,range]);let draft=annotationDrafts.get(key);
     if (!draft) {
-      draft = annotationInspector(view,doc,selected,save,() => {
-        const action = el<HTMLButtonElement>('discard-annotation-drafts');
-        action.disabled = false;
-        action.hidden = false;
-        el('save-state').textContent='Unsaved annotation draft - saved head R'+view.revision.id;
-      }, async span => {
+      if (tab === 'meanings') {
+        for (const [prior, panel] of annotationDrafts) {
+          if (panel.classList.contains('meanings-panel') && !panel.querySelector('form[data-dirty="true"]')) annotationDrafts.delete(prior);
+        }
+      }
+      const changed = () => {
+        if (updateAnnotationDiscard(el<HTMLButtonElement>('discard-annotation-drafts'))) el('save-state').textContent='Unsaved annotation draft - saved head R'+view.revision.id;
+        else draftStatus();
+      };
+      const basis = view;
+      draft = tab === 'meanings' ? meaningInspector(basis,doc,selected,range,
+        (ops,label,form) => save(ops,label,form,basis), changed,
+        ({doc,span}) => void showMeaningPassage(basis,doc.path,span),
+        () => { showTranscript(); el('tokens').focus(); }) : annotationInspector(view,doc,selected,save,changed, async span => {
         const ids = annotationDetail(doc,span,view.snapshot.project).tokenIds;
         const status = await revealSavedSource(doc, ids, () => transcript.revealAnnotation(span));
         if (status) message(status,true);
       });
       annotationDrafts.set(key,draft);
     }
-    const discard=document.createElement('button');discard.id='discard-annotation-drafts';discard.className='secondary';discard.textContent='Discard annotation drafts';
-    discard.hidden=discard.disabled=![...annotationDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]')!==null);
-    discard.onclick=()=>{annotationDrafts.clear();el('save-state').textContent=`Saved R${view.revision.id} - ${view.approved?'Approved exact revision':'Unreviewed'}`;void renderInspector()};content.append(discard,draft);
+    const discard=document.createElement('button');discard.id='discard-annotation-drafts';discard.className='secondary';discard.type='button';
+    updateAnnotationDiscard(discard);
+    discard.onclick=()=>{annotationDrafts.clear();draftStatus();void renderInspector()};
+    const actions = draft.querySelector('.meaning-actions');
+    if (actions) {
+      draft.querySelector('#discard-annotation-drafts')?.remove();
+      const another = actions.closest('.another-meaning');
+      if (another) another.after(discard);
+      else actions.append(discard);
+      content.append(draft);
+    } else content.append(discard,draft);
+    if (submittedMeaning) {
+      draft.querySelector<HTMLElement>(`[data-saved-meaning="${CSS.escape(submittedMeaning)}"]`)?.focus();
+    }
   }
   if([...tokenDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]')))el('save-state').textContent='Unsaved token draft - saved head R'+view.revision.id;
   if([...annotationDrafts.values(),...structuralDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]')!==null))el('save-state').textContent=( [...structuralDrafts.values()].some(e=>e.querySelector('form[data-dirty="true"]'))?'Unsaved structural draft - saved head R':'Unsaved annotation draft - saved head R')+view.revision.id;
@@ -657,22 +712,23 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
     } catch (error) { if (!panelSignal.aborted) message(String(error), true); }
   }
   if(tab==='definitions'){renderInto(content,
-    h.h2('Language definitions'),
+    h.h2('Spoken languages'),
     h.p
     .class('muted')
-    .children('Project labels need no external code. These definitions are versioned with the evidence.'),
+    .children('Add the languages and varieties people speak, such as isiXhosa or English.'),
+    h.button.id('open-meanings').class('secondary').attrs({type:'button'}).children('Open meaning labels'),
     h.form
     .id('definition-form')
-    .children(field('value', 'Value'), field('description', 'Description'), h.button('Save definition')),
-    h.ul(Object.entries(view.snapshot.config.language_values).map(([v, d]) => h.li(h.strong(v), ' — ', d))),
+    .children(field('value', 'Language or variety', '', 'e.g. isiXhosa'), field('description', 'Description (optional)'), h.button('Save language')),
+    h.ul(Object.entries(view.snapshot.config.language_values).map(([v, d]) => h.li(h.strong(v), d ? ' — ' + d : ''))),
     h.label(
-      'Inherited project default',
+      'Spoken language for otherwise unlabelled words',
       h.select.id('language-default').children(
         h.option.attrs({value: ''}).children('Unknown / no default'),
-        Object.entries(view.snapshot.config.language_values).map(([v, d]) =>
+        Object.keys(view.snapshot.config.language_values).map(v =>
           h.option
             .attrs({value: v, selected: v === view.snapshot.config.language_default ? '' : undefined})
-            .children(d || v),
+            .children(v),
         ),
       ),
     ),
@@ -681,7 +737,7 @@ async function renderInspector(committedRender=false){updatePaneAccessibility();
       h.summary('Layer constraints and schema'),
       h.pre(JSON.stringify(view.snapshot.config.layers, null, 2)),
     ),
-  );el<HTMLFormElement>('definition-form').onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await save([{kind:'define_language',value:v.value,description:v.description}],`Define language: ${v.value}`)};el('save-default').onclick=()=>void save([{kind:'set_language_default',value:el<HTMLSelectElement>('language-default').value||null}],'Set project language default');try{const panel=await teitokReaderInspector(view,save);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
+  );el('open-meanings').onclick=()=>void openPassageTool('meanings');el<HTMLFormElement>('definition-form').onsubmit=async e=>{e.preventDefault();const v=formValues(e.currentTarget as HTMLFormElement);await save([{kind:'define_language',value:v.value,description:v.description}],`Define language: ${v.value}`)};el('save-default').onclick=()=>void save([{kind:'set_language_default',value:el<HTMLSelectElement>('language-default').value||null}],'Set project language default');try{const panel=await teitokReaderInspector(view,save);if(epoch!==inspectorEpoch)return;content.append(panel)}catch(error){if(epoch!==inspectorEpoch)return;message(String(error),true)}}
   if(tab==='review'){content.append(reviewInspector(view, panelSignal));el<HTMLFormElement>('review-form').onsubmit=async e=>{e.preventDefault();if(saving||pendingWrite)return;if(transcript.dirty()||draftPanels().some(panel=>panel.querySelector('form[data-dirty="true"]'))){message('Save or discard annotation drafts and structural drafts before recording review. Token drafts must also be saved or reset.',true);return;}const basis=view;const v=formValues(e.currentTarget as HTMLFormElement);saving=true;++inspectorEpoch;const unlock=lockAuthoring();try{await api('/api/review',{revision:basis.revision.id,snapshot_hash:basis.revision.snapshot_hash,decision:v.decision,note:v.note});view=await loadView();message(`Review recorded for R${basis.revision.id}.`);render()}catch(e){message(String(e),true)}finally{saving=false;unlock()}};el('compiler-contract').onclick=async()=>{try{el('contract-preview').textContent=JSON.stringify(await api('/api/contract'),null,2)}catch(e){message(String(e),true)}};}
   if(tab==='research')content.append(researchInspector(view,{dirty:()=>{const state=departure();return state.dirty||state.saving||transcript.busy()},perform:performResearch,go:(next,source)=>{tab=next;if(next==='source'){sourcePath=source??doc.path;projectFiles.refresh()}showProperties();void renderInspector()}}));
   if(tab==='structure'){
@@ -832,6 +888,46 @@ async function revealSavedSource(doc: Document, ids: string[], reveal: () => boo
   return reveal() ? '' : 'The passage is unavailable in this view.';
 }
 
+async function showMeaningPassage(basis: View, path: string, saved: Span) {
+  if (saving || pendingWrite || transcript.busy() || transcript.dirty()) return;
+  if (basis.revision.id !== view.revision.id || basis.revision.snapshot_hash !== view.revision.snapshot_hash) return;
+  const doc = view.documents.find(item => item.path === path);
+  const span = doc?.spans.find(item => item.id === saved.id && item.sidecar === saved.sidecar);
+  const ids = doc && span ? annotationDetail(doc, span, view.snapshot.project).tokenIds : [];
+  if (!doc || !span || !ids.length) { message('The saved passage needs its source anchors reviewed.', true); return; }
+  if (currentDoc() !== doc) void switchDocument(doc.path);
+  const navigation = inspectorEpoch;
+  await transcript.passageReady;
+  if (navigation !== inspectorEpoch || currentDoc() !== doc || tab !== 'meanings') return;
+  const problem = await revealSavedSource(doc, ids, () => transcript.revealAnnotation(span));
+  if (problem) message(problem, true);
+}
+
+async function openPassageTool(name: string, anchor?: {start:number; end:number; quote:string}) {
+  if (saving || pendingWrite || transcript.busy() || !isInspectorView(name)) return;
+  tab = name;
+  showProperties();
+  if (name === 'meanings') app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open = false;
+  const ready = renderInspector();
+  const navigation = inspectorEpoch;
+  await ready;
+  if (navigation !== inspectorEpoch || tab !== name) return;
+  if (name === 'meanings') {
+    const panel = el('inspector-content');
+    (panel.querySelector<HTMLElement>('[data-saved-meaning], [name="meaning"], .choose-meaning-passage button, input[type="search"]') ?? panel).focus();
+  }
+  if (!anchor || name !== 'annotations') return;
+  const form = document.querySelector<HTMLFormElement>('#span-form');
+  if (!form || form.dataset.dirty === 'true') {
+    message('Existing annotation draft preserved. Inspect the selected character anchor before changing it.', true);
+    return;
+  }
+  for (const key of ['start','end','quote'] as const) (form.elements.namedItem(key) as HTMLInputElement).value = String(anchor[key]);
+  const details = form.querySelector('details');
+  if (details) details.open = true;
+  form.dispatchEvent(new Event('input',{bubbles:true}));
+}
+
 function openInspectorActivity(target:InspectorView|'source'){
   tab=target;
   app.querySelector<HTMLDetailsElement>('.inspector-tools')!.open=false;
@@ -847,7 +943,24 @@ function showProperties(){
   workspace.classList.remove('properties-folded');workspace.dataset.focus='properties';updatePaneAccessibility();
   if(fromCanvas){const inspector=el('properties-pane');inspector.scrollTop=0;inspector.tabIndex=-1;inspector.focus({preventScroll:true})}
 }
-function switchDocument(path:string){if(saving||pendingWrite||transcript.activeDraft()||transcript.busy()){message('Finish or undo the correction draft before switching documents. Your selection and recording remain here.',true);return}const audio=el<HTMLAudioElement>('audio');documentStates.set(docPath,{selected:[...selected],time:audio.currentTime,scroll:document.querySelector('.transcript')!.scrollTop});audio.pause();audio.removeAttribute('src');audio.load();audio.hidden=true;for(const id of ['listen-selected','loop-selection'])el<HTMLInputElement>(id).disabled=true;docPath=path;void recording.update(view,currentDoc(),undefined);const state=documentStates.get(path);selected=state?.selected??[];render();showTranscript();if(state)document.querySelector('.transcript')!.scrollTop=state.scroll}
+function switchDocument(path: string, passage?: string[]) {
+  if (saving || pendingWrite || transcript.activeDraft() || transcript.busy()) {
+    message('Finish or undo the correction draft before switching documents. Your selection and recording remain here.',true);
+    return;
+  }
+  const audio = el<HTMLAudioElement>('audio'), pane = document.querySelector<HTMLElement>('.transcript')!;
+  documentStates.set(docPath,{selected:[...selected],time:audio.currentTime,scroll:pane.scrollTop});
+  audio.pause();audio.removeAttribute('src');audio.load();audio.hidden=true;
+  for (const id of ['listen-selected','loop-selection']) el<HTMLInputElement>(id).disabled=true;
+  docPath = path;
+  void recording.update(view,currentDoc(),undefined);
+  const state = documentStates.get(path);
+  selected = passage ?? state?.selected ?? [];
+  const ready = render();
+  showTranscript();
+  if (state && !passage) pane.scrollTop=state.scroll;
+  return ready;
+}
 function workspaceSummary(){
   const doc = currentDoc();
   if (!openDocuments.includes(doc.path)) openDocuments.push(doc.path);

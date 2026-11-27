@@ -73,7 +73,7 @@ test('the stage tool chooser keeps the active tool visible after a keyboard sele
   await page.getByRole('button',{name:'Tools',exact:true}).click();
   const chooser=page.getByRole('navigation',{name:'Inspector',exact:true});
   const transcriptTools=chooser.getByRole('group',{name:'Transcript'});
-  const definitions=transcriptTools.getByRole('button',{name:'Definitions'});
+  const definitions=transcriptTools.getByRole('button',{name:'Spoken languages'});
   await definitions.focus();
   await definitions.press('ArrowRight');
   const split=transcriptTools.getByRole('button',{name:'Split / merge'});

@@ -45,7 +45,7 @@ async function mixed(page:Page){await exact(page,1,'fr');await exact(page,2,'en'
 async function search(page:Page,total:number){
   const response=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/search'&&r.request().method()==='POST');
   await page.getByRole('button',{name:'Search corpus',exact:true}).click();const received=await response;expect(received.ok()).toBe(true);
-  const envelope=await received.json();expect(envelope.result.total).toBe(total);await expect(page.locator('#corpus-search-status')).toContainText(`${total} hits`);return envelope;
+  const envelope=await received.json();expect(envelope.result.total).toBe(total);await expect(page.locator('#corpus-search-status')).toContainText(total === 1 ? '1 match' : total + ' matches');return envelope;
 }
 async function exported(page:Page){
   const downloading=page.waitForEvent('download');await page.getByRole('button',{name:'Export shown results (JSON)',exact:true}).click();
@@ -143,7 +143,7 @@ test('language choices stay bound to term positions across literal edits and bla
 test('override edits invalidate audio and pagination, retain bound export, and reject delayed search and hit responses',async({page})=>{
   await open(page);await mixed(page);await page.getByRole('combobox',{name:'Page size',exact:true}).selectOption('25');const first=await search(page,26);await expect(page.locator('.search-hit')).toHaveCount(25);
   await page.getByRole('button',{name:'Play utterance',exact:true}).first().click();await expect(page.locator('#search-audio')).toHaveAttribute('src',/revision=1$/);
-  await language(page,2).selectOption('any');await expect(page.getByRole('button',{name:'Open matched tokens',exact:true}).first()).toBeDisabled();await expect(page.getByRole('button',{name:'Play utterance',exact:true}).first()).toBeDisabled();await expect(page.getByRole('button',{name:'Next page',exact:true})).toBeDisabled();
+  await language(page,2).selectOption('any');await expect(page.getByRole('button',{name:'Show in transcript',exact:true}).first()).toBeDisabled();await expect(page.getByRole('button',{name:'Play utterance',exact:true}).first()).toBeDisabled();await expect(page.getByRole('button',{name:'Next page',exact:true})).toBeDisabled();
   await expect(page.locator('#search-audio')).not.toHaveAttribute('src');expect(await page.locator('#search-audio').evaluate((a:HTMLAudioElement)=>a.paused)).toBe(true);await expect(page.locator('#search-audio-basis')).toHaveText('');
   const retained=await exported(page);expect(retained.result_hash).toBe(first.result_hash);expect(retained.result.query.terms).toEqual(first.result.query.terms);
   await search(page,27);const paging=page.waitForResponse(r=>new URL(r.url()).pathname==='/api/search');await page.getByRole('button',{name:'Next page',exact:true}).click();const next=await(await paging).json();expect(next.result.query.offset).toBe(25);await expect(page.locator('.search-hit')).toHaveCount(2);
@@ -151,7 +151,7 @@ test('override edits invalidate audio and pagination, retain bound export, and r
   let release!:()=>void,arrived!:()=>void,delivered!:()=>void;const held=new Promise<void>(r=>release=r),started=new Promise<void>(r=>arrived=r),finished=new Promise<void>(r=>delivered=r);
   await page.route('**/api/search',async route=>{if(route.request().postDataJSON().terms[1].language!=='fr'){await route.continue();return}const response=await route.fetch();arrived();await held;await route.fulfill({response});delivered()});
   await exactLanguage(page,2).fill('fr');await page.getByRole('button',{name:'Search corpus',exact:true}).click();await started;await exactLanguage(page,2).fill('en');await search(page,26);release();await finished;
-  await expect(page.locator('#corpus-search-status')).toContainText('26 hits');await expect(page.locator('.search-hit')).toHaveCount(25);await page.unroute('**/api/search');
+  await expect(page.locator('#corpus-search-status')).toContainText('26 matches');await expect(page.locator('.search-hit')).toHaveCount(25);await page.unroute('**/api/search');
   let releaseHit!:()=>void,hitArrived!:()=>void,hitDelivered!:()=>void;const heldHit=new Promise<void>(r=>releaseHit=r),hitStarted=new Promise<void>(r=>hitArrived=r),hitFinished=new Promise<void>(r=>hitDelivered=r);
   await page.route('**/api/search/resolve',async route=>{const response=await route.fetch();hitArrived();await heldHit;await route.fulfill({response});hitDelivered()});
   await page.getByRole('button',{name:'Play utterance',exact:true}).first().click();await hitStarted;await language(page,2).selectOption('any');releaseHit();await hitFinished;
@@ -160,21 +160,21 @@ test('override edits invalidate audio and pagination, retain bound export, and r
 
 test('current stale guards and historical inspection, audio and export keep the exact per-term evidence binding',async({page})=>{
   const before=nativeView();await open(page);await mixed(page);await search(page,26);otherEdit();
-  await page.getByRole('button',{name:'Open matched tokens',exact:true}).first().click();await expect(page.locator('#corpus-search-status')).toContainText('stale');await expect(page.locator('#save-state')).toContainText('Saved R1');
-  await page.getByRole('button',{name:'Reload saved evidence',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Saved R2');await expect(page.getByRole('button',{name:'Open matched tokens',exact:true}).first()).toBeDisabled();await search(page,25);
+  await page.getByRole('button',{name:'Show in transcript',exact:true}).first().click();await expect(page.locator('#corpus-search-status')).toContainText('stale');await expect(page.locator('#save-state')).toContainText('Saved R1');
+  await page.getByRole('button',{name:'Reload saved evidence',exact:true}).click();await expect(page.locator('#save-state')).toContainText('Saved R2');await expect(page.getByRole('button',{name:'Show in transcript',exact:true}).first()).toBeDisabled();await search(page,25);
   await page.getByRole('combobox',{name:'Search evidence revision',exact:true}).selectOption('1');const historical=await search(page,26);
   expect(historical.result.binding.snapshot_hash).toBe(before.revision.snapshot_hash);expect(historical.result.query.terms).toEqual([{text:'bonjour',language:'fr'},{text:'world',language:'en'}]);
-  await page.getByRole('button',{name:'Inspect historical hit',exact:true}).first().click();await expect(page.locator('#historical-search-inspection')).toContainText('Historical R1');await expect(page.locator('#historical-search-inspection')).toContainText('"language": "fr"');await expect(page.locator('#historical-search-inspection')).toContainText('"language": "en"');await expect(page.locator('#save-state')).toContainText('Saved R2');
+  await page.getByRole('button',{name:'Inspect historical match',exact:true}).first().click();await expect(page.locator('#historical-search-inspection')).toContainText('Historical R1');await expect(page.locator('#historical-search-inspection')).toContainText('"language": "fr"');await expect(page.locator('#historical-search-inspection')).toContainText('"language": "en"');await expect(page.locator('#save-state')).toContainText('Saved R2');
   await page.getByRole('button',{name:'Play utterance',exact:true}).first().click();await expect(page.locator('#search-audio')).toHaveAttribute('src',/revision=1$/);await expect(page.locator('#search-audio-basis')).toContainText('Historical R1');await page.locator('#search-audio').evaluate((a:HTMLAudioElement)=>a.pause());
   expect(await exported(page)).toEqual(historical);expect(nativeView().documents[0].tokens[0].corrected).toBe('changed');
   await page.getByRole('combobox',{name:'Search evidence revision',exact:true}).selectOption('current');await page.getByRole('combobox',{name:'Search reading',exact:true}).selectOption('original');await search(page,26);
-  await page.getByRole('button',{name:'Open matched tokens',exact:true}).first().click();await expect(page.locator('[data-token="a0"]')).toHaveClass(/selected/);await expect(page.locator('[data-token="z0"]')).toHaveClass(/selected/);await expect(page.locator('#reading-layer')).toHaveValue('original');
+  await page.getByRole('button',{name:'Show in transcript',exact:true}).first().click();await expect(page.locator('[data-token="a0"]')).toHaveClass(/selected/);await expect(page.locator('[data-token="z0"]')).toHaveClass(/selected/);await expect(page.locator('#reading-layer')).toHaveValue('original');
 });
 
 test('per-term language search navigation preserves authoring drafts and refuses evidence reload while a draft exists',async({page})=>{
   await page.goto('/#session='+code);await page.locator('[data-token="a0"]').click();await page.getByLabel('Human-corrected reading',{exact:true}).fill('Protected language draft');
   await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByLabel('Exact token sequence',{exact:true}).fill('bonjour\nworld');await page.locator('.search-options > summary').click();await page.locator('.search-term-languages > summary').click();await exact(page,1,'fr');await language(page,2).selectOption('any');await search(page,27);
-  await page.getByRole('button',{name:'Open matched tokens',exact:true}).last().click();await expect(page.locator('#document-title')).toHaveText('SYNTHETIC language controls');
+  await page.getByRole('button',{name:'Show in transcript',exact:true}).last().click();await expect(page.locator('#document-title')).toHaveText('SYNTHETIC language controls');
   await page.locator('[data-document="xmlfiles/a.xml"]').click();await page.locator('[data-token="a0"]').click();await expect(page.getByLabel('Human-corrected reading',{exact:true})).toHaveValue('Protected language draft');
   otherEdit();await page.getByRole('button',{name:'Corpus search',exact:true}).click();await page.getByRole('button',{name:'Reload saved evidence',exact:true}).click();await expect(page.locator('#corpus-search-status')).toContainText('Save or discard authoring drafts');
   await page.getByRole('button',{name:'Token',exact:true}).click();await expect(page.getByLabel('Human-corrected reading',{exact:true})).toHaveValue('Protected language draft');expect(nativeView().revision.id).toBe(2);

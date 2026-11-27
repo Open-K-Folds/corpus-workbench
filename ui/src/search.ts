@@ -12,7 +12,7 @@ export type {SearchHit, SearchQuery} from './search-contract';
 type SpanConstraint = NonNullable<SearchQuery['span']>;
 interface Resolved {binding:SearchResponse['result']['binding'];hit:SearchHit;historical:boolean}
 export interface SearchPanel {element:HTMLElement;update:(view:View)=>void;pause:()=>void}
-export function corpusSearch(initial:View,open:(binding:SearchResponse['result']['binding'],hit:SearchHit,reading:SearchQuery['reading'])=>void,refresh:()=>Promise<View>, signal: AbortSignal):SearchPanel {
+export function corpusSearch(initial:View,open:(binding:SearchResponse['result']['binding'],hit:SearchHit,reading:SearchQuery['reading'])=>Promise<void>,refresh:()=>Promise<View>, signal: AbortSignal):SearchPanel {
   const panel=document.createElement('section');panel.className='search-panel';
   renderInto(panel,
     h.h2('Corpus search'),
@@ -321,7 +321,7 @@ export function corpusSearch(initial:View,open:(binding:SearchResponse['result']
               .attrs({type: 'button', 'data-hit': String(index)})
               .children(
                 icon(historical ? 'history' : 'link'),
-                historical ? 'Inspect historical hit' : 'Open matched tokens',
+                historical ? 'Inspect historical match' : 'Show in transcript',
               ),
             hit.audio
               ? h.button
@@ -390,7 +390,7 @@ export function corpusSearch(initial:View,open:(binding:SearchResponse['result']
             h.pre(JSON.stringify({matched: resolved.hit.matched, spans: resolved.hit.spans ?? []}, null, 2)),
             h.p.class('muted').children('Current authoring remains on saved R', String(view.revision.id), '.'),
           );
-        } else {open(resolved.binding,resolved.hit,r.query.reading)}
+        } else {await open(resolved.binding,resolved.hit,r.query.reading)}
       }catch(error){if(intent===action&&panel.isConnected){notice(String(error));audio.pause()}}
     });
   }

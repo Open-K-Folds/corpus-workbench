@@ -1,0 +1,52 @@
+.meanings-panel {min-inline-size:0}
+.meanings-panel h2 {margin-block:0 .9rem}
+#meaning-form {display:grid;grid-template-columns:minmax(0,1fr);gap:.65rem}
+#meaning-form label,.meaning-library label {display:grid;gap:.35rem;margin:0}
+#meaning-form blockquote,.saved-meaning blockquote {
+  margin:0 0 .25rem;padding:.5rem .8rem;border-inline-start:3px solid var(--accent);
+  font:500 1rem/1.5 var(--font-mono);overflow-wrap:anywhere;white-space:pre-line;
+}
+#meaning-form > button {justify-self:start}
+.meaning-actions {display:flex;align-items:center;flex-wrap:wrap;gap:.45rem}
+.meaning-dictionary {color:var(--muted);font-size:.9rem}
+.dictionary-status:empty {display:none}
+.dictionary-gloss {margin:0 0 .35rem;overflow-wrap:anywhere}
+.meaning-dictionary summary {cursor:pointer;color:var(--accent)}
+.meaning-dictionary details[open] > * + * {margin-block-start:.6rem}
+.meaning-dictionary select {max-width:100%;min-width:0}
+.meaning-dictionary a {color:var(--muted)}
+.meanings-panel h3 {padding-top:1rem;margin-top:1.25rem;border-top:1px solid var(--border)}
+.saved-meanings {
+  padding:.75rem .85rem;border:1px solid var(--border);border-radius:.5rem;
+  background:var(--paper);overflow-wrap:anywhere;
+}
+.saved-meanings h3 {
+  display:flex;align-items:center;gap:.35rem;margin:0;padding:0;border:0;
+  color:var(--accent);font-size:.9rem;
+}
+.saved-meaning {display:grid;gap:.4rem;justify-items:start;padding-block-start:.6rem}
+.saved-meaning + .saved-meaning {margin-block-start:.75rem;border-block-start:1px solid var(--border)}
+.saved-meaning > strong {font-size:1.1rem;max-inline-size:100%}
+.saved-meaning blockquote {margin:0;padding-block:.15rem;font-weight:400}
+.saved-meaning-note {margin:0;white-space:pre-line}
+.saved-dictionary:empty {display:none}
+.saved-dictionary ol {padding-inline-start:1.25rem;margin-block:.3rem}
+.saved-dictionary small,.saved-dictionary a {color:var(--muted)}
+.another-meaning {margin-block:.55rem}
+.saved-dictionary summary,.another-meaning > summary {color:var(--accent);cursor:pointer;align-content:center;min-height:36px}
+.another-meaning[open] > summary {margin-block-end:.45rem}
+.another-meaning ~ .meaning-library {margin-block-start:1rem}
+.meaning-library ul {padding:0;margin:.6rem 0;list-style:none}
+.meaning-library ul:empty,.meaning-match-count:empty {display:none}
+#inspector-content .meaning-passage {
+  display:grid;grid-template-columns:minmax(0,1fr);justify-content:stretch;justify-items:start;gap:.18rem;width:100%;margin:0;padding:.65rem 0;text-align:start;
+  border:0;border-radius:0;border-bottom:1px solid var(--border);background:transparent;color:var(--ink);
+  overflow-wrap:anywhere;
+}
+.meaning-passage strong {color:var(--accent)}
+.meaning-passage span {font-family:var(--font-mono)}
+.meaning-passage small,.meaning-match-count {color:var(--muted);font-size:.85rem}
+.meaning-dictionary summary,#meaning-form button {min-height:36px;align-content:center}
+@media (pointer:coarse) {
+  #inspector-content .meanings-panel :is(input,button,select,summary) {min-height:44px}
+}

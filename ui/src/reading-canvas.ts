@@ -18,6 +18,10 @@ export function stageControls() {
           icon('notes'),
           h.span.class('canvas-passage-excerpt').attrs({dir: 'auto'}),
           h.button
+            .id('dock-label-meaning')
+            .attrs({type: 'button', 'aria-label': 'Label meaning of selected passage'})
+            .children('Label meaning'),
+          h.button
             .id('dock-listen-passage')
             .attrs({type: 'button', 'aria-label': 'Listen to selected passage'})
             .children(icon('headphones'), h.span('Listen')),

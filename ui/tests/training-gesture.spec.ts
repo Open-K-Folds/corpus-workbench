@@ -133,8 +133,9 @@ test('keyboard and touch-sized controls can label an identical selected passage 
   await page.goto(practiceUrl);
   await selectTurn(page);
   await page.keyboard.press('Shift+F10');
-  await expect(page.getByRole('button',{name:'Language',exact:true})).toBeFocused();
-  const trigger=page.getByRole('button',{name:'Training lenses',exact:true});
+  const toolbar=page.getByRole('toolbar',{name:'Selection tools'});
+  await expect(toolbar.locator('button:enabled').first()).toBeFocused();
+  const trigger=toolbar.getByRole('button',{name:'Training lenses',exact:true});
   // The toolbar uses native tabbable buttons after its first focused command.
   for(let i=0;i<12&&!await trigger.evaluate(node=>node===document.activeElement);i++)await page.keyboard.press('Tab');
   await expect(trigger).toBeFocused();await page.keyboard.press('Enter');

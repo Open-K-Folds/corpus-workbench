@@ -36,7 +36,8 @@ export const CorpusSearch = Html.component({name: 'CorpusSearch', props: Head, m
       if (generation !== $.model.generation) return $.model;
       const r = response.result, q = r.query;
       const stale = outOfDate($.model.head, response);
-      const status = r.total + ' hits · ' + (q.mode === 'historical' ? 'Historical' : 'Saved') + ' R' + r.binding.revision +
+      const matches = r.total === 1 ? '1 match' : r.total + ' matches';
+      const status = matches + ' · ' + (q.mode === 'historical' ? 'Historical' : 'Saved') + ' R' + r.binding.revision +
         ' · ' + q.reading + ' reading' + (q.span ? ' · span ' + q.span.field + ' = ' + JSON.stringify(q.span.value) : '') +
         (stale ? ' · stale against saved head; search again' : '');
       return $.evolve({response, changed: false, pending: false, status}).emit(Event.Display({response}), Event.Availability({enabled: !stale}));

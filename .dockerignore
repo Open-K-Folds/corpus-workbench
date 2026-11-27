@@ -33,6 +33,11 @@ ui/**
 !ui/public/third-party/material-symbols/**
 !ui/public/third-party/jetbrains-mono/
 !ui/public/third-party/jetbrains-mono/**
+!ui/public/third-party/english-wordnet-2025/
+!ui/public/third-party/english-wordnet-2025/*.json.gz
+!ui/public/third-party/english-wordnet-2025/README.md
+!ui/public/third-party/english-wordnet-2025/LICENSE.md
+!ui/public/third-party/english-wordnet-2025/WNDB_License.txt
 !desktop/
 desktop/**
 !desktop/coanalysis-prompt.mjs
@@ -46,6 +51,7 @@ fixtures/**
 !scripts/
 scripts/**
 !scripts/prepare-synthetic.py
+!scripts/prepare-english-wordnet.py
 !scripts/container-inventory.py
 !scripts/build-containers.py
 !scripts/container-smoke.py

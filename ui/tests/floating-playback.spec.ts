@@ -74,7 +74,7 @@ test.describe('touch passage controls', () => {
       const context = dock.locator('#canvas-passage-context');
       await expect(context.locator('.canvas-passage-excerpt')).toContainText('twice');
 
-      for (const id of ['dock-listen-passage', 'dock-analyze-passage']) {
+      for (const id of ['dock-label-meaning', 'dock-listen-passage', 'dock-analyze-passage']) {
         const action = dock.locator('#' + id);
         await expect(action).toBeInViewport({ratio:1});
         const box = (await action.boundingBox())!;
